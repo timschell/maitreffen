@@ -18,6 +18,7 @@
             --text-muted: #666;
             --bed-free: #7cb564;
             --bed-booked: #d96459;
+            --bed-blocked: #9e9e9e;
             --accent: #5a9a48;
             --accent-light: #e8f4e8;
         }
@@ -128,6 +129,7 @@
 
         .stat-dot.free { background: var(--bed-free); }
         .stat-dot.booked { background: var(--bed-booked); }
+        .stat-dot.blocked { background: var(--bed-blocked); }
 
         .stat-value { font-weight: 700; }
 
@@ -246,6 +248,18 @@
             border-color: #b84a40;
         }
 
+        .bed-card.blocked {
+            background: var(--bed-blocked);
+            border-color: #757575;
+            background-image: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255,255,255,0.1) 10px,
+                rgba(255,255,255,0.1) 20px
+            );
+        }
+
         .bed-card:active {
             transform: scale(0.97);
         }
@@ -266,6 +280,12 @@
             color: white;
             font-size: 0.95rem;
             word-break: break-word;
+        }
+
+        .bed-blocked-info {
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.7);
+            margin-top: 0.2rem;
         }
 
         /* Room Summary */
@@ -293,6 +313,7 @@
 
         .room-stat-dot.free { background: var(--bed-free); }
         .room-stat-dot.booked { background: var(--bed-booked); }
+        .room-stat-dot.blocked { background: var(--bed-blocked); }
 
         /* Modal */
         .modal-overlay {
@@ -356,6 +377,44 @@
             border-color: var(--accent); 
         }
 
+        .checkbox-wrapper {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper:hover {
+            background: #efefef;
+        }
+
+        .checkbox-wrapper input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-top: 2px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            flex: 1;
+        }
+
+        .checkbox-label-main {
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 0.2rem;
+        }
+
+        .checkbox-label-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
         .modal-buttons {
             display: flex;
             gap: 0.75rem;
@@ -396,6 +455,25 @@
         .current-guest-name { 
             font-weight: 600; 
             color: var(--text-dark);
+        }
+
+        .blocked-info {
+            background: #fff3e0;
+            border: 1px solid #ffcc80;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .blocked-info-title {
+            font-weight: 600;
+            color: #e65100;
+            margin-bottom: 0.25rem;
+        }
+
+        .blocked-info-text {
+            font-size: 0.85rem;
+            color: #bf360c;
         }
 
         /* Info Section */
@@ -489,6 +567,13 @@
         const BEDS = generateBeds();
         const TOTAL_SLOTS = Object.keys(BEDS).length; // 25
 
+        // Hilfsfunktion: Alle Bett-IDs eines Zimmers
+        const getRoomBedIds = (roomId) => {
+            const room = ROOMS.find(r => r.id === roomId);
+            if (!room) return [];
+            return Array.from({ length: room.beds }, (_, i) => `zi${roomId}-bett${i + 1}`);
+        };
+
         function App() {
             const [bookings, setBookings] = useState({});
             const [loading, setLoading] = useState(true);
@@ -497,6 +582,7 @@
             const [modalOpen, setModalOpen] = useState(false);
             const [selectedBed, setSelectedBed] = useState(null);
             const [inputName, setInputName] = useState("");
+            const [blockRoom, setBlockRoom] = useState(false);
             const [activeFloor, setActiveFloor] = useState('eg');
 
             useEffect(() => { loadBookings(); }, []);
@@ -520,7 +606,8 @@
             const handleBedClick = (bedId) => {
                 setSelectedBed(bedId);
                 const booking = bookings[bedId];
-                setInputName(booking?.name || "");
+                setInputName(booking?.name?.replace(/^🔒\s*/, '') || "");
+                setBlockRoom(false);
                 setModalOpen(true);
             };
 
@@ -529,10 +616,17 @@
                 setSaving(true);
                 setError(null);
                 try {
+                    const roomId = BEDS[selectedBed].roomId;
+                    const roomBeds = getRoomBedIds(roomId);
+                    
                     const response = await fetch(`${API_URL}/bookings/${selectedBed}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: inputName.trim() })
+                        body: JSON.stringify({ 
+                            name: inputName.trim(),
+                            blockRoom: blockRoom,
+                            roomBeds: roomBeds
+                        })
                     });
                     if (!response.ok) throw new Error('Speichern fehlgeschlagen');
                     await loadBookings();
@@ -560,40 +654,86 @@
                 }
             };
 
+            const handleUnblock = async () => {
+                if (saving) return;
+                setSaving(true);
+                setError(null);
+                try {
+                    const response = await fetch(`${API_URL}/bookings/${selectedBed}/unblock`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('Freigeben fehlgeschlagen');
+                    await loadBookings();
+                    closeModal();
+                } catch (err) {
+                    setError('Freigabe fehlgeschlagen.');
+                } finally {
+                    setSaving(false);
+                }
+            };
+
             const closeModal = () => {
                 setModalOpen(false);
                 setSelectedBed(null);
                 setInputName("");
+                setBlockRoom(false);
             };
 
-            const countBooked = () => Object.keys(bookings).length;
-            const bookedCount = countBooked();
-            const freeCount = TOTAL_SLOTS - bookedCount;
+            const countStats = () => {
+                let booked = 0;
+                let blocked = 0;
+                Object.values(bookings).forEach(b => {
+                    if (b.status === 'blocked') blocked++;
+                    else booked++;
+                });
+                return { booked, blocked, free: TOTAL_SLOTS - booked - blocked };
+            };
+
+            const stats = countStats();
 
             const getRoomStats = (roomId) => {
                 const room = ROOMS.find(r => r.id === roomId);
                 let booked = 0;
+                let blocked = 0;
                 for (let i = 1; i <= room.beds; i++) {
-                    if (bookings[`zi${roomId}-bett${i}`]) booked++;
+                    const booking = bookings[`zi${roomId}-bett${i}`];
+                    if (booking) {
+                        if (booking.status === 'blocked') blocked++;
+                        else booked++;
+                    }
                 }
-                return { booked, free: room.beds - booked, total: room.beds };
+                return { booked, blocked, free: room.beds - booked - blocked, total: room.beds };
             };
 
             const filteredRooms = ROOMS.filter(room => room.floor === activeFloor);
 
-            const egCount = ROOMS.filter(r => r.floor === 'eg').reduce((sum, r) => {
-                const stats = getRoomStats(r.id);
-                return sum + stats.free;
-            }, 0);
+            const getFloorFreeCount = (floor) => {
+                return ROOMS.filter(r => r.floor === floor).reduce((sum, r) => {
+                    const s = getRoomStats(r.id);
+                    return sum + s.free;
+                }, 0);
+            };
 
-            const ogCount = ROOMS.filter(r => r.floor === 'og').reduce((sum, r) => {
-                const stats = getRoomStats(r.id);
-                return sum + stats.free;
-            }, 0);
+            // Prüfe ob es freie Betten im Zimmer gibt (für Checkbox Anzeige)
+            const hasFreeBeds = () => {
+                if (!selectedBed) return false;
+                const roomId = BEDS[selectedBed].roomId;
+                const roomBeds = getRoomBedIds(roomId);
+                return roomBeds.some(bedId => bedId !== selectedBed && !bookings[bedId]);
+            };
+
+            // Finde den Namen der blockierenden Person
+            const getBlockerName = (booking) => {
+                if (!booking || !booking.blockedBy) return null;
+                const blockerBooking = bookings[booking.blockedBy];
+                return blockerBooking?.name || null;
+            };
 
             if (loading) {
                 return <div className="app"><div className="loading">🌳 Lade Buchungen...</div></div>;
             }
+
+            const selectedBooking = selectedBed ? bookings[selectedBed] : null;
+            const isBlocked = selectedBooking?.status === 'blocked';
+            const isBooked = selectedBooking && !isBlocked;
 
             return (
                 <div className="app">
@@ -608,15 +748,18 @@
                         <div className="stats">
                             <div className="stat">
                                 <div className="stat-dot free"></div>
-                                <span><span className="stat-value">{freeCount}</span> frei</span>
+                                <span><span className="stat-value">{stats.free}</span> frei</span>
                             </div>
                             <div className="stat">
                                 <div className="stat-dot booked"></div>
-                                <span><span className="stat-value">{bookedCount}</span> belegt</span>
+                                <span><span className="stat-value">{stats.booked}</span> belegt</span>
                             </div>
-                            <div className="stat">
-                                <span><span className="stat-value">{TOTAL_SLOTS}</span> Betten</span>
-                            </div>
+                            {stats.blocked > 0 && (
+                                <div className="stat">
+                                    <div className="stat-dot blocked"></div>
+                                    <span><span className="stat-value">{stats.blocked}</span> blockiert</span>
+                                </div>
+                            )}
                         </div>
                     </header>
 
@@ -626,20 +769,20 @@
                             className={`floor-tab ${activeFloor === 'eg' ? 'active' : ''}`}
                             onClick={() => setActiveFloor('eg')}
                         >
-                            Erdgeschoss ({egCount} frei)
+                            Erdgeschoss ({getFloorFreeCount('eg')} frei)
                         </button>
                         <button 
                             className={`floor-tab ${activeFloor === 'og' ? 'active' : ''}`}
                             onClick={() => setActiveFloor('og')}
                         >
-                            Obergeschoss ({ogCount} frei)
+                            Obergeschoss ({getFloorFreeCount('og')} frei)
                         </button>
                     </div>
 
                     {/* Zimmer Cards */}
                     <div className="rooms-grid">
                         {filteredRooms.map(room => {
-                            const stats = getRoomStats(room.id);
+                            const roomStats = getRoomStats(room.id);
                             return (
                                 <div key={room.id} className="room-card">
                                     <div className="room-header">
@@ -654,18 +797,26 @@
                                         {Array.from({ length: room.beds }, (_, i) => {
                                             const bedId = `zi${room.id}-bett${i + 1}`;
                                             const booking = bookings[bedId];
-                                            const isBooked = !!booking;
+                                            const isBooked = booking && booking.status !== 'blocked';
+                                            const isBlocked = booking?.status === 'blocked';
                                             return (
                                                 <div 
                                                     key={bedId}
-                                                    className={`bed-card ${isBooked ? 'booked' : ''}`}
+                                                    className={`bed-card ${isBooked ? 'booked' : ''} ${isBlocked ? 'blocked' : ''}`}
                                                     onClick={() => handleBedClick(bedId)}
                                                 >
-                                                    <div className="bed-icon">{isBooked ? '😴' : '🛏️'}</div>
+                                                    <div className="bed-icon">
+                                                        {isBlocked ? '🔒' : (isBooked ? '😴' : '🛏️')}
+                                                    </div>
                                                     <div className="bed-label">Bett {i + 1}</div>
                                                     <div className="bed-name">
-                                                        {isBooked ? booking.name : 'Frei'}
+                                                        {isBlocked ? 'Blockiert' : (isBooked ? booking.name : 'Frei')}
                                                     </div>
+                                                    {isBlocked && booking.blockedBy && (
+                                                        <div className="bed-blocked-info">
+                                                            von {bookings[booking.blockedBy]?.name || '?'}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -673,12 +824,18 @@
                                     <div className="room-summary">
                                         <div className="room-stat">
                                             <div className="room-stat-dot free"></div>
-                                            <span>{stats.free} frei</span>
+                                            <span>{roomStats.free} frei</span>
                                         </div>
                                         <div className="room-stat">
                                             <div className="room-stat-dot booked"></div>
-                                            <span>{stats.booked} belegt</span>
+                                            <span>{roomStats.booked} belegt</span>
                                         </div>
+                                        {roomStats.blocked > 0 && (
+                                            <div className="room-stat">
+                                                <div className="room-stat-dot blocked"></div>
+                                                <span>{roomStats.blocked} blockiert</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -693,6 +850,7 @@
                             <strong>Erdgeschoss:</strong> 3 Zimmer mit eigenem Bad (Zi 2 ist barrierefrei)<br/>
                             <strong>Obergeschoss:</strong> 6 Zimmer mit 2 Gemeinschaftsbädern<br/><br/>
                             🛏️ <strong>Bettwäsche ist mitzubringen</strong> oder kann für 8,50 € ausgeliehen werden.<br/><br/>
+                            🔒 <strong>Tipp:</strong> Du kannst beim Buchen die restlichen Betten im Zimmer blockieren.<br/><br/>
                             📍 Kirchstraße 7, 15757 Halbe<br/>
                             🌐 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">www.freizeitheim-halbe.de</a>
                         </p>
@@ -703,44 +861,92 @@
                         <div className="modal-overlay" onClick={closeModal}>
                             <div className="modal" onClick={e => e.stopPropagation()}>
                                 <div className="modal-handle"></div>
-                                <h2>{bookings[selectedBed] ? '📝 Bearbeiten' : '✨ Reservieren'}</h2>
-                                <p className="modal-room">
-                                    {BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}
-                                </p>
+                                
+                                {isBlocked ? (
+                                    // Blockiertes Bett Modal
+                                    <>
+                                        <h2>🔒 Blockiert</h2>
+                                        <p className="modal-room">
+                                            {BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}
+                                        </p>
+                                        
+                                        <div className="blocked-info">
+                                            <div className="blocked-info-title">Dieses Bett ist blockiert</div>
+                                            <div className="blocked-info-text">
+                                                Blockiert von: {getBlockerName(selectedBooking) || 'Unbekannt'}
+                                            </div>
+                                        </div>
 
-                                {bookings[selectedBed] && (
-                                    <div className="current-guest">
-                                        <div className="current-guest-label">Aktuell gebucht:</div>
-                                        <div className="current-guest-name">{bookings[selectedBed].name}</div>
-                                    </div>
+                                        <div className="modal-buttons">
+                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>
+                                                Schließen
+                                            </button>
+                                            <button className="btn btn-danger" onClick={handleUnblock} disabled={saving}>
+                                                {saving ? '...' : 'Freigeben'}
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    // Normale Buchung Modal
+                                    <>
+                                        <h2>{isBooked ? '📝 Bearbeiten' : '✨ Reservieren'}</h2>
+                                        <p className="modal-room">
+                                            {BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}
+                                        </p>
+
+                                        {isBooked && (
+                                            <div className="current-guest">
+                                                <div className="current-guest-label">Aktuell gebucht:</div>
+                                                <div className="current-guest-name">{selectedBooking.name}</div>
+                                            </div>
+                                        )}
+
+                                        <input
+                                            type="text"
+                                            className="modal-input"
+                                            placeholder="Dein Name"
+                                            value={inputName}
+                                            onChange={e => setInputName(e.target.value)}
+                                            autoFocus
+                                            disabled={saving}
+                                            onKeyDown={e => e.key === 'Enter' && handleBook()}
+                                            autoComplete="name"
+                                            autoCapitalize="words"
+                                        />
+
+                                        {/* Zimmer blockieren Checkbox - nur bei neuer Buchung und wenn freie Betten */}
+                                        {!isBooked && hasFreeBeds() && (
+                                            <label className="checkbox-wrapper" onClick={() => setBlockRoom(!blockRoom)}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={blockRoom}
+                                                    onChange={e => setBlockRoom(e.target.checked)}
+                                                    onClick={e => e.stopPropagation()}
+                                                />
+                                                <div className="checkbox-label">
+                                                    <div className="checkbox-label-main">🔒 Restliche Betten blockieren</div>
+                                                    <div className="checkbox-label-sub">
+                                                        Andere können dann nicht in dieses Zimmer buchen
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        )}
+
+                                        <div className="modal-buttons">
+                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>
+                                                Abbrechen
+                                            </button>
+                                            {isBooked && (
+                                                <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>
+                                                    {saving ? '...' : 'Stornieren'}
+                                                </button>
+                                            )}
+                                            <button className="btn btn-primary" onClick={handleBook} disabled={saving || !inputName.trim()}>
+                                                {saving ? '...' : (isBooked ? 'Ändern' : 'Buchen')}
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
-
-                                <input
-                                    type="text"
-                                    className="modal-input"
-                                    placeholder="Dein Name"
-                                    value={inputName}
-                                    onChange={e => setInputName(e.target.value)}
-                                    autoFocus
-                                    disabled={saving}
-                                    onKeyDown={e => e.key === 'Enter' && handleBook()}
-                                    autoComplete="name"
-                                    autoCapitalize="words"
-                                />
-
-                                <div className="modal-buttons">
-                                    <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>
-                                        Abbrechen
-                                    </button>
-                                    {bookings[selectedBed] && (
-                                        <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>
-                                            {saving ? '...' : 'Stornieren'}
-                                        </button>
-                                    )}
-                                    <button className="btn btn-primary" onClick={handleBook} disabled={saving || !inputName.trim()}>
-                                        {saving ? '...' : (bookings[selectedBed] ? 'Ändern' : 'Buchen')}
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     )}

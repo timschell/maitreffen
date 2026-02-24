@@ -21,14 +21,30 @@ app.use(express.static('public'));
 async function initDB() {
   const client = await pool.connect();
   try {
+    // Tabelle erstellen falls nicht vorhanden
     await client.query(`
       CREATE TABLE IF NOT EXISTS bookings (
         id SERIAL PRIMARY KEY,
         bed_id VARCHAR(50) UNIQUE NOT NULL,
         name VARCHAR(100) NOT NULL,
-        booked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        booked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'booked',
+        blocked_by VARCHAR(50) DEFAULT NULL
       )
     `);
+    
+    // Status-Spalte hinzufügen falls nicht vorhanden (für bestehende DBs)
+    await client.query(`
+      ALTER TABLE bookings 
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'booked'
+    `);
+    
+    // blocked_by-Spalte hinzufügen falls nicht vorhanden
+    await client.query(`
+      ALTER TABLE bookings 
+      ADD COLUMN IF NOT EXISTS blocked_by VARCHAR(50) DEFAULT NULL
+    `);
+    
     console.log('✅ Datenbank-Tabelle bereit');
   } catch (err) {
     console.error('❌ Fehler beim Initialisieren der Datenbank:', err.message);
@@ -52,7 +68,9 @@ app.get('/api/bookings', async (req, res) => {
     result.rows.forEach(row => {
       bookings[row.bed_id] = {
         name: row.name,
-        bookedAt: row.booked_at
+        bookedAt: row.booked_at,
+        status: row.status || 'booked',
+        blockedBy: row.blocked_by
       };
     });
     res.json(bookings);
@@ -65,24 +83,49 @@ app.get('/api/bookings', async (req, res) => {
 // Buchung erstellen/aktualisieren
 app.post('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
-  const { name } = req.body;
+  const { name, blockRoom, roomBeds } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
 
+  const client = await pool.connect();
+  
   try {
-    await pool.query(`
-      INSERT INTO bookings (bed_id, name, booked_at)
-      VALUES ($1, $2, CURRENT_TIMESTAMP)
+    await client.query('BEGIN');
+    
+    // Hauptbuchung erstellen
+    await client.query(`
+      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by)
+      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL)
       ON CONFLICT (bed_id) 
-      DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP
+      DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL
     `, [bedId, name.trim()]);
     
+    // Wenn blockRoom aktiviert ist, restliche Betten blockieren
+    if (blockRoom && roomBeds && Array.isArray(roomBeds)) {
+      for (const otherBedId of roomBeds) {
+        if (otherBedId !== bedId) {
+          // Nur blockieren wenn das Bett noch frei ist
+          const existing = await client.query('SELECT * FROM bookings WHERE bed_id = $1', [otherBedId]);
+          if (existing.rows.length === 0) {
+            await client.query(`
+              INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by)
+              VALUES ($1, $2, CURRENT_TIMESTAMP, 'blocked', $3)
+            `, [otherBedId, `🔒 ${name.trim()}`, bedId]);
+          }
+        }
+      }
+    }
+    
+    await client.query('COMMIT');
     res.json({ success: true, bedId, name });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Fehler beim Speichern der Buchung:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
   }
 });
 
@@ -90,11 +133,38 @@ app.post('/api/bookings/:bedId', async (req, res) => {
 app.delete('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
 
+  const client = await pool.connect();
+  
   try {
-    await pool.query('DELETE FROM bookings WHERE bed_id = $1', [bedId]);
+    await client.query('BEGIN');
+    
+    // Auch alle Betten löschen, die von dieser Buchung blockiert wurden
+    await client.query('DELETE FROM bookings WHERE blocked_by = $1', [bedId]);
+    
+    // Hauptbuchung löschen
+    await client.query('DELETE FROM bookings WHERE bed_id = $1', [bedId]);
+    
+    await client.query('COMMIT');
     res.json({ success: true, bedId });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Fehler beim Löschen der Buchung:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// Einzelnes blockiertes Bett freigeben
+app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
+  const { bedId } = req.params;
+
+  try {
+    // Nur löschen wenn es ein blockiertes Bett ist
+    await pool.query("DELETE FROM bookings WHERE bed_id = $1 AND status = 'blocked'", [bedId]);
+    res.json({ success: true, bedId });
+  } catch (err) {
+    console.error('Fehler beim Freigeben:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });
