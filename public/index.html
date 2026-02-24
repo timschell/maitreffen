@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Maitreffen – Zimmerbuchung</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #e8f0e8;
+            --bg-paper: #fffef9;
+            --text-dark: #2c2c2c;
+            --text-muted: #666;
+            --bed-free: #7cb564;
+            --bed-booked: #d96459;
+            --accent: #5a9a48;
+            --accent-light: #e8f4e8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { 
+            font-size: 16px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-dark);
+            min-height: 100vh;
+        }
+
+        .app {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 50vh;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+
+        .error-banner {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c00;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 1.25rem;
+            padding: 1.5rem 1rem;
+            background: var(--bg-paper);
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border: 1px solid #d5e5d5;
+        }
+
+        h1 {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.8rem;
+            color: var(--accent);
+            margin-bottom: 0.25rem;
+        }
+
+        .subtitle { 
+            color: var(--text-muted); 
+            font-size: 0.9rem; 
+        }
+
+        .location {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            background: var(--accent-light);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--accent);
+        }
+
+        .location a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .location a:hover {
+            text-decoration: underline;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 1.25rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.9rem;
+        }
+
+        .stat-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+        }
+
+        .stat-dot.free { background: var(--bed-free); }
+        .stat-dot.booked { background: var(--bed-booked); }
+
+        .stat-value { font-weight: 700; }
+
+        /* Etagen-Tabs */
+        .floor-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            background: var(--bg-paper);
+            padding: 0.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .floor-tab {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .floor-tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .floor-tab:not(.active):hover {
+            background: var(--accent-light);
+        }
+
+        /* Zimmer Grid */
+        .rooms-grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .room-card {
+            background: var(--bg-paper);
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #e8e8e8;
+        }
+
+        .room-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .room-title {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.3rem;
+            color: var(--text-dark);
+        }
+
+        .room-badges {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .room-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .room-badge.bath {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .room-badge.accessible {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .room-badge.shared {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .beds-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .bed-card {
+            background: var(--bed-free);
+            border: 2px solid #5a9a48;
+            border-radius: 10px;
+            padding: 0.875rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            min-height: 75px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .bed-card.booked {
+            background: var(--bed-booked);
+            border-color: #b84a40;
+        }
+
+        .bed-card:active {
+            transform: scale(0.97);
+        }
+
+        .bed-icon {
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .bed-label {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.85);
+            margin-bottom: 0.15rem;
+        }
+
+        .bed-name {
+            font-weight: 700;
+            color: white;
+            font-size: 0.95rem;
+            word-break: break-word;
+        }
+
+        /* Room Summary */
+        .room-summary {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #eee;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .room-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .room-stat-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .room-stat-dot.free { background: var(--bed-free); }
+        .room-stat-dot.booked { background: var(--bed-booked); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: var(--bg-paper);
+            border-radius: 24px 24px 0 0;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 500px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-handle {
+            width: 40px;
+            height: 4px;
+            background: #ddd;
+            border-radius: 2px;
+            margin: 0 auto 1.25rem;
+        }
+
+        .modal h2 {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+            color: var(--accent);
+        }
+
+        .modal-room {
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 12px;
+            border: 2px solid #ddd;
+            background: #fff;
+            color: var(--text-dark);
+            font-size: 1rem;
+            font-family: 'Nunito', sans-serif;
+            margin-bottom: 0.75rem;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+        }
+
+        .modal-input:focus { 
+            outline: none; 
+            border-color: var(--accent); 
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 1rem;
+            border-radius: 12px;
+            border: none;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn:active:not(:disabled) { transform: scale(0.98); }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-secondary { background: #e0e0e0; color: var(--text-dark); }
+        .btn-danger { background: var(--bed-booked); color: white; }
+
+        .current-guest {
+            background: #f5f5f5;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .current-guest-label { 
+            font-size: 0.75rem; 
+            color: var(--text-muted); 
+            margin-bottom: 0.2rem; 
+        }
+        
+        .current-guest-name { 
+            font-weight: 600; 
+            color: var(--text-dark);
+        }
+
+        /* Info Section */
+        .info-section {
+            background: var(--bg-paper);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #e8e8e8;
+        }
+
+        .info-title {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+            color: var(--accent);
+        }
+
+        .info-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .info-text a {
+            color: var(--accent);
+        }
+
+        /* Desktop */
+        @media (min-width: 768px) {
+            .app { padding: 1.5rem; }
+            h1 { font-size: 2.4rem; }
+            
+            .rooms-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .modal-overlay {
+                align-items: center;
+                padding: 1rem;
+            }
+            
+            .modal {
+                border-radius: 20px;
+            }
+            
+            .modal-handle { display: none; }
+        }
+
+        @media (min-width: 1024px) {
+            .rooms-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const API_URL = '/api';
+
+        // Zimmer-Konfiguration basierend auf freizeitheim-halbe.de
+        const ROOMS = [
+            { id: 1, name: 'Zimmer 1', beds: 3, floor: 'eg', bath: true, accessible: false },
+            { id: 2, name: 'Zimmer 2', beds: 2, floor: 'eg', bath: true, accessible: true },
+            { id: 3, name: 'Zimmer 3', beds: 2, floor: 'eg', bath: true, accessible: false },
+            { id: 4, name: 'Zimmer 4', beds: 3, floor: 'og', bath: false, accessible: false },
+            { id: 5, name: 'Zimmer 5', beds: 4, floor: 'og', bath: false, accessible: false },
+            { id: 6, name: 'Zimmer 6', beds: 3, floor: 'og', bath: false, accessible: false },
+            { id: 7, name: 'Zimmer 7', beds: 3, floor: 'og', bath: false, accessible: false },
+            { id: 8, name: 'Zimmer 8', beds: 2, floor: 'og', bath: false, accessible: false },
+            { id: 9, name: 'Zimmer 9', beds: 3, floor: 'og', bath: false, accessible: false },
+        ];
+
+        // Generiere Bett-IDs
+        const generateBeds = () => {
+            const beds = {};
+            ROOMS.forEach(room => {
+                for (let i = 1; i <= room.beds; i++) {
+                    const bedId = `zi${room.id}-bett${i}`;
+                    beds[bedId] = { room: room.name, roomId: room.id, bedNum: i };
+                }
+            });
+            return beds;
+        };
+
+        const BEDS = generateBeds();
+        const TOTAL_SLOTS = Object.keys(BEDS).length; // 25
+
+        function App() {
+            const [bookings, setBookings] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [saving, setSaving] = useState(false);
+            const [error, setError] = useState(null);
+            const [modalOpen, setModalOpen] = useState(false);
+            const [selectedBed, setSelectedBed] = useState(null);
+            const [inputName, setInputName] = useState("");
+            const [activeFloor, setActiveFloor] = useState('eg');
+
+            useEffect(() => { loadBookings(); }, []);
+
+            const loadBookings = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+                    const response = await fetch(`${API_URL}/bookings`);
+                    if (!response.ok) throw new Error('Fehler beim Laden');
+                    const data = await response.json();
+                    setBookings(data);
+                } catch (err) {
+                    console.error('Ladefehler:', err);
+                    setError('Buchungen konnten nicht geladen werden.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleBedClick = (bedId) => {
+                setSelectedBed(bedId);
+                const booking = bookings[bedId];
+                setInputName(booking?.name || "");
+                setModalOpen(true);
+            };
+
+            const handleBook = async () => {
+                if (!inputName.trim() || saving) return;
+                setSaving(true);
+                setError(null);
+                try {
+                    const response = await fetch(`${API_URL}/bookings/${selectedBed}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: inputName.trim() })
+                    });
+                    if (!response.ok) throw new Error('Speichern fehlgeschlagen');
+                    await loadBookings();
+                    closeModal();
+                } catch (err) {
+                    setError('Buchung konnte nicht gespeichert werden.');
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const handleCancel = async () => {
+                if (saving) return;
+                setSaving(true);
+                setError(null);
+                try {
+                    const response = await fetch(`${API_URL}/bookings/${selectedBed}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('Löschen fehlgeschlagen');
+                    await loadBookings();
+                    closeModal();
+                } catch (err) {
+                    setError('Stornierung fehlgeschlagen.');
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const closeModal = () => {
+                setModalOpen(false);
+                setSelectedBed(null);
+                setInputName("");
+            };
+
+            const countBooked = () => Object.keys(bookings).length;
+            const bookedCount = countBooked();
+            const freeCount = TOTAL_SLOTS - bookedCount;
+
+            const getRoomStats = (roomId) => {
+                const room = ROOMS.find(r => r.id === roomId);
+                let booked = 0;
+                for (let i = 1; i <= room.beds; i++) {
+                    if (bookings[`zi${roomId}-bett${i}`]) booked++;
+                }
+                return { booked, free: room.beds - booked, total: room.beds };
+            };
+
+            const filteredRooms = ROOMS.filter(room => room.floor === activeFloor);
+
+            const egCount = ROOMS.filter(r => r.floor === 'eg').reduce((sum, r) => {
+                const stats = getRoomStats(r.id);
+                return sum + stats.free;
+            }, 0);
+
+            const ogCount = ROOMS.filter(r => r.floor === 'og').reduce((sum, r) => {
+                const stats = getRoomStats(r.id);
+                return sum + stats.free;
+            }, 0);
+
+            if (loading) {
+                return <div className="app"><div className="loading">🌳 Lade Buchungen...</div></div>;
+            }
+
+            return (
+                <div className="app">
+                    {error && <div className="error-banner">⚠️ {error}</div>}
+
+                    <header>
+                        <h1>🌲 Maitreffen</h1>
+                        <p className="subtitle">Zimmerbelegung – tippe auf ein Bett</p>
+                        <div className="location">
+                            📍 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">Freizeitheim Halbe</a>
+                        </div>
+                        <div className="stats">
+                            <div className="stat">
+                                <div className="stat-dot free"></div>
+                                <span><span className="stat-value">{freeCount}</span> frei</span>
+                            </div>
+                            <div className="stat">
+                                <div className="stat-dot booked"></div>
+                                <span><span className="stat-value">{bookedCount}</span> belegt</span>
+                            </div>
+                            <div className="stat">
+                                <span><span className="stat-value">{TOTAL_SLOTS}</span> Betten</span>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Etagen-Tabs */}
+                    <div className="floor-tabs">
+                        <button 
+                            className={`floor-tab ${activeFloor === 'eg' ? 'active' : ''}`}
+                            onClick={() => setActiveFloor('eg')}
+                        >
+                            Erdgeschoss ({egCount} frei)
+                        </button>
+                        <button 
+                            className={`floor-tab ${activeFloor === 'og' ? 'active' : ''}`}
+                            onClick={() => setActiveFloor('og')}
+                        >
+                            Obergeschoss ({ogCount} frei)
+                        </button>
+                    </div>
+
+                    {/* Zimmer Cards */}
+                    <div className="rooms-grid">
+                        {filteredRooms.map(room => {
+                            const stats = getRoomStats(room.id);
+                            return (
+                                <div key={room.id} className="room-card">
+                                    <div className="room-header">
+                                        <h3 className="room-title">{room.name}</h3>
+                                        <div className="room-badges">
+                                            {room.bath && <span className="room-badge bath">🚿 Eigenes Bad</span>}
+                                            {room.accessible && <span className="room-badge accessible">♿ Barrierefrei</span>}
+                                            {!room.bath && <span className="room-badge shared">Gemeinschaftsbad</span>}
+                                        </div>
+                                    </div>
+                                    <div className="beds-grid">
+                                        {Array.from({ length: room.beds }, (_, i) => {
+                                            const bedId = `zi${room.id}-bett${i + 1}`;
+                                            const booking = bookings[bedId];
+                                            const isBooked = !!booking;
+                                            return (
+                                                <div 
+                                                    key={bedId}
+                                                    className={`bed-card ${isBooked ? 'booked' : ''}`}
+                                                    onClick={() => handleBedClick(bedId)}
+                                                >
+                                                    <div className="bed-icon">{isBooked ? '😴' : '🛏️'}</div>
+                                                    <div className="bed-label">Bett {i + 1}</div>
+                                                    <div className="bed-name">
+                                                        {isBooked ? booking.name : 'Frei'}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="room-summary">
+                                        <div className="room-stat">
+                                            <div className="room-stat-dot free"></div>
+                                            <span>{stats.free} frei</span>
+                                        </div>
+                                        <div className="room-stat">
+                                            <div className="room-stat-dot booked"></div>
+                                            <span>{stats.booked} belegt</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Info */}
+                    <div className="info-section">
+                        <h4 className="info-title">ℹ️ Über das Haus</h4>
+                        <p className="info-text">
+                            Das Evangelische Freizeitheim Halbe bietet 9 Zimmer mit insgesamt 25 Betten.<br/><br/>
+                            <strong>Erdgeschoss:</strong> 3 Zimmer mit eigenem Bad (Zi 2 ist barrierefrei)<br/>
+                            <strong>Obergeschoss:</strong> 6 Zimmer mit 2 Gemeinschaftsbädern<br/><br/>
+                            📍 Kirchstraße 7, 15757 Halbe<br/>
+                            🌐 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">www.freizeitheim-halbe.de</a>
+                        </p>
+                    </div>
+
+                    {/* Modal */}
+                    {modalOpen && selectedBed && (
+                        <div className="modal-overlay" onClick={closeModal}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
+                                <div className="modal-handle"></div>
+                                <h2>{bookings[selectedBed] ? '📝 Bearbeiten' : '✨ Reservieren'}</h2>
+                                <p className="modal-room">
+                                    {BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}
+                                </p>
+
+                                {bookings[selectedBed] && (
+                                    <div className="current-guest">
+                                        <div className="current-guest-label">Aktuell gebucht:</div>
+                                        <div className="current-guest-name">{bookings[selectedBed].name}</div>
+                                    </div>
+                                )}
+
+                                <input
+                                    type="text"
+                                    className="modal-input"
+                                    placeholder="Dein Name"
+                                    value={inputName}
+                                    onChange={e => setInputName(e.target.value)}
+                                    autoFocus
+                                    disabled={saving}
+                                    onKeyDown={e => e.key === 'Enter' && handleBook()}
+                                    autoComplete="name"
+                                    autoCapitalize="words"
+                                />
+
+                                <div className="modal-buttons">
+                                    <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>
+                                        Abbrechen
+                                    </button>
+                                    {bookings[selectedBed] && (
+                                        <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>
+                                            {saving ? '...' : 'Stornieren'}
+                                        </button>
+                                    )}
+                                    <button className="btn btn-primary" onClick={handleBook} disabled={saving || !inputName.trim()}>
+                                        {saving ? '...' : (bookings[selectedBed] ? 'Ändern' : 'Buchen')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
