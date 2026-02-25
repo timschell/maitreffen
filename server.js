@@ -93,7 +93,8 @@ app.get('/api/bookings', async (req, res) => {
 // Buchung erstellen/aktualisieren
 app.post('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
-  const { name, blockRoom, roomBeds } = req.body;
+  const { name, roomRestriction, roomBeds } = req.body;
+  // roomRestriction: 'none', 'blocked', 'women', 'men'
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -112,17 +113,32 @@ app.post('/api/bookings/:bedId', async (req, res) => {
       DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL
     `, [bedId, name.trim()]);
     
-    // Wenn blockRoom aktiviert ist, restliche Betten blockieren
-    if (blockRoom && roomBeds && Array.isArray(roomBeds)) {
+    // Zimmer-Einschränkung setzen
+    if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
       for (const otherBedId of roomBeds) {
         if (otherBedId !== bedId) {
-          // Nur blockieren wenn das Bett noch frei ist
+          // Nur setzen wenn das Bett noch frei ist
           const existing = await client.query('SELECT * FROM bookings WHERE bed_id = $1', [otherBedId]);
           if (existing.rows.length === 0) {
-            await client.query(`
-              INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by)
-              VALUES ($1, $2, CURRENT_TIMESTAMP, 'blocked', $3)
-            `, [otherBedId, `🔒 ${name.trim()}`, bedId]);
+            let status, displayName;
+            
+            if (roomRestriction === 'blocked') {
+              status = 'blocked';
+              displayName = `🔒 ${name.trim()}`;
+            } else if (roomRestriction === 'women') {
+              status = 'women_only';
+              displayName = '♀️ Frauenzimmer';
+            } else if (roomRestriction === 'men') {
+              status = 'men_only';
+              displayName = '♂️ Männerzimmer';
+            }
+            
+            if (status) {
+              await client.query(`
+                INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by)
+                VALUES ($1, $2, CURRENT_TIMESTAMP, $3, $4)
+              `, [otherBedId, displayName, status, bedId]);
+            }
           }
         }
       }
@@ -148,7 +164,7 @@ app.delete('/api/bookings/:bedId', async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    // Auch alle Betten löschen, die von dieser Buchung blockiert wurden
+    // Auch alle Betten löschen, die von dieser Buchung blockiert/markiert wurden
     await client.query('DELETE FROM bookings WHERE blocked_by = $1', [bedId]);
     
     // Hauptbuchung löschen
@@ -165,16 +181,40 @@ app.delete('/api/bookings/:bedId', async (req, res) => {
   }
 });
 
-// Einzelnes blockiertes Bett freigeben
+// Einzelnes blockiertes/markiertes Bett freigeben
 app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
   const { bedId } = req.params;
 
   try {
-    // Nur löschen wenn es ein blockiertes Bett ist
-    await pool.query("DELETE FROM bookings WHERE bed_id = $1 AND status = 'blocked'", [bedId]);
+    // Nur löschen wenn es ein blockiertes oder markiertes Bett ist
+    await pool.query("DELETE FROM bookings WHERE bed_id = $1 AND status IN ('blocked', 'women_only', 'men_only')", [bedId]);
     res.json({ success: true, bedId });
   } catch (err) {
     console.error('Fehler beim Freigeben:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Markiertes Bett buchen (Frau/Mann bucht in Frauen-/Männerzimmer)
+app.post('/api/bookings/:bedId/claim', async (req, res) => {
+  const { bedId } = req.params;
+  const { name } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name ist erforderlich' });
+  }
+
+  try {
+    // Bett von markiert auf gebucht ändern
+    await pool.query(`
+      UPDATE bookings 
+      SET name = $1, status = 'booked', booked_at = CURRENT_TIMESTAMP
+      WHERE bed_id = $2 AND status IN ('women_only', 'men_only')
+    `, [name.trim(), bedId]);
+    
+    res.json({ success: true, bedId, name });
+  } catch (err) {
+    console.error('Fehler beim Buchen:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });
