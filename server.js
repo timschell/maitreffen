@@ -21,7 +21,7 @@ app.use(express.static('public'));
 async function initDB() {
   const client = await pool.connect();
   try {
-    // Tabelle erstellen falls nicht vorhanden
+    // Buchungen-Tabelle
     await client.query(`
       CREATE TABLE IF NOT EXISTS bookings (
         id SERIAL PRIMARY KEY,
@@ -44,8 +44,18 @@ async function initDB() {
       ALTER TABLE bookings 
       ADD COLUMN IF NOT EXISTS blocked_by VARCHAR(50) DEFAULT NULL
     `);
+
+    // Warteliste-Tabelle
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS waitlist (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        comment VARCHAR(255) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     
-    console.log('✅ Datenbank-Tabelle bereit');
+    console.log('✅ Datenbank-Tabellen bereit');
   } catch (err) {
     console.error('❌ Fehler beim Initialisieren der Datenbank:', err.message);
   } finally {
@@ -165,6 +175,54 @@ app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
     res.json({ success: true, bedId });
   } catch (err) {
     console.error('Fehler beim Freigeben:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== WARTELISTE ====================
+
+// Warteliste abrufen
+app.get('/api/waitlist', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM waitlist ORDER BY created_at ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler beim Abrufen der Warteliste:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Zur Warteliste hinzufügen
+app.post('/api/waitlist', async (req, res) => {
+  const { name, comment } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name ist erforderlich' });
+  }
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO waitlist (name, comment, created_at)
+      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      RETURNING *
+    `, [name.trim(), comment?.trim() || null]);
+    
+    res.json({ success: true, entry: result.rows[0] });
+  } catch (err) {
+    console.error('Fehler beim Hinzufügen zur Warteliste:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Von Warteliste entfernen
+app.delete('/api/waitlist/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query('DELETE FROM waitlist WHERE id = $1', [id]);
+    res.json({ success: true, id });
+  } catch (err) {
+    console.error('Fehler beim Entfernen von der Warteliste:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });

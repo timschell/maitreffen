@@ -21,6 +21,8 @@
             --bed-blocked: #9e9e9e;
             --accent: #5a9a48;
             --accent-light: #e8f4e8;
+            --waitlist: #ff9800;
+            --waitlist-light: #fff3e0;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -130,8 +132,37 @@
         .stat-dot.free { background: var(--bed-free); }
         .stat-dot.booked { background: var(--bed-booked); }
         .stat-dot.blocked { background: var(--bed-blocked); }
+        .stat-dot.waitlist { background: var(--waitlist); }
 
         .stat-value { font-weight: 700; }
+
+        /* Full Banner */
+        .full-banner {
+            background: var(--waitlist-light);
+            border: 2px solid var(--waitlist);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .full-banner-title {
+            font-weight: 700;
+            color: #e65100;
+            margin-bottom: 0.5rem;
+        }
+
+        .full-banner-text {
+            font-size: 0.9rem;
+            color: #bf360c;
+            margin-bottom: 0.75rem;
+        }
+
+        .full-banner .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
 
         /* Etagen-Tabs */
         .floor-tabs {
@@ -315,6 +346,116 @@
         .room-stat-dot.booked { background: var(--bed-booked); }
         .room-stat-dot.blocked { background: var(--bed-blocked); }
 
+        /* Warteliste Section */
+        .waitlist-section {
+            background: var(--bg-paper);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #e8e8e8;
+        }
+
+        .waitlist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .waitlist-title {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.2rem;
+            color: var(--waitlist);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .waitlist-count {
+            background: var(--waitlist);
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .waitlist-empty {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-muted);
+        }
+
+        .waitlist-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .waitlist-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.875rem;
+            background: #f9f9f9;
+            border-radius: 10px;
+            border: 1px solid #eee;
+        }
+
+        .waitlist-position {
+            width: 32px;
+            height: 32px;
+            background: var(--waitlist);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .waitlist-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .waitlist-name {
+            font-weight: 600;
+            color: var(--text-dark);
+            word-break: break-word;
+        }
+
+        .waitlist-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .waitlist-comment {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-top: 0.25rem;
+        }
+
+        .waitlist-remove {
+            background: none;
+            border: none;
+            color: var(--bed-booked);
+            cursor: pointer;
+            padding: 0.5rem;
+            font-size: 1.2rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .waitlist-remove:hover {
+            opacity: 1;
+        }
+
         /* Modal */
         .modal-overlay {
             position: fixed;
@@ -352,6 +493,10 @@
             color: var(--accent);
         }
 
+        .modal h2.waitlist-modal-title {
+            color: var(--waitlist);
+        }
+
         .modal-room {
             color: var(--text-muted);
             margin-bottom: 1rem;
@@ -375,6 +520,31 @@
         .modal-input:focus { 
             outline: none; 
             border-color: var(--accent); 
+        }
+
+        .modal-input.waitlist-input:focus {
+            border-color: var(--waitlist);
+        }
+
+        .modal-textarea {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 12px;
+            border: 2px solid #ddd;
+            background: #fff;
+            color: var(--text-dark);
+            font-size: 1rem;
+            font-family: 'Nunito', sans-serif;
+            margin-bottom: 0.75rem;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-textarea:focus {
+            outline: none;
+            border-color: var(--waitlist);
         }
 
         .checkbox-wrapper {
@@ -438,6 +608,7 @@
         .btn-primary { background: var(--accent); color: white; }
         .btn-secondary { background: #e0e0e0; color: var(--text-dark); }
         .btn-danger { background: var(--bed-booked); color: white; }
+        .btn-waitlist { background: var(--waitlist); color: white; }
 
         .current-guest {
             background: #f5f5f5;
@@ -574,18 +745,36 @@
             return Array.from({ length: room.beds }, (_, i) => `zi${roomId}-bett${i + 1}`);
         };
 
+        // Datum formatieren
+        const formatDate = (dateString) => {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('de-DE', { 
+                day: '2-digit', 
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        };
+
         function App() {
             const [bookings, setBookings] = useState({});
+            const [waitlist, setWaitlist] = useState([]);
             const [loading, setLoading] = useState(true);
             const [saving, setSaving] = useState(false);
             const [error, setError] = useState(null);
             const [modalOpen, setModalOpen] = useState(false);
+            const [waitlistModalOpen, setWaitlistModalOpen] = useState(false);
             const [selectedBed, setSelectedBed] = useState(null);
             const [inputName, setInputName] = useState("");
+            const [waitlistName, setWaitlistName] = useState("");
+            const [waitlistComment, setWaitlistComment] = useState("");
             const [blockRoom, setBlockRoom] = useState(false);
             const [activeFloor, setActiveFloor] = useState('eg');
 
-            useEffect(() => { loadBookings(); }, []);
+            useEffect(() => { 
+                loadBookings(); 
+                loadWaitlist();
+            }, []);
 
             const loadBookings = async () => {
                 try {
@@ -600,6 +789,17 @@
                     setError('Buchungen konnten nicht geladen werden.');
                 } finally {
                     setLoading(false);
+                }
+            };
+
+            const loadWaitlist = async () => {
+                try {
+                    const response = await fetch(`${API_URL}/waitlist`);
+                    if (!response.ok) throw new Error('Fehler beim Laden');
+                    const data = await response.json();
+                    setWaitlist(data);
+                } catch (err) {
+                    console.error('Warteliste Ladefehler:', err);
                 }
             };
 
@@ -670,11 +870,55 @@
                 }
             };
 
+            const handleAddToWaitlist = async () => {
+                if (!waitlistName.trim() || saving) return;
+                setSaving(true);
+                setError(null);
+                try {
+                    const response = await fetch(`${API_URL}/waitlist`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            name: waitlistName.trim(),
+                            comment: waitlistComment.trim() || null
+                        })
+                    });
+                    if (!response.ok) throw new Error('Speichern fehlgeschlagen');
+                    await loadWaitlist();
+                    closeWaitlistModal();
+                } catch (err) {
+                    setError('Konnte nicht zur Warteliste hinzugefügt werden.');
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const handleRemoveFromWaitlist = async (id) => {
+                if (saving) return;
+                if (!confirm('Wirklich von der Warteliste entfernen?')) return;
+                setSaving(true);
+                try {
+                    const response = await fetch(`${API_URL}/waitlist/${id}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('Löschen fehlgeschlagen');
+                    await loadWaitlist();
+                } catch (err) {
+                    setError('Entfernen fehlgeschlagen.');
+                } finally {
+                    setSaving(false);
+                }
+            };
+
             const closeModal = () => {
                 setModalOpen(false);
                 setSelectedBed(null);
                 setInputName("");
                 setBlockRoom(false);
+            };
+
+            const closeWaitlistModal = () => {
+                setWaitlistModalOpen(false);
+                setWaitlistName("");
+                setWaitlistComment("");
             };
 
             const countStats = () => {
@@ -688,6 +932,7 @@
             };
 
             const stats = countStats();
+            const isFull = stats.free === 0;
 
             const getRoomStats = (roomId) => {
                 const room = ROOMS.find(r => r.id === roomId);
@@ -760,8 +1005,27 @@
                                     <span><span className="stat-value">{stats.blocked}</span> blockiert</span>
                                 </div>
                             )}
+                            {waitlist.length > 0 && (
+                                <div className="stat">
+                                    <div className="stat-dot waitlist"></div>
+                                    <span><span className="stat-value">{waitlist.length}</span> Warteliste</span>
+                                </div>
+                            )}
                         </div>
                     </header>
+
+                    {/* Ausgebucht Banner */}
+                    {isFull && (
+                        <div className="full-banner">
+                            <div className="full-banner-title">🎉 Alle Betten sind belegt!</div>
+                            <div className="full-banner-text">
+                                Du kannst dich auf die Warteliste setzen lassen, falls jemand absagt.
+                            </div>
+                            <button className="btn btn-waitlist" onClick={() => setWaitlistModalOpen(true)}>
+                                📝 Auf Warteliste setzen
+                            </button>
+                        </div>
+                    )}
 
                     {/* Etagen-Tabs */}
                     <div className="floor-tabs">
@@ -842,6 +1106,55 @@
                         })}
                     </div>
 
+                    {/* Warteliste */}
+                    <div className="waitlist-section">
+                        <div className="waitlist-header">
+                            <h4 className="waitlist-title">
+                                📋 Warteliste
+                                {waitlist.length > 0 && (
+                                    <span className="waitlist-count">{waitlist.length}</span>
+                                )}
+                            </h4>
+                            <button 
+                                className="btn btn-waitlist" 
+                                style={{flex: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem'}}
+                                onClick={() => setWaitlistModalOpen(true)}
+                            >
+                                + Eintragen
+                            </button>
+                        </div>
+                        
+                        {waitlist.length === 0 ? (
+                            <div className="waitlist-empty">
+                                <p>Noch niemand auf der Warteliste</p>
+                            </div>
+                        ) : (
+                            <div className="waitlist-list">
+                                {waitlist.map((entry, index) => (
+                                    <div key={entry.id} className="waitlist-item">
+                                        <div className="waitlist-position">{index + 1}</div>
+                                        <div className="waitlist-info">
+                                            <div className="waitlist-name">{entry.name}</div>
+                                            <div className="waitlist-meta">
+                                                Eingetragen am {formatDate(entry.created_at)}
+                                            </div>
+                                            {entry.comment && (
+                                                <div className="waitlist-comment">"{entry.comment}"</div>
+                                            )}
+                                        </div>
+                                        <button 
+                                            className="waitlist-remove"
+                                            onClick={() => handleRemoveFromWaitlist(entry.id)}
+                                            title="Entfernen"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* Info */}
                     <div className="info-section">
                         <h4 className="info-title">ℹ️ Über das Haus</h4>
@@ -850,13 +1163,14 @@
                             <strong>Erdgeschoss:</strong> 3 Zimmer mit eigenem Bad (Zi 2 ist barrierefrei)<br/>
                             <strong>Obergeschoss:</strong> 6 Zimmer mit 2 Gemeinschaftsbädern<br/><br/>
                             🛏️ <strong>Bettwäsche ist mitzubringen</strong> oder kann für 8,50 € ausgeliehen werden.<br/><br/>
-                            🔒 <strong>Tipp:</strong> Du kannst beim Buchen die restlichen Betten im Zimmer blockieren.<br/><br/>
+                            🔒 <strong>Tipp:</strong> Du kannst beim Buchen die restlichen Betten im Zimmer blockieren.<br/>
+                            📋 <strong>Warteliste:</strong> Falls alle Betten belegt sind, trage dich auf die Warteliste ein.<br/><br/>
                             📍 Kirchstraße 7, 15757 Halbe<br/>
                             🌐 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">www.freizeitheim-halbe.de</a>
                         </p>
                     </div>
 
-                    {/* Modal */}
+                    {/* Bett Modal */}
                     {modalOpen && selectedBed && (
                         <div className="modal-overlay" onClick={closeModal}>
                             <div className="modal" onClick={e => e.stopPropagation()}>
@@ -947,6 +1261,52 @@
                                         </div>
                                     </>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Warteliste Modal */}
+                    {waitlistModalOpen && (
+                        <div className="modal-overlay" onClick={closeWaitlistModal}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
+                                <div className="modal-handle"></div>
+                                <h2 className="waitlist-modal-title">📋 Warteliste</h2>
+                                <p className="modal-room">
+                                    Trage dich ein, um benachrichtigt zu werden wenn ein Platz frei wird.
+                                </p>
+
+                                <input
+                                    type="text"
+                                    className="modal-input waitlist-input"
+                                    placeholder="Dein Name"
+                                    value={waitlistName}
+                                    onChange={e => setWaitlistName(e.target.value)}
+                                    autoFocus
+                                    disabled={saving}
+                                    autoComplete="name"
+                                    autoCapitalize="words"
+                                />
+
+                                <textarea
+                                    className="modal-textarea"
+                                    placeholder="Kommentar (optional) – z.B. bevorzugtes Zimmer, Anreise..."
+                                    value={waitlistComment}
+                                    onChange={e => setWaitlistComment(e.target.value)}
+                                    disabled={saving}
+                                />
+
+                                <div className="modal-buttons">
+                                    <button className="btn btn-secondary" onClick={closeWaitlistModal} disabled={saving}>
+                                        Abbrechen
+                                    </button>
+                                    <button 
+                                        className="btn btn-waitlist" 
+                                        onClick={handleAddToWaitlist} 
+                                        disabled={saving || !waitlistName.trim()}
+                                    >
+                                        {saving ? '...' : 'Eintragen'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
