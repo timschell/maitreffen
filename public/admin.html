@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin – Brettspielfamilie Treffen</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f5f5f5;
+            --card: #fff;
+            --primary: #5a9a48;
+            --primary-light: #e8f4e8;
+            --danger: #d96459;
+            --danger-light: #ffeaea;
+            --warning: #ff9800;
+            --warning-light: #fff3e0;
+            --text: #333;
+            --text-muted: #666;
+            --border: #ddd;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .logout-btn {
+            background: none;
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            color: var(--text-muted);
+        }
+        
+        .logout-btn:hover { background: #f0f0f0; }
+        
+        /* Login */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80vh;
+        }
+        
+        .login-card {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-card h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+        }
+        
+        .login-card input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: inherit;
+            margin-bottom: 1rem;
+        }
+        
+        .login-card input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .login-card button {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        .login-card button:hover { opacity: 0.9; }
+        
+        .login-error {
+            background: var(--danger-light);
+            color: var(--danger);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .tab {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: var(--card);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .tab:not(.active):hover { background: #eee; }
+        
+        /* Cards */
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid var(--border);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        
+        .card-subtitle {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+        
+        .badge {
+            padding: 0.3rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge.active {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+        
+        .badge.inactive {
+            background: #f0f0f0;
+            color: var(--text-muted);
+        }
+        
+        /* Event Card */
+        .event-meta {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        
+        .event-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        
+        .event-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 0.6rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+        
+        .btn-secondary { background: #e0e0e0; color: var(--text); }
+        .btn-secondary:hover:not(:disabled) { background: #d0d0d0; }
+        
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover:not(:disabled) { opacity: 0.9; }
+        
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-warning:hover:not(:disabled) { opacity: 0.9; }
+        
+        .btn-sm { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+        
+        /* Form */
+        .form-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-section-title {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+        
+        .form-group label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+        
+        .checkbox-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+        }
+        
+        /* Rooms */
+        .rooms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .room-card {
+            background: #fafafa;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+        }
+        
+        .room-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .room-name {
+            font-weight: 600;
+        }
+        
+        .room-badges {
+            display: flex;
+            gap: 0.3rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        
+        .room-badge {
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        .room-badge.beds { background: #e3f2fd; color: #1976d2; }
+        .room-badge.bath { background: #e8f5e9; color: #388e3c; }
+        .room-badge.accessible { background: #fff3e0; color: #f57c00; }
+        .room-badge.floor { background: #f5f5f5; color: #666; }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+        
+        .modal {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal h2 {
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+        }
+        
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* Users Table */
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .users-table th,
+        .users-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .users-table th {
+            background: #fafafa;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .users-table tr:hover td {
+            background: #fafafa;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .event-actions {
+                width: 100%;
+            }
+            
+            .event-actions .btn {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        const API_URL = '/api';
+        
+        // Einfache Auth (später durch WordPress SSO ersetzen)
+        function AdminApp() {
+            const [authenticated, setAuthenticated] = useState(false);
+            const [password, setPassword] = useState('');
+            const [authError, setAuthError] = useState('');
+            const [activeTab, setActiveTab] = useState('events');
+            
+            // Events
+            const [events, setEvents] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [eventModalOpen, setEventModalOpen] = useState(false);
+            const [editingEvent, setEditingEvent] = useState(null);
+            
+            // Rooms
+            const [selectedEventForRooms, setSelectedEventForRooms] = useState(null);
+            const [rooms, setRooms] = useState([]);
+            const [roomModalOpen, setRoomModalOpen] = useState(false);
+            const [editingRoom, setEditingRoom] = useState(null);
+            
+            // Users
+            const [users, setUsers] = useState([]);
+            
+            // Check if already authenticated (session)
+            useEffect(() => {
+                const stored = sessionStorage.getItem('admin_auth');
+                if (stored === 'true') {
+                    setAuthenticated(true);
+                }
+            }, []);
+            
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                
+                try {
+                    const res = await fetch(`${API_URL}/admin/auth`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password })
+                    });
+                    
+                    if (res.ok) {
+                        sessionStorage.setItem('admin_auth', 'true');
+                        sessionStorage.setItem('admin_token', password);
+                        setAuthenticated(true);
+                    } else {
+                        setAuthError('Falsches Passwort');
+                    }
+                } catch (err) {
+                    setAuthError('Verbindungsfehler');
+                }
+            };
+            
+            const handleLogout = () => {
+                sessionStorage.removeItem('admin_auth');
+                sessionStorage.removeItem('admin_token');
+                setAuthenticated(false);
+                setPassword('');
+            };
+            
+            const getAuthHeader = () => ({
+                'Content-Type': 'application/json',
+                'X-Admin-Token': sessionStorage.getItem('admin_token') || ''
+            });
+            
+            // Load data
+            useEffect(() => {
+                if (authenticated) {
+                    loadEvents();
+                    loadUsers();
+                }
+            }, [authenticated]);
+            
+            const loadEvents = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`${API_URL}/admin/events`, { headers: getAuthHeader() });
+                    if (res.ok) setEvents(await res.json());
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+                setLoading(false);
+            };
+            
+            const loadRooms = async (eventId) => {
+                try {
+                    const res = await fetch(`${API_URL}/admin/events/${eventId}/rooms`, { headers: getAuthHeader() });
+                    if (res.ok) setRooms(await res.json());
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            const loadUsers = async () => {
+                try {
+                    const res = await fetch(`${API_URL}/admin/users`, { headers: getAuthHeader() });
+                    if (res.ok) setUsers(await res.json());
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            // Event handlers
+            const openEventModal = (event = null) => {
+                setEditingEvent(event);
+                setEventModalOpen(true);
+            };
+            
+            const handleSaveEvent = async (eventData) => {
+                try {
+                    const url = editingEvent 
+                        ? `${API_URL}/admin/events/${editingEvent.id}`
+                        : `${API_URL}/admin/events`;
+                    const method = editingEvent ? 'PUT' : 'POST';
+                    
+                    const res = await fetch(url, {
+                        method,
+                        headers: getAuthHeader(),
+                        body: JSON.stringify(eventData)
+                    });
+                    
+                    if (res.ok) {
+                        await loadEvents();
+                        setEventModalOpen(false);
+                        setEditingEvent(null);
+                    }
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            const handleActivateEvent = async (eventId) => {
+                try {
+                    await fetch(`${API_URL}/admin/events/${eventId}/activate`, {
+                        method: 'POST',
+                        headers: getAuthHeader()
+                    });
+                    await loadEvents();
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            const handleDeleteEvent = async (eventId) => {
+                if (!confirm('Event wirklich löschen? Alle Buchungen werden gelöscht!')) return;
+                
+                try {
+                    await fetch(`${API_URL}/admin/events/${eventId}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeader()
+                    });
+                    await loadEvents();
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            // Room handlers
+            const openRoomManager = async (event) => {
+                setSelectedEventForRooms(event);
+                await loadRooms(event.id);
+            };
+            
+            const closeRoomManager = () => {
+                setSelectedEventForRooms(null);
+                setRooms([]);
+            };
+            
+            const openRoomModal = (room = null) => {
+                setEditingRoom(room);
+                setRoomModalOpen(true);
+            };
+            
+            const handleSaveRoom = async (roomData) => {
+                try {
+                    const url = editingRoom 
+                        ? `${API_URL}/admin/rooms/${editingRoom.id}`
+                        : `${API_URL}/admin/events/${selectedEventForRooms.id}/rooms`;
+                    const method = editingRoom ? 'PUT' : 'POST';
+                    
+                    const res = await fetch(url, {
+                        method,
+                        headers: getAuthHeader(),
+                        body: JSON.stringify(roomData)
+                    });
+                    
+                    if (res.ok) {
+                        await loadRooms(selectedEventForRooms.id);
+                        setRoomModalOpen(false);
+                        setEditingRoom(null);
+                    }
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            const handleDeleteRoom = async (roomId) => {
+                if (!confirm('Zimmer wirklich löschen?')) return;
+                
+                try {
+                    await fetch(`${API_URL}/admin/rooms/${roomId}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeader()
+                    });
+                    await loadRooms(selectedEventForRooms.id);
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            // User handlers
+            const handleResetPin = async (userId) => {
+                if (!confirm('PIN wirklich zurücksetzen?')) return;
+                
+                try {
+                    await fetch(`${API_URL}/admin/users/${userId}/reset-pin`, {
+                        method: 'POST',
+                        headers: getAuthHeader()
+                    });
+                    await loadUsers();
+                    alert('PIN wurde zurückgesetzt');
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            const handleToggleAdmin = async (userId, isAdmin) => {
+                try {
+                    await fetch(`${API_URL}/admin/users/${userId}/admin`, {
+                        method: 'POST',
+                        headers: getAuthHeader(),
+                        body: JSON.stringify({ isAdmin: !isAdmin })
+                    });
+                    await loadUsers();
+                } catch (err) {
+                    console.error('Fehler:', err);
+                }
+            };
+            
+            // Login Screen
+            if (!authenticated) {
+                return (
+                    <div className="app">
+                        <div className="login-container">
+                            <form className="login-card" onSubmit={handleLogin}>
+                                <h2>🔐 Admin-Login</h2>
+                                {authError && <div className="login-error">{authError}</div>}
+                                <input 
+                                    type="password" 
+                                    placeholder="Admin-Passwort" 
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                    autoFocus
+                                />
+                                <button type="submit">Anmelden</button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+            
+            // Room Manager View
+            if (selectedEventForRooms) {
+                return (
+                    <div className="app">
+                        <header>
+                            <h1>🏠 Zimmer: {selectedEventForRooms.name}</h1>
+                            <button className="btn btn-secondary" onClick={closeRoomManager}>← Zurück</button>
+                        </header>
+                        
+                        <div className="card">
+                            <div className="card-header">
+                                <div>
+                                    <div className="card-title">Zimmer verwalten</div>
+                                    <div className="card-subtitle">{rooms.length} Zimmer, {rooms.reduce((sum, r) => sum + r.beds_count, 0)} Betten</div>
+                                </div>
+                                <button className="btn btn-primary" onClick={() => openRoomModal()}>+ Zimmer hinzufügen</button>
+                            </div>
+                            
+                            {rooms.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">🛏️</div>
+                                    <p>Noch keine Zimmer angelegt</p>
+                                </div>
+                            ) : (
+                                <div className="rooms-grid">
+                                    {rooms.sort((a, b) => a.sort_order - b.sort_order).map(room => (
+                                        <div key={room.id} className="room-card">
+                                            <div className="room-card-header">
+                                                <span className="room-name">{room.room_name}</span>
+                                                <div>
+                                                    <button className="btn btn-sm btn-secondary" onClick={() => openRoomModal(room)}>✏️</button>
+                                                    <button className="btn btn-sm btn-danger" style={{marginLeft: '0.25rem'}} onClick={() => handleDeleteRoom(room.id)}>🗑️</button>
+                                                </div>
+                                            </div>
+                                            <div className="room-badges">
+                                                <span className="room-badge beds">🛏️ {room.beds_count} Betten</span>
+                                                <span className="room-badge floor">{room.floor}</span>
+                                                {room.has_private_bath && <span className="room-badge bath">🚿 Bad</span>}
+                                                {room.is_accessible && <span className="room-badge accessible">♿ Barrierefrei</span>}
+                                            </div>
+                                            {room.notes && <p style={{fontSize: '0.8rem', color: '#666', marginTop: '0.5rem'}}>{room.notes}</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Room Modal */}
+                        {roomModalOpen && (
+                            <RoomModal 
+                                room={editingRoom}
+                                onSave={handleSaveRoom}
+                                onClose={() => { setRoomModalOpen(false); setEditingRoom(null); }}
+                            />
+                        )}
+                    </div>
+                );
+            }
+            
+            // Main Admin View
+            return (
+                <div className="app">
+                    <header>
+                        <h1>⚙️ Admin-Panel</h1>
+                        <button className="logout-btn" onClick={handleLogout}>Abmelden</button>
+                    </header>
+                    
+                    <div className="tabs">
+                        <button className={`tab ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
+                            📅 Events
+                        </button>
+                        <button className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
+                            👥 Nutzer
+                        </button>
+                    </div>
+                    
+                    {activeTab === 'events' && (
+                        <>
+                            <div style={{marginBottom: '1rem'}}>
+                                <button className="btn btn-primary" onClick={() => openEventModal()}>+ Neues Event</button>
+                            </div>
+                            
+                            {loading ? (
+                                <div className="empty-state">Lade...</div>
+                            ) : events.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">📅</div>
+                                    <p>Noch keine Events angelegt</p>
+                                </div>
+                            ) : (
+                                events.map(event => (
+                                    <div key={event.id} className="card">
+                                        <div className="card-header">
+                                            <div>
+                                                <div className="card-title">{event.name}</div>
+                                                <div className="card-subtitle">Slug: {event.slug}</div>
+                                            </div>
+                                            <span className={`badge ${event.is_active ? 'active' : 'inactive'}`}>
+                                                {event.is_active ? '✓ Aktiv' : 'Inaktiv'}
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="event-meta">
+                                            <span>📅 {new Date(event.start_date).toLocaleDateString('de-DE')} – {new Date(event.end_date).toLocaleDateString('de-DE')}</span>
+                                            {event.location_name && <span>📍 {event.location_name}</span>}
+                                        </div>
+                                        
+                                        <div className="event-actions">
+                                            <button className="btn btn-secondary btn-sm" onClick={() => openRoomManager(event)}>
+                                                🏠 Zimmer ({rooms.length || '?'})
+                                            </button>
+                                            <button className="btn btn-secondary btn-sm" onClick={() => openEventModal(event)}>
+                                                ✏️ Bearbeiten
+                                            </button>
+                                            {!event.is_active && (
+                                                <button className="btn btn-warning btn-sm" onClick={() => handleActivateEvent(event.id)}>
+                                                    ⚡ Aktivieren
+                                                </button>
+                                            )}
+                                            <button className="btn btn-danger btn-sm" onClick={() => handleDeleteEvent(event.id)}>
+                                                🗑️ Löschen
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </>
+                    )}
+                    
+                    {activeTab === 'users' && (
+                        <div className="card">
+                            <div className="card-header">
+                                <div className="card-title">Registrierte Nutzer</div>
+                            </div>
+                            
+                            {users.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">👥</div>
+                                    <p>Noch keine Nutzer registriert</p>
+                                </div>
+                            ) : (
+                                <table className="users-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>PIN gesetzt</th>
+                                            <th>Admin</th>
+                                            <th>Registriert</th>
+                                            <th>Aktionen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {users.map(user => (
+                                            <tr key={user.id}>
+                                                <td><strong>{user.name}</strong></td>
+                                                <td>{user.pin_hash ? '✅ Ja' : '❌ Nein'}</td>
+                                                <td>{user.is_admin ? '👑 Ja' : 'Nein'}</td>
+                                                <td>{new Date(user.created_at).toLocaleDateString('de-DE')}</td>
+                                                <td>
+                                                    {user.pin_hash && (
+                                                        <button className="btn btn-sm btn-secondary" onClick={() => handleResetPin(user.id)}>
+                                                            🔄 PIN Reset
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        className={`btn btn-sm ${user.is_admin ? 'btn-danger' : 'btn-warning'}`}
+                                                        style={{marginLeft: '0.25rem'}}
+                                                        onClick={() => handleToggleAdmin(user.id, user.is_admin)}
+                                                    >
+                                                        {user.is_admin ? '👤 Entfernen' : '👑 Admin'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* Event Modal */}
+                    {eventModalOpen && (
+                        <EventModal 
+                            event={editingEvent}
+                            onSave={handleSaveEvent}
+                            onClose={() => { setEventModalOpen(false); setEditingEvent(null); }}
+                        />
+                    )}
+                </div>
+            );
+        }
+        
+        // Event Modal Component
+        function EventModal({ event, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                slug: event?.slug || '',
+                name: event?.name || '',
+                description: event?.description || '',
+                startDate: event?.start_date ? event.start_date.split('T')[0] : '',
+                endDate: event?.end_date ? event.end_date.split('T')[0] : '',
+                locationName: event?.location_name || '',
+                locationAddress: event?.location_address || '',
+                locationUrl: event?.location_url || '',
+                checkInTime: event?.check_in_time || '16:00',
+                checkOutTime: event?.check_out_time || '11:00'
+            });
+            const [saving, setSaving] = useState(false);
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                await onSave(formData);
+                setSaving(false);
+            };
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            // Auto-generate slug from name
+            useEffect(() => {
+                if (!event && formData.name && !formData.slug) {
+                    const slug = formData.name
+                        .toLowerCase()
+                        .replace(/[äöü]/g, c => ({ä:'ae',ö:'oe',ü:'ue'}[c]))
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-|-$/g, '');
+                    updateField('slug', slug);
+                }
+            }, [formData.name]);
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{event ? '✏️ Event bearbeiten' : '📅 Neues Event'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-section">
+                                <div className="form-section-title">Basis-Informationen</div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Event-Name *</label>
+                                        <input 
+                                            type="text" 
+                                            value={formData.name}
+                                            onChange={e => updateField('name', e.target.value)}
+                                            placeholder="z.B. Maitreffen 2026"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Slug (URL) *</label>
+                                        <input 
+                                            type="text" 
+                                            value={formData.slug}
+                                            onChange={e => updateField('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                            placeholder="z.B. maitreffen"
+                                            required
+                                        />
+                                        <small style={{color: '#666', fontSize: '0.75rem'}}>
+                                            → {formData.slug || 'slug'}.brettspielfamilie.de
+                                        </small>
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label>Beschreibung</label>
+                                    <textarea 
+                                        value={formData.description}
+                                        onChange={e => updateField('description', e.target.value)}
+                                        placeholder="Kurze Beschreibung des Events..."
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="form-section">
+                                <div className="form-section-title">Datum & Zeiten</div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Start-Datum *</label>
+                                        <input 
+                                            type="date" 
+                                            value={formData.startDate}
+                                            onChange={e => updateField('startDate', e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>End-Datum *</label>
+                                        <input 
+                                            type="date" 
+                                            value={formData.endDate}
+                                            onChange={e => updateField('endDate', e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Check-in ab</label>
+                                        <input 
+                                            type="time" 
+                                            value={formData.checkInTime}
+                                            onChange={e => updateField('checkInTime', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Check-out bis</label>
+                                        <input 
+                                            type="time" 
+                                            value={formData.checkOutTime}
+                                            onChange={e => updateField('checkOutTime', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="form-section">
+                                <div className="form-section-title">Ort</div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Name der Location</label>
+                                        <input 
+                                            type="text" 
+                                            value={formData.locationName}
+                                            onChange={e => updateField('locationName', e.target.value)}
+                                            placeholder="z.B. Freizeitheim Halbe"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Website</label>
+                                        <input 
+                                            type="url" 
+                                            value={formData.locationUrl}
+                                            onChange={e => updateField('locationUrl', e.target.value)}
+                                            placeholder="https://..."
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label>Adresse</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.locationAddress}
+                                        onChange={e => updateField('locationAddress', e.target.value)}
+                                        placeholder="Straße, PLZ Ort"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (event ? 'Speichern' : 'Erstellen')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Room Modal Component
+        function RoomModal({ room, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                roomName: room?.room_name || '',
+                floor: room?.floor || 'EG',
+                bedsCount: room?.beds_count || 2,
+                hasPrivateBath: room?.has_private_bath || false,
+                isAccessible: room?.is_accessible || false,
+                notes: room?.notes || '',
+                sortOrder: room?.sort_order || 0
+            });
+            const [saving, setSaving] = useState(false);
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                await onSave(formData);
+                setSaving(false);
+            };
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{room ? '✏️ Zimmer bearbeiten' : '🏠 Neues Zimmer'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Zimmer-Name *</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.roomName}
+                                        onChange={e => updateField('roomName', e.target.value)}
+                                        placeholder="z.B. Zimmer 1"
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Anzahl Betten *</label>
+                                    <input 
+                                        type="number" 
+                                        min="1"
+                                        max="20"
+                                        value={formData.bedsCount}
+                                        onChange={e => updateField('bedsCount', parseInt(e.target.value) || 1)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Etage</label>
+                                    <select 
+                                        value={formData.floor}
+                                        onChange={e => updateField('floor', e.target.value)}
+                                    >
+                                        <option value="EG">Erdgeschoss</option>
+                                        <option value="OG">Obergeschoss</option>
+                                        <option value="UG">Untergeschoss</option>
+                                        <option value="DG">Dachgeschoss</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label>Sortierung</label>
+                                    <input 
+                                        type="number" 
+                                        value={formData.sortOrder}
+                                        onChange={e => updateField('sortOrder', parseInt(e.target.value) || 0)}
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="checkbox-row">
+                                <input 
+                                    type="checkbox"
+                                    id="bath"
+                                    checked={formData.hasPrivateBath}
+                                    onChange={e => updateField('hasPrivateBath', e.target.checked)}
+                                />
+                                <label htmlFor="bath">🚿 Eigenes Bad</label>
+                            </div>
+                            
+                            <div className="checkbox-row">
+                                <input 
+                                    type="checkbox"
+                                    id="accessible"
+                                    checked={formData.isAccessible}
+                                    onChange={e => updateField('isAccessible', e.target.checked)}
+                                />
+                                <label htmlFor="accessible">♿ Barrierefrei</label>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Notizen</label>
+                                <textarea 
+                                    value={formData.notes}
+                                    onChange={e => updateField('notes', e.target.value)}
+                                    placeholder="z.B. Besonderheiten des Zimmers..."
+                                />
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (room ? 'Speichern' : 'Erstellen')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        ReactDOM.createRoot(document.getElementById('root')).render(<AdminApp />);
+    </script>
+</body>
+</html>

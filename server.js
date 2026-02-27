@@ -364,10 +364,32 @@ app.get('/api/event', async (req, res) => {
   }
 });
 
-// ==================== ADMIN API (Event-Verwaltung) ====================
+// ==================== ADMIN API ====================
+
+// Admin-Passwort (später durch WordPress SSO ersetzen)
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brettspielfamilie2026';
+
+// Admin-Auth Middleware
+const adminAuth = (req, res, next) => {
+  const token = req.headers['x-admin-token'];
+  if (token !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Nicht autorisiert' });
+  }
+  next();
+};
+
+// Admin Login
+app.post('/api/admin/auth', (req, res) => {
+  const { password } = req.body;
+  if (password === ADMIN_PASSWORD) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: 'Falsches Passwort' });
+  }
+});
 
 // Alle Events auflisten
-app.get('/api/admin/events', async (req, res) => {
+app.get('/api/admin/events', adminAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM events ORDER BY start_date DESC');
     res.json(result.rows);
@@ -378,7 +400,7 @@ app.get('/api/admin/events', async (req, res) => {
 });
 
 // Neues Event erstellen
-app.post('/api/admin/events', async (req, res) => {
+app.post('/api/admin/events', adminAuth, async (req, res) => {
   const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime } = req.body;
   
   if (!slug?.trim() || !name?.trim() || !startDate || !endDate) {
@@ -398,8 +420,40 @@ app.post('/api/admin/events', async (req, res) => {
   }
 });
 
+// Event aktualisieren
+app.put('/api/admin/events/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE events SET slug = $1, name = $2, description = $3, start_date = $4, end_date = $5, 
+       location_name = $6, location_address = $7, location_url = $8, check_in_time = $9, check_out_time = $10
+       WHERE id = $11 RETURNING *`,
+      [slug, name, description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Event löschen
+app.delete('/api/admin/events/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    await pool.query('DELETE FROM events WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
 // Event aktivieren (nur eines kann aktiv sein)
-app.post('/api/admin/events/:id/activate', async (req, res) => {
+app.post('/api/admin/events/:id/activate', adminAuth, async (req, res) => {
   const { id } = req.params;
   
   const client = await pool.connect();
@@ -419,7 +473,7 @@ app.post('/api/admin/events/:id/activate', async (req, res) => {
 });
 
 // Zimmer zu Event hinzufügen
-app.post('/api/admin/events/:eventId/rooms', async (req, res) => {
+app.post('/api/admin/events/:eventId/rooms', adminAuth, async (req, res) => {
   const { eventId } = req.params;
   const { roomName, floor, bedsCount, hasPrivateBath, isAccessible, notes, sortOrder } = req.body;
   
@@ -441,7 +495,7 @@ app.post('/api/admin/events/:eventId/rooms', async (req, res) => {
 });
 
 // Alle Zimmer eines Events abrufen
-app.get('/api/admin/events/:eventId/rooms', async (req, res) => {
+app.get('/api/admin/events/:eventId/rooms', adminAuth, async (req, res) => {
   const { eventId } = req.params;
   
   try {
@@ -456,12 +510,74 @@ app.get('/api/admin/events/:eventId/rooms', async (req, res) => {
   }
 });
 
+// Zimmer aktualisieren
+app.put('/api/admin/rooms/:roomId', adminAuth, async (req, res) => {
+  const { roomId } = req.params;
+  const { roomName, floor, bedsCount, hasPrivateBath, isAccessible, notes, sortOrder } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE event_rooms SET room_name = $1, floor = $2, beds_count = $3, has_private_bath = $4, is_accessible = $5, notes = $6, sort_order = $7
+       WHERE id = $8 RETURNING *`,
+      [roomName, floor || null, bedsCount, hasPrivateBath || false, isAccessible || false, notes || null, sortOrder || 0, roomId]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
 // Zimmer löschen
-app.delete('/api/admin/rooms/:roomId', async (req, res) => {
+app.delete('/api/admin/rooms/:roomId', adminAuth, async (req, res) => {
   const { roomId } = req.params;
   
   try {
     await pool.query('DELETE FROM event_rooms WHERE id = $1', [roomId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== ADMIN: NUTZERVERWALTUNG ====================
+
+// Alle Nutzer auflisten
+app.get('/api/admin/users', adminAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, pin_hash IS NOT NULL as has_pin, is_admin, created_at, last_login FROM users ORDER BY name ASC');
+    // pin_hash nicht zurückgeben, nur ob einer gesetzt ist
+    res.json(result.rows.map(u => ({
+      ...u,
+      pin_hash: u.has_pin ? 'set' : null
+    })));
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// PIN zurücksetzen
+app.post('/api/admin/users/:id/reset-pin', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    await pool.query('UPDATE users SET pin_hash = NULL WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin-Status ändern
+app.post('/api/admin/users/:id/admin', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { isAdmin } = req.body;
+  
+  try {
+    await pool.query('UPDATE users SET is_admin = $1 WHERE id = $2', [isAdmin, id]);
     res.json({ success: true });
   } catch (err) {
     console.error('Fehler:', err.message);
