@@ -1417,7 +1417,7 @@
                 setGameModalOpen(true);
             };
 
-            // BGG Suche mit Debounce
+            // BGG Suche mit Debounce - direkt zur BGG API
             useEffect(() => {
                 if (!bggSearchQuery.trim() || bggSearchQuery.length < 2) {
                     setBggSearchResults([]);
@@ -1427,14 +1427,37 @@
                 const timeoutId = setTimeout(async () => {
                     setBggSearching(true);
                     try {
-                        const res = await fetch(`${API_URL}/bgg/search?query=${encodeURIComponent(bggSearchQuery)}`);
-                        if (res.ok) {
-                            const results = await res.json();
-                            setBggSearchResults(results);
-                        }
-                    } catch {}
+                        const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(bggSearchQuery)}&type=boardgame`;
+                        const res = await fetch(searchUrl);
+                        const xml = await res.text();
+                        
+                        // XML parsen
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(xml, 'text/xml');
+                        const items = doc.querySelectorAll('item');
+                        
+                        const results = [];
+                        items.forEach((item, idx) => {
+                            if (idx >= 10) return;
+                            const id = item.getAttribute('id');
+                            const nameEl = item.querySelector('name');
+                            const yearEl = item.querySelector('yearpublished');
+                            if (id && nameEl) {
+                                results.push({
+                                    bggId: parseInt(id),
+                                    name: nameEl.getAttribute('value'),
+                                    year: yearEl ? parseInt(yearEl.getAttribute('value')) : null
+                                });
+                            }
+                        });
+                        
+                        setBggSearchResults(results);
+                    } catch (err) {
+                        console.error('BGG Suche Fehler:', err);
+                        setBggSearchResults([]);
+                    }
                     finally { setBggSearching(false); }
-                }, 300);
+                }, 400);
                 
                 return () => clearTimeout(timeoutId);
             }, [bggSearchQuery]);
@@ -1445,14 +1468,39 @@
                 setBggSearching(true);
                 
                 try {
-                    const res = await fetch(`${API_URL}/bgg/details/${bggGame.bggId}`);
-                    if (res.ok) {
-                        const details = await res.json();
-                        setSelectedBggGame(details);
+                    // Details direkt von BGG holen
+                    const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggGame.bggId}&stats=1`;
+                    const res = await fetch(detailUrl);
+                    const xml = await res.text();
+                    
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(xml, 'text/xml');
+                    const item = doc.querySelector('item');
+                    
+                    if (item) {
+                        const nameEl = item.querySelector('name[type="primary"]');
+                        const yearEl = item.querySelector('yearpublished');
+                        const minPlayersEl = item.querySelector('minplayers');
+                        const maxPlayersEl = item.querySelector('maxplayers');
+                        const playtimeEl = item.querySelector('playingtime');
+                        const thumbnailEl = item.querySelector('thumbnail');
+                        const imageEl = item.querySelector('image');
+                        
+                        setSelectedBggGame({
+                            bggId: bggGame.bggId,
+                            name: nameEl ? nameEl.getAttribute('value') : bggGame.name,
+                            year: yearEl ? parseInt(yearEl.getAttribute('value')) : null,
+                            minPlayers: minPlayersEl ? parseInt(minPlayersEl.getAttribute('value')) : null,
+                            maxPlayers: maxPlayersEl ? parseInt(maxPlayersEl.getAttribute('value')) : null,
+                            playtime: playtimeEl ? playtimeEl.getAttribute('value') : null,
+                            thumbnail: thumbnailEl ? thumbnailEl.textContent : null,
+                            image: imageEl ? imageEl.textContent : null
+                        });
                     } else {
                         setSelectedBggGame(bggGame);
                     }
-                } catch {
+                } catch (err) {
+                    console.error('BGG Details Fehler:', err);
                     setSelectedBggGame(bggGame);
                 }
                 finally { setBggSearching(false); }
