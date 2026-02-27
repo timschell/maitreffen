@@ -1147,6 +1147,55 @@
         @media (min-width: 1024px) {
             .rooms-grid { grid-template-columns: repeat(3, 1fr); }
         }
+
+        /* User Status Bar */
+        .user-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--text-muted);
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .user-badge {
+            background: var(--accent-light);
+            color: var(--accent);
+            padding: 0.15rem 0.4rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .login-btn, .logout-btn {
+            background: none;
+            border: 1px solid var(--border, #ddd);
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .login-btn:hover, .logout-btn:hover {
+            background: var(--accent-light);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
     </style>
 </head>
 <body>
@@ -1156,6 +1205,8 @@
         const { useState, useEffect } = React;
 
         const API_URL = '/api';
+        const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
+        const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
 
         const EVENT = {
             name: 'Maitreffen 2026',
@@ -1248,8 +1299,35 @@
             const [bggSearchResults, setBggSearchResults] = useState([]);
             const [bggSearching, setBggSearching] = useState(false);
             const [selectedBggGame, setSelectedBggGame] = useState(null);
+            // WordPress SSO
+            const [wpUser, setWpUser] = useState(null);
+            const [wpLoading, setWpLoading] = useState(true);
 
-            useEffect(() => { loadBookings(); loadWaitlist(); loadGames(); }, []);
+            useEffect(() => { loadBookings(); loadWaitlist(); loadGames(); checkWordPressSSO(); }, []);
+            
+            const checkWordPressSSO = async () => {
+                try {
+                    const res = await fetch(WP_SSO_URL, { credentials: 'include' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.logged_in) {
+                            setWpUser(data);
+                        }
+                    }
+                } catch (err) {
+                    console.log('WordPress SSO nicht verfügbar');
+                }
+                setWpLoading(false);
+            };
+            
+            const handleWpLogin = () => {
+                window.location.href = `${WP_LOGIN_URL}?redirect_to=${encodeURIComponent(window.location.href)}`;
+            };
+            
+            const handleWpLogout = () => {
+                // WordPress Logout, dann zurück
+                window.location.href = `https://brettspielfamilie.de/wp-login.php?action=logout&redirect_to=${encodeURIComponent(window.location.href)}`;  
+            };
 
             useEffect(() => {
                 if (transport !== 'oepnv') {
@@ -1293,7 +1371,9 @@
             const handleBedClick = (bedId) => {
                 setSelectedBed(bedId);
                 const b = bookings[bedId];
-                setInputName(b?.name?.replace(/^[🔒♀️♂️]\s*/, '').replace(/^(Frauenzimmer|Männerzimmer)$/, '') || "");
+                // Name vorausfüllen: Wenn gebucht → Buchungsname, sonst WordPress-Name falls eingeloggt
+                const defaultName = b?.name?.replace(/^[🔒♀️♂️]\s*/, '').replace(/^(Frauenzimmer|Männerzimmer)$/, '') || '';
+                setInputName(defaultName || (wpUser?.name || ''));
                 setArrivalDate(b?.arrivalDate ? formatDateForInput(b.arrivalDate) : EVENT.startDate);
                 setDepartureDate(b?.departureDate ? formatDateForInput(b.departureDate) : EVENT.endDate);
                 setTransport(b?.transport || '');
@@ -1788,6 +1868,28 @@
 
             return (
                 <div className="app">
+                    {/* User Status Bar */}
+                    <div className="user-bar">
+                        {wpLoading ? (
+                            <span style={{color: 'var(--text-muted)'}}>...</span>
+                        ) : wpUser ? (
+                            <>
+                                <div className="user-info">
+                                    <span>👤</span>
+                                    <span className="user-name">{wpUser.name}</span>
+                                    {wpUser.is_admin && <span className="user-badge">Admin</span>}
+                                </div>
+                                {wpUser.is_admin && (
+                                    <a href="/admin.html" style={{fontSize: '0.8rem', color: 'var(--accent)'}}>⚙️ Admin</a>
+                                )}
+                            </>
+                        ) : (
+                            <button className="login-btn" onClick={handleWpLogin}>
+                                🔑 Anmelden
+                            </button>
+                        )}
+                    </div>
+
                     {error && <div className="error-banner">⚠️ {error}</div>}
 
                     <header>
