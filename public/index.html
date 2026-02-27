@@ -1203,43 +1203,42 @@
             const pickupList = Object.entries(bookings).filter(([_, b]) => b.needsPickup && b.status === 'booked').map(([id, b]) => ({ bedId: id, ...b })).sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
             const carpoolList = Object.entries(bookings).filter(([_, b]) => b.canOfferRide && b.status === 'booked' && b.seatsAvailable > 0).map(([id, b]) => ({ bedId: id, ...b })).sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
 
-            // Zugverbindungen gruppieren
-            const trainTravelers = Object.entries(bookings).filter(([_, b]) => b.status === 'booked' && b.transport === 'oepnv' && (b.trainStation || b.trainNumber)).map(([id, b]) => ({ bedId: id, ...b }));
+            // Hilfsfunktion für Zeit-Matching
+            const timeToMinutes = (t) => {
+                if (!t) return null;
+                const [h, m] = t.split(':').map(Number);
+                return h * 60 + m;
+            };
+            
+            // Zugverbindungen gruppieren - nach Ankunftszeit in Halbe (±30 min)
+            const trainTravelers = Object.entries(bookings)
+                .filter(([_, b]) => b.status === 'booked' && b.transport === 'oepnv' && b.trainTime)
+                .map(([id, b]) => ({ bedId: id, ...b }))
+                .sort((a, b) => timeToMinutes(a.trainTime) - timeToMinutes(b.trainTime));
             
             const trainGroups = [];
             const grouped = new Set();
             
             trainTravelers.forEach(t => {
                 if (grouped.has(t.bedId)) return;
-                const group = { key: '', label: '', members: [t] };
                 
-                if (t.trainNumber) {
-                    // Gruppiere nach Zugnummer
-                    group.key = t.trainNumber.toLowerCase().replace(/\s/g, '');
-                    group.label = `🚆 ${t.trainNumber}`;
-                    trainTravelers.forEach(other => {
-                        if (other.bedId !== t.bedId && !grouped.has(other.bedId) && other.trainNumber?.toLowerCase().replace(/\s/g, '') === group.key) {
+                const tMinutes = timeToMinutes(t.trainTime);
+                const group = { 
+                    time: t.trainTime,
+                    label: `🚆 Ankunft ${formatTime(t.trainTime)} in Halbe`, 
+                    members: [t] 
+                };
+                
+                // Finde alle die ±30 min ankommen
+                trainTravelers.forEach(other => {
+                    if (other.bedId !== t.bedId && !grouped.has(other.bedId)) {
+                        const oMinutes = timeToMinutes(other.trainTime);
+                        if (Math.abs(tMinutes - oMinutes) <= 30) {
                             group.members.push(other);
                             grouped.add(other.bedId);
                         }
-                    });
-                } else if (t.trainStation) {
-                    // Gruppiere nach Bahnhof + ähnliche Zeit (±60 min)
-                    group.key = t.trainStation.toLowerCase();
-                    group.label = `📍 ${t.trainStation}${t.trainTime ? ` um ${formatTime(t.trainTime)}` : ''}`;
-                    if (t.trainTime) {
-                        const tTime = parseInt(t.trainTime.replace(':', ''));
-                        trainTravelers.forEach(other => {
-                            if (other.bedId !== t.bedId && !grouped.has(other.bedId) && !other.trainNumber && other.trainStation?.toLowerCase() === group.key && other.trainTime) {
-                                const oTime = parseInt(other.trainTime.replace(':', ''));
-                                if (Math.abs(tTime - oTime) <= 100) { // ca 1 Stunde
-                                    group.members.push(other);
-                                    grouped.add(other.bedId);
-                                }
-                            }
-                        });
                     }
-                }
+                });
                 
                 grouped.add(t.bedId);
                 if (group.members.length > 1) trainGroups.push(group);
@@ -1296,19 +1295,18 @@
                         <>
                             <div className="form-section">
                                 <div className="form-section-title">🚆 Zugverbindung (für Reisepartner-Matching)</div>
+                                <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem'}}>
+                                    Wir matchen Leute die zur gleichen Zeit in Halbe ankommen – die sitzen wahrscheinlich im selben Zug!
+                                </p>
                                 <div className="extra-details train">
                                     <div className="form-group">
-                                        <label>Abfahrtsbahnhof</label>
-                                        <input type="text" placeholder="z.B. Berlin Hbf" value={trainStation} onChange={e => setTrainStation(e.target.value)} disabled={saving} />
+                                        <label>Ich starte in...</label>
+                                        <input type="text" placeholder="z.B. Berlin, Potsdam, Dresden" value={trainStation} onChange={e => setTrainStation(e.target.value)} disabled={saving} />
                                     </div>
                                     <div className="form-group">
-                                        <label>Abfahrtszeit</label>
+                                        <label>Ankunft in Halbe</label>
                                         <input type="time" value={trainTime} onChange={e => setTrainTime(e.target.value)} disabled={saving} />
                                     </div>
-                                </div>
-                                <div className="form-group" style={{marginTop: '-0.5rem'}}>
-                                    <label style={{color: 'var(--train)'}}>Zugnummer (optional)</label>
-                                    <input type="text" placeholder="z.B. ICE 1234, RE 12345" value={trainNumber} onChange={e => setTrainNumber(e.target.value)} disabled={saving} style={{borderColor: '#80cbc4'}} />
                                 </div>
                             </div>
 
@@ -1316,7 +1314,7 @@
                                 <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
                                 <div className="checkbox-row-label">
                                     <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
-                                    <div className="checkbox-row-sub">Jemand holt dich vom Zielbahnhof ab</div>
+                                    <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof Halbe ab</div>
                                 </div>
                             </label>
                         </>
@@ -1407,11 +1405,11 @@
                                                     <div className="bed-label">Bett {i + 1}</div>
                                                     <div className="bed-name">{blocked ? 'Blockiert' : women ? 'Nur Frauen' : men ? 'Nur Männer' : booked ? b.name : 'Frei'}</div>
                                                     {booked && b.arrivalDate && <div className="bed-info">{formatDate(b.arrivalDate)}{b.arrivalTime ? ` ${formatTime(b.arrivalTime)}` : ''} – {formatDate(b.departureDate)}{b.departureTime ? ` ${formatTime(b.departureTime)}` : ''}</div>}
-                                                    {booked && (b.needsPickup || b.canOfferRide || b.trainNumber) && (
+                                                    {booked && (b.needsPickup || b.canOfferRide || b.trainTime) && (
                                                         <div className="bed-badges">
                                                             {b.needsPickup && <span className="bed-mini-badge">🚉</span>}
                                                             {b.canOfferRide && <span className="bed-mini-badge">🚗+{b.seatsAvailable}</span>}
-                                                            {b.trainNumber && <span className="bed-mini-badge">🚆</span>}
+                                                            {b.trainTime && <span className="bed-mini-badge">🚆 {formatTime(b.trainTime)}</span>}
                                                         </div>
                                                     )}
                                                     {(blocked || women || men) && b.blockedBy && <div className="bed-info">von {bookings[b.blockedBy]?.name || '?'}</div>}
@@ -1435,6 +1433,9 @@
                     {trainGroups.length > 0 && (
                         <div className="transport-section">
                             <h4 className="transport-title train">🚆 Gemeinsam im Zug?</h4>
+                            <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem', marginTop: '-0.5rem'}}>
+                                Diese Leute kommen etwa zur gleichen Zeit in Halbe an – wahrscheinlich im selben Zug!
+                            </p>
                             {trainGroups.map((g, i) => (
                                 <div key={i} className="train-group">
                                     <div className="train-group-header">
@@ -1442,7 +1443,11 @@
                                         <span className="train-group-badge">{g.members.length} Personen</span>
                                     </div>
                                     <div className="train-group-members">
-                                        {g.members.map(m => <span key={m.bedId} className="train-member">{m.name}</span>)}
+                                        {g.members.map(m => (
+                                            <span key={m.bedId} className="train-member">
+                                                {m.name}{m.trainStation ? ` (ab ${m.trainStation})` : ''}
+                                            </span>
+                                        ))}
                                     </div>
                                 </div>
                             ))}
@@ -1572,8 +1577,7 @@
                                                 <div className="current-guest-details">
                                                     {selectedBooking.arrivalDate && <span>📅 {formatDateLong(selectedBooking.arrivalDate)}{selectedBooking.arrivalTime ? ` ${formatTime(selectedBooking.arrivalTime)}` : ''} – {formatDateLong(selectedBooking.departureDate)}{selectedBooking.departureTime ? ` ${formatTime(selectedBooking.departureTime)}` : ''}</span>}
                                                     {selectedBooking.transport && <span>{transportLabels[selectedBooking.transport]}</span>}
-                                                    {selectedBooking.trainNumber && <span>🚆 {selectedBooking.trainNumber}</span>}
-                                                    {selectedBooking.trainStation && !selectedBooking.trainNumber && <span>📍 Ab {selectedBooking.trainStation}{selectedBooking.trainTime ? ` um ${formatTime(selectedBooking.trainTime)}` : ''}</span>}
+                                                    {selectedBooking.trainTime && <span>🚆 Ankunft Halbe: {formatTime(selectedBooking.trainTime)}{selectedBooking.trainStation ? ` (ab ${selectedBooking.trainStation})` : ''}</span>}
                                                     {selectedBooking.needsPickup && <span>🚉 Abholung gewünscht</span>}
                                                     {selectedBooking.canOfferRide && <span>🚗 Bietet {selectedBooking.seatsAvailable} Plätze ab {selectedBooking.departureCity || '?'}</span>}
                                                 </div>
