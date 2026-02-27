@@ -1417,7 +1417,10 @@
                 setGameModalOpen(true);
             };
 
-            // BGG Suche mit Debounce - direkt zur BGG API
+            // CORS Proxy für BGG API (BGG unterstützt kein CORS)
+            const CORS_PROXY = 'https://corsproxy.io/?';
+            
+            // BGG Suche mit Debounce
             useEffect(() => {
                 if (!bggSearchQuery.trim() || bggSearchQuery.length < 2) {
                     setBggSearchResults([]);
@@ -1427,8 +1430,8 @@
                 const timeoutId = setTimeout(async () => {
                     setBggSearching(true);
                     try {
-                        const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(bggSearchQuery)}&type=boardgame`;
-                        const res = await fetch(searchUrl);
+                        const bggUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(bggSearchQuery)}&type=boardgame`;
+                        const res = await fetch(CORS_PROXY + encodeURIComponent(bggUrl));
                         const xml = await res.text();
                         
                         // XML parsen
@@ -1468,9 +1471,9 @@
                 setBggSearching(true);
                 
                 try {
-                    // Details direkt von BGG holen
-                    const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggGame.bggId}&stats=1`;
-                    const res = await fetch(detailUrl);
+                    // Details von BGG holen (via CORS Proxy)
+                    const bggUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggGame.bggId}&stats=1`;
+                    const res = await fetch(CORS_PROXY + encodeURIComponent(bggUrl));
                     const xml = await res.text();
                     
                     const parser = new DOMParser();
