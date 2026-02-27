@@ -4,7 +4,9 @@
   "description": "Zimmerbuchung für das Maitreffen der Brettspielfamilie im Freizeitheim Halbe",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node migrate-to-events.js",
+    "start:migrate": "node migrate-to-events.js && node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",

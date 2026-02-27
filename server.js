@@ -173,6 +173,17 @@ async function initDB() {
     
     // Migration: Spalten hinzufügen falls nicht vorhanden (für bestehende DBs)
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS event_id INTEGER REFERENCES events(id) ON DELETE CASCADE`);
+    
+    // Unique Constraint anpassen: von (bed_id) zu (event_id, bed_id)
+    // Erst alte Constraint entfernen (falls vorhanden), dann neue hinzufügen
+    try {
+      await client.query(`ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_bed_id_key`);
+    } catch (e) { /* Constraint existiert nicht, ignorieren */ }
+    
+    // Neue Constraint nur hinzufügen wenn sie nicht existiert
+    try {
+      await client.query(`ALTER TABLE bookings ADD CONSTRAINT bookings_event_bed_unique UNIQUE (event_id, bed_id)`);
+    } catch (e) { /* Constraint existiert bereits, ignorieren */ }
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'booked'`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS blocked_by VARCHAR(100) DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_date DATE DEFAULT NULL`);
@@ -253,6 +264,67 @@ async function initDB() {
     `);
     
     console.log('✅ Datenbank-Tabellen bereit');
+
+    // ==================== AUTO-MIGRATION: Maitreffen 2026 ====================
+    // Prüfe ob ein Event existiert, falls nicht, lege Maitreffen 2026 an
+    const eventCheck = await client.query('SELECT id FROM events LIMIT 1');
+    
+    if (eventCheck.rows.length === 0) {
+      console.log('📦 Kein Event gefunden, lege Maitreffen 2026 an...');
+      
+      // Event anlegen
+      const eventResult = await client.query(`
+        INSERT INTO events (slug, name, description, start_date, end_date, location_name, location_address, location_url, check_in_time, check_out_time, is_active)
+        VALUES ('maitreffen', 'Maitreffen 2026', 'Das jährliche Brettspieltreffen der Brettspielfamilie', '2026-05-13', '2026-05-17', 'Evangelisches Freizeitheim Halbe', 'Kirchstraße 7, 15757 Halbe', 'https://www.freizeitheim-halbe.de', '16:00', '11:00', true)
+        RETURNING id
+      `);
+      
+      const eventId = eventResult.rows[0].id;
+      console.log(`✅ Event angelegt (ID: ${eventId})`);
+      
+      // Zimmer anlegen
+      const rooms = [
+        { room_name: 'Zimmer 1', floor: 'EG', beds_count: 3, has_private_bath: true, is_accessible: false, sort_order: 1 },
+        { room_name: 'Zimmer 2', floor: 'EG', beds_count: 2, has_private_bath: true, is_accessible: true, sort_order: 2 },
+        { room_name: 'Zimmer 3', floor: 'EG', beds_count: 2, has_private_bath: true, is_accessible: false, sort_order: 3 },
+        { room_name: 'Zimmer 4', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 4 },
+        { room_name: 'Zimmer 5', floor: 'OG', beds_count: 4, has_private_bath: false, is_accessible: false, sort_order: 5 },
+        { room_name: 'Zimmer 6', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 6 },
+        { room_name: 'Zimmer 7', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 7 },
+        { room_name: 'Zimmer 8', floor: 'OG', beds_count: 2, has_private_bath: false, is_accessible: false, sort_order: 8 },
+        { room_name: 'Zimmer 9', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 9 },
+      ];
+      
+      for (const room of rooms) {
+        await client.query(`
+          INSERT INTO event_rooms (event_id, room_name, floor, beds_count, has_private_bath, is_accessible, sort_order)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [eventId, room.room_name, room.floor, room.beds_count, room.has_private_bath, room.is_accessible, room.sort_order]);
+      }
+      console.log(`✅ 9 Zimmer angelegt (25 Betten)`);
+      
+      // Bestehende Daten mit Event verknüpfen
+      const bookingsLinked = await client.query('UPDATE bookings SET event_id = $1 WHERE event_id IS NULL', [eventId]);
+      const gamesLinked = await client.query('UPDATE games SET event_id = $1 WHERE event_id IS NULL', [eventId]);
+      const waitlistLinked = await client.query('UPDATE waitlist SET event_id = $1 WHERE event_id IS NULL', [eventId]);
+      
+      if (bookingsLinked.rowCount > 0 || gamesLinked.rowCount > 0 || waitlistLinked.rowCount > 0) {
+        console.log(`✅ Bestehende Daten verknüpft: ${bookingsLinked.rowCount} Buchungen, ${gamesLinked.rowCount} Spiele, ${waitlistLinked.rowCount} Warteliste`);
+      }
+    } else {
+      // Event existiert - prüfe ob es verwaiste Daten gibt und verknüpfe sie mit aktivem Event
+      const activeEvent = await client.query('SELECT id FROM events WHERE is_active = true LIMIT 1');
+      if (activeEvent.rows.length > 0) {
+        const eventId = activeEvent.rows[0].id;
+        const orphanedBookings = await client.query('UPDATE bookings SET event_id = $1 WHERE event_id IS NULL', [eventId]);
+        const orphanedGames = await client.query('UPDATE games SET event_id = $1 WHERE event_id IS NULL', [eventId]);
+        const orphanedWaitlist = await client.query('UPDATE waitlist SET event_id = $1 WHERE event_id IS NULL', [eventId]);
+        
+        if (orphanedBookings.rowCount > 0 || orphanedGames.rowCount > 0 || orphanedWaitlist.rowCount > 0) {
+          console.log(`✅ Verwaiste Daten verknüpft: ${orphanedBookings.rowCount} Buchungen, ${orphanedGames.rowCount} Spiele, ${orphanedWaitlist.rowCount} Warteliste`);
+        }
+      }
+    }
   } catch (err) {
     console.error('❌ Fehler beim Initialisieren der Datenbank:', err.message);
   } finally {
@@ -945,8 +1017,17 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Server starten
-app.listen(PORT, async () => {
-  console.log(`🚀 Server läuft auf Port ${PORT}`);
-  await initDB();
-});
+// Server starten (initDB MUSS vor Listen laufen)
+async function startServer() {
+  try {
+    await initDB();
+    app.listen(PORT, () => {
+      console.log(`🚀 Server läuft auf Port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('❌ Server konnte nicht gestartet werden:', err.message);
+    process.exit(1);
+  }
+}
+
+startServer();
