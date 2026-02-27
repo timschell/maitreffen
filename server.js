@@ -403,6 +403,30 @@ const adminAuth = async (req, res, next) => {
   return res.status(401).json({ error: 'Nicht autorisiert' });
 };
 
+// Debug: Cookie-Check (temporär)
+app.get('/api/debug/cookies', async (req, res) => {
+  const cookies = req.headers.cookie || '';
+  let wpResult = null;
+  
+  if (cookies) {
+    try {
+      const wpRes = await fetch(WP_SSO_URL, {
+        headers: { 'Cookie': cookies }
+      });
+      wpResult = await wpRes.json();
+    } catch (err) {
+      wpResult = { error: err.message };
+    }
+  }
+  
+  res.json({
+    hasCookies: !!cookies,
+    cookieLength: cookies.length,
+    cookiePreview: cookies.substring(0, 100) + '...',
+    wpResult
+  });
+});
+
 // Admin Login (Passwort-Fallback)
 app.post('/api/admin/auth', (req, res) => {
   const { password } = req.body;
