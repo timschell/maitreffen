@@ -1023,27 +1023,23 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
             margin-top: 1rem;
             padding-top: 0.75rem;
             border-top: 1px solid #eee;
         }
 
         .powered-by-bgg a {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 0.75rem;
+            display: block;
+            opacity: 0.7;
+            transition: opacity 0.2s;
         }
 
         .powered-by-bgg a:hover {
-            color: #ff5100;
+            opacity: 1;
         }
 
         .powered-by-bgg img {
-            height: 20px;
+            height: 28px;
         }
 
         .games-add-btns {
@@ -2037,8 +2033,7 @@
                         {/* Powered by BGG - Pflicht gemäß BGG API Richtlinien */}
                         <div className="powered-by-bgg">
                             <a href="https://boardgamegeek.com" target="_blank" rel="noopener">
-                                <img src="https://cf.geekdo-images.com/images/geekdo_logo.png" alt="BoardGameGeek" />
-                                <span>Powered by BGG</span>
+                                <img src="data:image/png;base64,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" alt="Powered by BGG" />
                             </a>
                         </div>
                     </div>
