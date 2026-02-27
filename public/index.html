@@ -707,6 +707,80 @@
         .restriction-option-icon { font-size: 1.1rem; }
         .restriction-option-text { font-size: 0.85rem; color: var(--text-dark); }
 
+        /* Companions */
+        .companions-section {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .companions-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .companion-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            align-items: center;
+        }
+
+        .companion-row input, .companion-row select {
+            flex: 1;
+            padding: 0.6rem;
+            border-radius: 8px;
+            border: 2px solid #90caf9;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.9rem;
+        }
+
+        .companion-row input:focus, .companion-row select:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+
+        .companion-row select {
+            min-width: 140px;
+        }
+
+        .companion-remove {
+            background: none;
+            border: none;
+            color: var(--bed-booked);
+            cursor: pointer;
+            padding: 0.5rem;
+            font-size: 1.1rem;
+            opacity: 0.7;
+        }
+
+        .companion-remove:hover { opacity: 1; }
+
+        .add-companion-btn {
+            background: none;
+            border: 2px dashed #90caf9;
+            color: #1976d2;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            width: 100%;
+            margin-top: 0.25rem;
+        }
+
+        .add-companion-btn:hover {
+            background: #e3f2fd;
+            border-color: #1976d2;
+        }
+
         .modal-buttons { display: flex; gap: 0.75rem; margin-top: 1rem; }
 
         .btn {
@@ -879,6 +953,7 @@
             const [waitlistName, setWaitlistName] = useState("");
             const [waitlistComment, setWaitlistComment] = useState("");
             const [roomRestriction, setRoomRestriction] = useState('none');
+            const [companions, setCompanions] = useState([]); // [{name: '', bedId: ''}]
             const [activeFloor, setActiveFloor] = useState('eg');
 
             useEffect(() => { loadBookings(); loadWaitlist(); }, []);
@@ -932,6 +1007,7 @@
                 setArrivalTime(b?.arrivalTime ? formatTime(b.arrivalTime) : '');
                 setDepartureTime(b?.departureTime ? formatTime(b.departureTime) : '');
                 setRoomRestriction('none');
+                setCompanions([]);
                 setModalOpen(true);
             };
 
@@ -953,15 +1029,33 @@
 
             const handleBook = async () => {
                 if (!inputName.trim() || saving) return;
+                // Validiere Mitreisende
+                const validCompanions = companions.filter(c => c.name.trim() && c.bedId);
                 setSaving(true);
                 setError(null);
                 try {
+                    // Hauptbuchung
                     const res = await fetch(`${API_URL}/bookings/${selectedBed}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ...getBookingPayload(), roomRestriction, roomBeds: getRoomBedIds(BEDS[selectedBed].roomId) })
                     });
                     if (!res.ok) throw new Error();
+                    
+                    // Mitreisende buchen (gleiche Reisedaten)
+                    for (const companion of validCompanions) {
+                        await fetch(`${API_URL}/bookings/${companion.bedId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                ...getBookingPayload(), 
+                                name: companion.name.trim(),
+                                roomRestriction: 'none',
+                                roomBeds: []
+                            })
+                        });
+                    }
+                    
                     await loadBookings();
                     closeModal();
                 } catch { setError('Buchung konnte nicht gespeichert werden.'); }
@@ -1049,6 +1143,7 @@
                 setArrivalTime('');
                 setDepartureTime('');
                 setRoomRestriction('none');
+                setCompanions([]);
             };
 
             const closeWaitlistModal = () => { setWaitlistModalOpen(false); setWaitlistName(""); setWaitlistComment(""); };
@@ -1085,6 +1180,24 @@
             const filteredRooms = ROOMS.filter(r => r.floor === activeFloor);
             const getFloorFreeCount = (floor) => ROOMS.filter(r => r.floor === floor).reduce((sum, r) => sum + getRoomStats(r.id).free, 0);
             const hasFreeBeds = () => selectedBed && getRoomBedIds(BEDS[selectedBed].roomId).some(id => id !== selectedBed && !bookings[id]);
+            
+            // Alle freien Betten (für Mitreisende-Auswahl)
+            const getAvailableBeds = () => {
+                if (!selectedBed) return [];
+                const selectedCompanionBeds = companions.map(c => c.bedId);
+                return Object.entries(BEDS)
+                    .filter(([id, _]) => id !== selectedBed && !bookings[id] && !selectedCompanionBeds.includes(id))
+                    .map(([id, info]) => ({ id, ...info }))
+                    .sort((a, b) => a.roomId - b.roomId || a.bedNum - b.bedNum);
+            };
+            
+            const addCompanion = () => setCompanions([...companions, { name: '', bedId: '' }]);
+            const removeCompanion = (idx) => setCompanions(companions.filter((_, i) => i !== idx));
+            const updateCompanion = (idx, field, value) => {
+                const updated = [...companions];
+                updated[idx][field] = value;
+                setCompanions(updated);
+            };
             const getBlockerName = (b) => b?.blockedBy ? bookings[b.blockedBy]?.name : null;
 
             const pickupList = Object.entries(bookings).filter(([_, b]) => b.needsPickup && b.status === 'booked').map(([id, b]) => ({ bedId: id, ...b })).sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
@@ -1468,6 +1581,41 @@
                                         )}
                                         <input type="text" className="modal-input" placeholder="Dein Name" value={inputName} onChange={e => setInputName(e.target.value)} autoFocus disabled={saving} />
                                         <TravelForm />
+                                        {/* Mitreisende */}
+                                        {!isBooked && getAvailableBeds().length > 0 && (
+                                            <div className="companions-section">
+                                                <div className="companions-title">👨‍👩‍👧 Mitreisende (gleiche Reisedaten)</div>
+                                                {companions.map((c, idx) => (
+                                                    <div key={idx} className="companion-row">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Name" 
+                                                            value={c.name} 
+                                                            onChange={e => updateCompanion(idx, 'name', e.target.value)}
+                                                            disabled={saving}
+                                                        />
+                                                        <select 
+                                                            value={c.bedId} 
+                                                            onChange={e => updateCompanion(idx, 'bedId', e.target.value)}
+                                                            disabled={saving}
+                                                        >
+                                                            <option value="">Bett wählen...</option>
+                                                            {getAvailableBeds().map(bed => (
+                                                                <option key={bed.id} value={bed.id}>{bed.room} – Bett {bed.bedNum}</option>
+                                                            ))}
+                                                            {c.bedId && !getAvailableBeds().find(b => b.id === c.bedId) && (
+                                                                <option value={c.bedId}>{BEDS[c.bedId]?.room} – Bett {BEDS[c.bedId]?.bedNum}</option>
+                                                            )}
+                                                        </select>
+                                                        <button type="button" className="companion-remove" onClick={() => removeCompanion(idx)}>✕</button>
+                                                    </div>
+                                                ))}
+                                                <button type="button" className="add-companion-btn" onClick={addCompanion} disabled={saving}>
+                                                    + Weitere Person hinzufügen
+                                                </button>
+                                            </div>
+                                        )}
+
                                         {!isBooked && hasFreeBeds() && (
                                             <div className="restriction-options">
                                                 <div className="restriction-label">Restliche Betten im Zimmer:</div>
