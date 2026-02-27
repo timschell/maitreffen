@@ -453,12 +453,16 @@
         const { useState, useEffect } = React;
         
         const API_URL = '/api';
+        const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
+        const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
         
-        // Einfache Auth (später durch WordPress SSO ersetzen)
         function AdminApp() {
             const [authenticated, setAuthenticated] = useState(false);
+            const [authMethod, setAuthMethod] = useState(null); // 'wordpress' oder 'password'
+            const [wpUser, setWpUser] = useState(null);
             const [password, setPassword] = useState('');
             const [authError, setAuthError] = useState('');
+            const [authLoading, setAuthLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('events');
             
             // Events
@@ -476,13 +480,45 @@
             // Users
             const [users, setUsers] = useState([]);
             
-            // Check if already authenticated (session)
+            // Check WordPress SSO first, then fall back to session
             useEffect(() => {
+                checkWordPressSSO();
+            }, []);
+            
+            const checkWordPressSSO = async () => {
+                setAuthLoading(true);
+                try {
+                    // Versuche WordPress SSO
+                    const res = await fetch(WP_SSO_URL, {
+                        credentials: 'include' // Wichtig für Cross-Domain Cookies
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.logged_in && data.is_admin) {
+                            // WordPress Admin eingeloggt!
+                            setWpUser(data);
+                            setAuthMethod('wordpress');
+                            setAuthenticated(true);
+                            setAuthLoading(false);
+                            return;
+                        } else if (data.logged_in && !data.is_admin) {
+                            // Eingeloggt aber kein Admin
+                            setAuthError('Du bist eingeloggt als "' + data.name + '", aber kein Administrator.');
+                        }
+                    }
+                } catch (err) {
+                    console.log('WordPress SSO nicht verfügbar:', err.message);
+                }
+                
+                // Fallback: Session prüfen
                 const stored = sessionStorage.getItem('admin_auth');
                 if (stored === 'true') {
+                    setAuthMethod('password');
                     setAuthenticated(true);
                 }
-            }, []);
+                setAuthLoading(false);
+            };
             
             const handleLogin = async (e) => {
                 e.preventDefault();
@@ -498,6 +534,7 @@
                     if (res.ok) {
                         sessionStorage.setItem('admin_auth', 'true');
                         sessionStorage.setItem('admin_token', password);
+                        setAuthMethod('password');
                         setAuthenticated(true);
                     } else {
                         setAuthError('Falsches Passwort');
@@ -511,7 +548,15 @@
                 sessionStorage.removeItem('admin_auth');
                 sessionStorage.removeItem('admin_token');
                 setAuthenticated(false);
+                setAuthMethod(null);
+                setWpUser(null);
                 setPassword('');
+            };
+            
+            const handleWordPressLogin = () => {
+                // Redirect zu WordPress Login, danach zurück hierher
+                const returnUrl = window.location.href;
+                window.location.href = `${WP_LOGIN_URL}?redirect_to=${encodeURIComponent(returnUrl)}`;
             };
             
             const getAuthHeader = () => ({
@@ -693,23 +738,76 @@
                 }
             };
             
+            // Loading Screen
+            if (authLoading) {
+                return (
+                    <div className="app">
+                        <div className="login-container">
+                            <div className="login-card" style={{textAlign: 'center'}}>
+                                <h2>🔐 Admin-Panel</h2>
+                                <p style={{color: 'var(--text-muted)'}}>Prüfe Anmeldung...</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            
             // Login Screen
             if (!authenticated) {
                 return (
                     <div className="app">
                         <div className="login-container">
-                            <form className="login-card" onSubmit={handleLogin}>
+                            <div className="login-card">
                                 <h2>🔐 Admin-Login</h2>
                                 {authError && <div className="login-error">{authError}</div>}
-                                <input 
-                                    type="password" 
-                                    placeholder="Admin-Passwort" 
-                                    value={password}
-                                    onChange={e => setPassword(e.target.value)}
-                                    autoFocus
-                                />
-                                <button type="submit">Anmelden</button>
-                            </form>
+                                
+                                {/* WordPress SSO Button */}
+                                <button 
+                                    type="button" 
+                                    onClick={handleWordPressLogin}
+                                    style={{
+                                        width: '100%',
+                                        padding: '1rem',
+                                        background: '#21759b',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        fontSize: '1rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                        marginBottom: '1rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    <span style={{fontSize: '1.2rem'}}>Ⓦ</span> Mit WordPress anmelden
+                                </button>
+                                
+                                <div style={{
+                                    textAlign: 'center',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.85rem',
+                                    margin: '1rem 0',
+                                    position: 'relative'
+                                }}>
+                                    <span style={{background: 'white', padding: '0 0.5rem'}}>oder</span>
+                                    <div style={{position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: '#ddd', zIndex: -1}}></div>
+                                </div>
+                                
+                                {/* Passwort Fallback */}
+                                <form onSubmit={handleLogin}>
+                                    <input 
+                                        type="password" 
+                                        placeholder="Admin-Passwort" 
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                    />
+                                    <button type="submit">Mit Passwort anmelden</button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 );
@@ -720,7 +818,14 @@
                 return (
                     <div className="app">
                         <header>
-                            <h1>🏠 Zimmer: {selectedEventForRooms.name}</h1>
+                            <div>
+                                <h1>🏠 Zimmer: {selectedEventForRooms.name}</h1>
+                                {wpUser && (
+                                    <div style={{fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem'}}>
+                                        Ⓦ Angemeldet als <strong>{wpUser.name}</strong>
+                                    </div>
+                                )}
+                            </div>
                             <button className="btn btn-secondary" onClick={closeRoomManager}>← Zurück</button>
                         </header>
                         
@@ -778,7 +883,14 @@
             return (
                 <div className="app">
                     <header>
-                        <h1>⚙️ Admin-Panel</h1>
+                        <div>
+                            <h1>⚙️ Admin-Panel</h1>
+                            {wpUser && (
+                                <div style={{fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem'}}>
+                                    Ⓦ Angemeldet als <strong>{wpUser.name}</strong>
+                                </div>
+                            )}
+                        </div>
                         <button className="logout-btn" onClick={handleLogout}>Abmelden</button>
                     </header>
                     

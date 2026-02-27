@@ -366,8 +366,11 @@ app.get('/api/event', async (req, res) => {
 
 // ==================== ADMIN API ====================
 
-// Admin-Passwort (später durch WordPress SSO ersetzen)
+// Admin-Passwort (Fallback, WordPress SSO ist primär)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brettspielfamilie2026';
+
+// WordPress SSO URL
+const WP_SSO_URL = process.env.WP_SSO_URL || 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
 
 // Admin-Auth Middleware
 const adminAuth = (req, res, next) => {
@@ -378,7 +381,7 @@ const adminAuth = (req, res, next) => {
   next();
 };
 
-// Admin Login
+// Admin Login (Passwort-Fallback)
 app.post('/api/admin/auth', (req, res) => {
   const { password } = req.body;
   if (password === ADMIN_PASSWORD) {
@@ -386,6 +389,35 @@ app.post('/api/admin/auth', (req, res) => {
   } else {
     res.status(401).json({ error: 'Falsches Passwort' });
   }
+});
+
+// ==================== WORDPRESS SSO ====================
+
+// SSO Status prüfen (Proxy zu WordPress)
+app.get('/api/auth/me', async (req, res) => {
+  // Cookies vom Client an WordPress weiterleiten
+  const cookies = req.headers.cookie || '';
+  
+  try {
+    const wpRes = await fetch(WP_SSO_URL, {
+      headers: {
+        'Cookie': cookies
+      }
+    });
+    
+    const data = await wpRes.json();
+    res.json(data);
+  } catch (err) {
+    console.error('WordPress SSO Fehler:', err.message);
+    res.json({ logged_in: false, error: 'WordPress nicht erreichbar' });
+  }
+});
+
+// Login-Redirect URL
+app.get('/api/auth/login-url', (req, res) => {
+  const returnUrl = req.query.return || req.headers.referer || '/';
+  const loginUrl = `https://brettspielfamilie.de/wp-login.php?redirect_to=${encodeURIComponent(returnUrl)}`;
+  res.json({ url: loginUrl });
 });
 
 // Alle Events auflisten
