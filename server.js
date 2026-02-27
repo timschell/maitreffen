@@ -64,9 +64,27 @@ async function initDB() {
         person_name VARCHAR(100) NOT NULL,
         type VARCHAR(20) NOT NULL DEFAULT 'bring',
         fulfilled_by VARCHAR(100) DEFAULT NULL,
+        bgg_id INTEGER DEFAULT NULL,
+        bgg_thumbnail VARCHAR(500) DEFAULT NULL,
+        bgg_image VARCHAR(500) DEFAULT NULL,
+        bgg_year INTEGER DEFAULT NULL,
+        bgg_min_players INTEGER DEFAULT NULL,
+        bgg_max_players INTEGER DEFAULT NULL,
+        bgg_playtime VARCHAR(50) DEFAULT NULL,
+        bgg_description TEXT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Neue Spalten hinzufügen falls Tabelle schon existiert
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_id INTEGER DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_thumbnail VARCHAR(500) DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_image VARCHAR(500) DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_year INTEGER DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_min_players INTEGER DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_max_players INTEGER DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_playtime VARCHAR(50) DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_description TEXT DEFAULT NULL`);
 
     // Warteliste-Tabelle
     await client.query(`
@@ -298,6 +316,78 @@ app.delete('/api/waitlist/:id', async (req, res) => {
 
 // === SPIELE API ===
 
+// BGG Suche
+app.get('/api/bgg/search', async (req, res) => {
+  const { query } = req.query;
+  if (!query?.trim()) {
+    return res.json([]);
+  }
+  
+  try {
+    const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(query)}&type=boardgame`;
+    const response = await fetch(searchUrl);
+    const xml = await response.text();
+    
+    // Einfaches XML Parsing
+    const items = [];
+    const itemMatches = xml.match(/<item.*?<\/item>/gs) || [];
+    
+    for (const item of itemMatches.slice(0, 10)) {
+      const idMatch = item.match(/id="(\d+)"/);
+      const nameMatch = item.match(/<name.*?value="([^"]+)"/);
+      const yearMatch = item.match(/<yearpublished.*?value="(\d+)"/);
+      
+      if (idMatch && nameMatch) {
+        items.push({
+          bggId: parseInt(idMatch[1]),
+          name: nameMatch[1],
+          year: yearMatch ? parseInt(yearMatch[1]) : null
+        });
+      }
+    }
+    
+    res.json(items);
+  } catch (err) {
+    console.error('BGG Suche Fehler:', err.message);
+    res.json([]);
+  }
+});
+
+// BGG Details abrufen
+app.get('/api/bgg/details/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${id}&stats=1`;
+    const response = await fetch(detailUrl);
+    const xml = await response.text();
+    
+    const nameMatch = xml.match(/<name type="primary".*?value="([^"]+)"/);
+    const yearMatch = xml.match(/<yearpublished.*?value="(\d+)"/);
+    const minPlayersMatch = xml.match(/<minplayers.*?value="(\d+)"/);
+    const maxPlayersMatch = xml.match(/<maxplayers.*?value="(\d+)"/);
+    const playtimeMatch = xml.match(/<playingtime.*?value="(\d+)"/);
+    const thumbnailMatch = xml.match(/<thumbnail>([^<]+)<\/thumbnail>/);
+    const imageMatch = xml.match(/<image>([^<]+)<\/image>/);
+    const descMatch = xml.match(/<description>([^<]*)<\/description>/);
+    
+    res.json({
+      bggId: parseInt(id),
+      name: nameMatch ? nameMatch[1] : 'Unbekannt',
+      year: yearMatch ? parseInt(yearMatch[1]) : null,
+      minPlayers: minPlayersMatch ? parseInt(minPlayersMatch[1]) : null,
+      maxPlayers: maxPlayersMatch ? parseInt(maxPlayersMatch[1]) : null,
+      playtime: playtimeMatch ? playtimeMatch[1] : null,
+      thumbnail: thumbnailMatch ? thumbnailMatch[1] : null,
+      image: imageMatch ? imageMatch[1] : null,
+      description: descMatch ? descMatch[1].replace(/&#10;/g, '\n').slice(0, 500) : null
+    });
+  } catch (err) {
+    console.error('BGG Details Fehler:', err.message);
+    res.status(500).json({ error: 'BGG Fehler' });
+  }
+});
+
 // Alle Spiele laden
 app.get('/api/games', async (req, res) => {
   try {
@@ -309,9 +399,9 @@ app.get('/api/games', async (req, res) => {
   }
 });
 
-// Spiel hinzufügen
+// Spiel hinzufügen (mit BGG Daten)
 app.post('/api/games', async (req, res) => {
-  const { gameName, personName, type } = req.body;
+  const { gameName, personName, type, bggId, bggThumbnail, bggImage, bggYear, bggMinPlayers, bggMaxPlayers, bggPlaytime, bggDescription } = req.body;
   
   if (!gameName?.trim() || !personName?.trim()) {
     return res.status(400).json({ error: 'Spielname und Name sind erforderlich' });
@@ -323,8 +413,9 @@ app.post('/api/games', async (req, res) => {
   
   try {
     const result = await pool.query(
-      'INSERT INTO games (game_name, person_name, type) VALUES ($1, $2, $3) RETURNING *',
-      [gameName.trim(), personName.trim(), type]
+      `INSERT INTO games (game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime, bgg_description) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [gameName.trim(), personName.trim(), type, bggId || null, bggThumbnail || null, bggImage || null, bggYear || null, bggMinPlayers || null, bggMaxPlayers || null, bggPlaytime || null, bggDescription || null]
     );
     res.json(result.rows[0]);
   } catch (err) {

@@ -918,49 +918,99 @@
             background: #ff9800;
         }
 
-        .games-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .games-list { display: flex; flex-direction: column; gap: 0.75rem; }
 
-        .game-item {
+        .game-card {
             display: flex;
-            align-items: center;
             gap: 0.75rem;
             padding: 0.75rem;
-            background: #f3e5f5;
-            border-radius: 10px;
-            border: 1px solid #ce93d8;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
-        .game-item.wish {
-            background: var(--waitlist-light);
+        .game-card.wish {
             border-color: #ffcc80;
+            background: linear-gradient(135deg, #fff9f0, #fff);
         }
 
-        .game-item.fulfilled {
-            background: #e8f5e9;
+        .game-card.fulfilled {
             border-color: #a5d6a7;
+            background: linear-gradient(135deg, #f0fff0, #fff);
         }
 
-        .game-icon { font-size: 1.3rem; }
-        .game-info { flex: 1; min-width: 0; }
-        .game-name { font-weight: 600; color: var(--text-dark); word-break: break-word; }
-        .game-meta { font-size: 0.8rem; color: var(--text-muted); }
-        .game-fulfilled { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-top: 0.2rem; }
+        .game-thumbnail {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #f5f5f5;
+            flex-shrink: 0;
+        }
 
-        .game-actions { display: flex; gap: 0.25rem; }
+        .game-thumbnail-placeholder {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #e8e8e8, #f5f5f5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        .game-content { flex: 1; min-width: 0; }
+        .game-name { font-weight: 700; color: var(--text-dark); font-size: 1rem; margin-bottom: 0.25rem; }
+        .game-name a { color: inherit; text-decoration: none; }
+        .game-name a:hover { text-decoration: underline; }
+        .game-details { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.25rem; }
+        .game-person { font-size: 0.8rem; color: #6a1b9a; font-weight: 600; }
+        .game-person.wish { color: #e65100; }
+        .game-fulfilled-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: var(--accent);
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+
+        .game-actions { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end; justify-content: space-between; }
 
         .game-btn {
             background: none;
             border: none;
             cursor: pointer;
-            padding: 0.4rem;
+            padding: 0.3rem;
             border-radius: 6px;
-            font-size: 0.85rem;
-            transition: background 0.2s;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            opacity: 0.6;
         }
 
-        .game-btn:hover { background: rgba(0,0,0,0.1); }
-        .game-btn.fulfill { color: var(--accent); }
+        .game-btn:hover { opacity: 1; }
         .game-btn.delete { color: var(--bed-booked); }
+
+        .btn-fulfill {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.4rem 0.75rem;
+            border-radius: 8px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-fulfill:hover { background: #4a8a38; }
 
         .games-empty {
             text-align: center;
@@ -982,6 +1032,83 @@
             background: #ff9800;
             color: white;
         }
+
+        /* BGG Suche */
+        .bgg-search-container { position: relative; margin-bottom: 0.75rem; }
+        .bgg-search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .bgg-search-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+
+        .bgg-search-item:last-child { border-bottom: none; }
+        .bgg-search-item:hover { background: #f5f5f5; }
+
+        .bgg-search-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
+            background: #eee;
+        }
+
+        .bgg-search-info { flex: 1; }
+        .bgg-search-name { font-weight: 600; font-size: 0.9rem; }
+        .bgg-search-year { font-size: 0.75rem; color: var(--text-muted); }
+
+        .bgg-selected-game {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #f3e5f5;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            border: 2px solid #ce93d8;
+        }
+
+        .bgg-selected-game.wish {
+            background: var(--waitlist-light);
+            border-color: #ffcc80;
+        }
+
+        .bgg-selected-thumb {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .bgg-selected-info { flex: 1; }
+        .bgg-selected-name { font-weight: 700; }
+        .bgg-selected-details { font-size: 0.8rem; color: var(--text-muted); }
+        .bgg-selected-clear {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 0.5rem;
+        }
+        .bgg-selected-clear:hover { opacity: 1; }
 
         /* Desktop */
         @media (min-width: 768px) {
@@ -1086,11 +1213,15 @@
             const [gamesTab, setGamesTab] = useState('bring');
             const [gameModalOpen, setGameModalOpen] = useState(false);
             const [gameModalType, setGameModalType] = useState('bring');
-            const [gameName, setGameName] = useState('');
             const [gamePersonName, setGamePersonName] = useState('');
             const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
             const [selectedGame, setSelectedGame] = useState(null);
             const [fulfillName, setFulfillName] = useState('');
+            // BGG Suche
+            const [bggSearchQuery, setBggSearchQuery] = useState('');
+            const [bggSearchResults, setBggSearchResults] = useState([]);
+            const [bggSearching, setBggSearching] = useState(false);
+            const [selectedBggGame, setSelectedBggGame] = useState(null);
 
             useEffect(() => { loadBookings(); loadWaitlist(); loadGames(); }, []);
 
@@ -1270,25 +1401,87 @@
             };
 
             // === SPIELE FUNKTIONEN ===
+            
+            // Liste aller gebuchten Teilnehmer
+            const bookedParticipants = Object.entries(bookings)
+                .filter(([_, b]) => b.status === 'booked')
+                .map(([_, b]) => b.name)
+                .sort();
+            
             const openGameModal = (type) => {
                 setGameModalType(type);
-                setGameName('');
                 setGamePersonName('');
+                setBggSearchQuery('');
+                setBggSearchResults([]);
+                setSelectedBggGame(null);
                 setGameModalOpen(true);
             };
 
+            // BGG Suche mit Debounce
+            useEffect(() => {
+                if (!bggSearchQuery.trim() || bggSearchQuery.length < 2) {
+                    setBggSearchResults([]);
+                    return;
+                }
+                
+                const timeoutId = setTimeout(async () => {
+                    setBggSearching(true);
+                    try {
+                        const res = await fetch(`${API_URL}/bgg/search?query=${encodeURIComponent(bggSearchQuery)}`);
+                        if (res.ok) {
+                            const results = await res.json();
+                            setBggSearchResults(results);
+                        }
+                    } catch {}
+                    finally { setBggSearching(false); }
+                }, 300);
+                
+                return () => clearTimeout(timeoutId);
+            }, [bggSearchQuery]);
+
+            const selectBggGame = async (bggGame) => {
+                setBggSearchResults([]);
+                setBggSearchQuery('');
+                setBggSearching(true);
+                
+                try {
+                    const res = await fetch(`${API_URL}/bgg/details/${bggGame.bggId}`);
+                    if (res.ok) {
+                        const details = await res.json();
+                        setSelectedBggGame(details);
+                    } else {
+                        setSelectedBggGame(bggGame);
+                    }
+                } catch {
+                    setSelectedBggGame(bggGame);
+                }
+                finally { setBggSearching(false); }
+            };
+
             const handleAddGame = async () => {
-                if (!gameName.trim() || !gamePersonName.trim() || saving) return;
+                if (!selectedBggGame || !gamePersonName.trim() || saving) return;
                 setSaving(true);
                 try {
                     await fetch(`${API_URL}/games`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ gameName: gameName.trim(), personName: gamePersonName.trim(), type: gameModalType })
+                        body: JSON.stringify({ 
+                            gameName: selectedBggGame.name,
+                            personName: gamePersonName.trim(), 
+                            type: gameModalType,
+                            bggId: selectedBggGame.bggId,
+                            bggThumbnail: selectedBggGame.thumbnail,
+                            bggImage: selectedBggGame.image,
+                            bggYear: selectedBggGame.year,
+                            bggMinPlayers: selectedBggGame.minPlayers,
+                            bggMaxPlayers: selectedBggGame.maxPlayers,
+                            bggPlaytime: selectedBggGame.playtime,
+                            bggDescription: selectedBggGame.description
+                        })
                     });
                     await loadGames();
                     setGameModalOpen(false);
-                    setGameName('');
+                    setSelectedBggGame(null);
                     setGamePersonName('');
                 } catch { setError('Spiel konnte nicht hinzugefügt werden.'); }
                 finally { setSaving(false); }
@@ -1730,11 +1923,26 @@
                             ) : (
                                 <div className="games-list">
                                     {bringGames.map(g => (
-                                        <div key={g.id} className="game-item">
-                                            <span className="game-icon">🎲</span>
-                                            <div className="game-info">
-                                                <div className="game-name">{g.game_name}</div>
-                                                <div className="game-meta">von {g.person_name}</div>
+                                        <div key={g.id} className="game-card">
+                                            {g.bgg_thumbnail ? (
+                                                <img src={g.bgg_thumbnail} alt={g.game_name} className="game-thumbnail" />
+                                            ) : (
+                                                <div className="game-thumbnail-placeholder">🎲</div>
+                                            )}
+                                            <div className="game-content">
+                                                <div className="game-name">
+                                                    {g.bgg_id ? (
+                                                        <a href={`https://boardgamegeek.com/boardgame/${g.bgg_id}`} target="_blank" rel="noopener">{g.game_name}</a>
+                                                    ) : g.game_name}
+                                                </div>
+                                                {(g.bgg_year || g.bgg_min_players || g.bgg_playtime) && (
+                                                    <div className="game-details">
+                                                        {g.bgg_year && <span>📅 {g.bgg_year}</span>}
+                                                        {g.bgg_min_players && <span>👥 {g.bgg_min_players}{g.bgg_max_players && g.bgg_max_players !== g.bgg_min_players ? `-${g.bgg_max_players}` : ''}</span>}
+                                                        {g.bgg_playtime && <span>⏱ {g.bgg_playtime} Min</span>}
+                                                    </div>
+                                                )}
+                                                <div className="game-person">von {g.person_name}</div>
                                             </div>
                                             <div className="game-actions">
                                                 <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
@@ -1751,16 +1959,37 @@
                             ) : (
                                 <div className="games-list">
                                     {wishGames.map(g => (
-                                        <div key={g.id} className={`game-item wish ${g.fulfilled_by ? 'fulfilled' : ''}`}>
-                                            <span className="game-icon">{g.fulfilled_by ? '✅' : '💭'}</span>
-                                            <div className="game-info">
-                                                <div className="game-name">{g.game_name}</div>
-                                                <div className="game-meta">gewünscht von {g.person_name}</div>
-                                                {g.fulfilled_by && <div className="game-fulfilled">→ {g.fulfilled_by} bringt es mit!</div>}
+                                        <div key={g.id} className={`game-card wish ${g.fulfilled_by ? 'fulfilled' : ''}`}>
+                                            {g.bgg_thumbnail ? (
+                                                <img src={g.bgg_thumbnail} alt={g.game_name} className="game-thumbnail" />
+                                            ) : (
+                                                <div className="game-thumbnail-placeholder">💭</div>
+                                            )}
+                                            <div className="game-content">
+                                                <div className="game-name">
+                                                    {g.bgg_id ? (
+                                                        <a href={`https://boardgamegeek.com/boardgame/${g.bgg_id}`} target="_blank" rel="noopener">{g.game_name}</a>
+                                                    ) : g.game_name}
+                                                </div>
+                                                {(g.bgg_year || g.bgg_min_players || g.bgg_playtime) && (
+                                                    <div className="game-details">
+                                                        {g.bgg_year && <span>📅 {g.bgg_year}</span>}
+                                                        {g.bgg_min_players && <span>👥 {g.bgg_min_players}{g.bgg_max_players && g.bgg_max_players !== g.bgg_min_players ? `-${g.bgg_max_players}` : ''}</span>}
+                                                        {g.bgg_playtime && <span>⏱ {g.bgg_playtime} Min</span>}
+                                                    </div>
+                                                )}
+                                                <div className="game-person wish">gewünscht von {g.person_name}</div>
+                                                {g.fulfilled_by && (
+                                                    <div className="game-fulfilled-badge">✅ {g.fulfilled_by} bringt es mit!</div>
+                                                )}
                                             </div>
                                             <div className="game-actions">
-                                                {!g.fulfilled_by && <button className="game-btn fulfill" onClick={() => openFulfillModal(g)}>🙋</button>}
-                                                {g.fulfilled_by && <button className="game-btn" onClick={() => handleUnfulfillWish(g.id)}>↩️</button>}
+                                                {!g.fulfilled_by && (
+                                                    <button className="btn-fulfill" onClick={() => openFulfillModal(g)}>🙋 Ich bring's!</button>
+                                                )}
+                                                {g.fulfilled_by && (
+                                                    <button className="game-btn" onClick={() => handleUnfulfillWish(g.id)} title="Zurücknehmen">↩️</button>
+                                                )}
                                                 <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
                                             </div>
                                         </div>
@@ -1952,32 +2181,77 @@
                                 </h2>
                                 <p className="modal-room">
                                     {gameModalType === 'bring' 
-                                        ? 'Trage ein welches Spiel du mitbringst.' 
+                                        ? 'Suche ein Spiel auf BoardGameGeek und wähle es aus.' 
                                         : 'Wünsch dir ein Spiel, das jemand mitbringen soll.'}
                                 </p>
-                                <input 
-                                    type="text" 
-                                    className="modal-input" 
-                                    placeholder="Spielname" 
-                                    value={gameName} 
-                                    onChange={e => setGameName(e.target.value)} 
-                                    autoFocus 
-                                    disabled={saving} 
-                                />
-                                <input 
-                                    type="text" 
-                                    className="modal-input" 
-                                    placeholder="Dein Name" 
-                                    value={gamePersonName} 
-                                    onChange={e => setGamePersonName(e.target.value)} 
-                                    disabled={saving} 
-                                />
+
+                                {/* BGG Suche */}
+                                {!selectedBggGame ? (
+                                    <div className="bgg-search-container">
+                                        <input 
+                                            type="text" 
+                                            className="modal-input" 
+                                            placeholder="🔍 Spiel suchen auf BoardGameGeek..." 
+                                            value={bggSearchQuery} 
+                                            onChange={e => setBggSearchQuery(e.target.value)} 
+                                            autoFocus 
+                                            disabled={saving} 
+                                            style={{marginBottom: 0}}
+                                        />
+                                        {bggSearching && <div style={{padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem'}}>Suche...</div>}
+                                        {bggSearchResults.length > 0 && (
+                                            <div className="bgg-search-results">
+                                                {bggSearchResults.map(r => (
+                                                    <div key={r.bggId} className="bgg-search-item" onClick={() => selectBggGame(r)}>
+                                                        <div className="bgg-search-info">
+                                                            <div className="bgg-search-name">{r.name}</div>
+                                                            {r.year && <div className="bgg-search-year">{r.year}</div>}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className={`bgg-selected-game ${gameModalType === 'wish' ? 'wish' : ''}`}>
+                                        {selectedBggGame.thumbnail && (
+                                            <img src={selectedBggGame.thumbnail} alt={selectedBggGame.name} className="bgg-selected-thumb" />
+                                        )}
+                                        <div className="bgg-selected-info">
+                                            <div className="bgg-selected-name">{selectedBggGame.name}</div>
+                                            <div className="bgg-selected-details">
+                                                {selectedBggGame.year && `${selectedBggGame.year} · `}
+                                                {selectedBggGame.minPlayers && `${selectedBggGame.minPlayers}${selectedBggGame.maxPlayers && selectedBggGame.maxPlayers !== selectedBggGame.minPlayers ? `-${selectedBggGame.maxPlayers}` : ''} Spieler`}
+                                                {selectedBggGame.playtime && ` · ${selectedBggGame.playtime} Min`}
+                                            </div>
+                                        </div>
+                                        <button className="bgg-selected-clear" onClick={() => setSelectedBggGame(null)}>✕</button>
+                                    </div>
+                                )}
+
+                                {/* Teilnehmer-Auswahl */}
+                                <div className="form-group" style={{marginBottom: '0.75rem'}}>
+                                    <label style={{marginBottom: '0.25rem', display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)'}}>Wer {gameModalType === 'bring' ? 'bringt es mit' : 'wünscht es sich'}?</label>
+                                    <select 
+                                        className="modal-input" 
+                                        value={gamePersonName} 
+                                        onChange={e => setGamePersonName(e.target.value)}
+                                        disabled={saving}
+                                        style={{marginBottom: 0}}
+                                    >
+                                        <option value="">-- Teilnehmer wählen --</option>
+                                        {bookedParticipants.map(name => (
+                                            <option key={name} value={name}>{name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 <div className="modal-buttons">
                                     <button className="btn btn-secondary" onClick={() => setGameModalOpen(false)}>Abbrechen</button>
                                     <button 
                                         className={`btn ${gameModalType === 'bring' ? 'btn-games' : 'btn-wish'}`} 
                                         onClick={handleAddGame} 
-                                        disabled={saving || !gameName.trim() || !gamePersonName.trim()}
+                                        disabled={saving || !selectedBggGame || !gamePersonName.trim()}
                                     >
                                         {saving ? '...' : 'Hinzufügen'}
                                     </button>
@@ -1992,19 +2266,39 @@
                             <div className="modal" onClick={e => e.stopPropagation()}>
                                 <div className="modal-handle"></div>
                                 <h2 style={{color: 'var(--accent)'}}>🙋 Wunsch erfüllen</h2>
-                                <p className="modal-room">
-                                    <strong>{selectedGame.person_name}</strong> wünscht sich:<br/>
-                                    <span style={{fontSize: '1.1rem', fontWeight: 600}}>🎲 {selectedGame.game_name}</span>
-                                </p>
-                                <input 
-                                    type="text" 
-                                    className="modal-input" 
-                                    placeholder="Dein Name" 
-                                    value={fulfillName} 
-                                    onChange={e => setFulfillName(e.target.value)} 
-                                    autoFocus 
-                                    disabled={saving} 
-                                />
+                                
+                                {/* Zeige Spiel-Info */}
+                                <div className="bgg-selected-game" style={{marginBottom: '1rem', borderColor: '#a5d6a7', background: '#f0fff0'}}>
+                                    {selectedGame.bgg_thumbnail ? (
+                                        <img src={selectedGame.bgg_thumbnail} alt={selectedGame.game_name} className="bgg-selected-thumb" />
+                                    ) : (
+                                        <div style={{width: 60, height: 60, background: '#e8f5e9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem'}}>🎲</div>
+                                    )}
+                                    <div className="bgg-selected-info">
+                                        <div className="bgg-selected-name">{selectedGame.game_name}</div>
+                                        <div className="bgg-selected-details" style={{color: '#e65100'}}>
+                                            gewünscht von {selectedGame.person_name}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Teilnehmer-Auswahl */}
+                                <div className="form-group" style={{marginBottom: '0.75rem'}}>
+                                    <label style={{marginBottom: '0.25rem', display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)'}}>Wer bringt es mit?</label>
+                                    <select 
+                                        className="modal-input" 
+                                        value={fulfillName} 
+                                        onChange={e => setFulfillName(e.target.value)}
+                                        disabled={saving}
+                                        style={{marginBottom: 0}}
+                                    >
+                                        <option value="">-- Teilnehmer wählen --</option>
+                                        {bookedParticipants.filter(n => n !== selectedGame.person_name).map(name => (
+                                            <option key={name} value={name}>{name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 <div className="modal-buttons">
                                     <button className="btn btn-secondary" onClick={() => setFulfillModalOpen(false)}>Abbrechen</button>
                                     <button 
@@ -2012,7 +2306,7 @@
                                         onClick={handleFulfillWish} 
                                         disabled={saving || !fulfillName.trim()}
                                     >
-                                        {saving ? '...' : 'Ich bringe es mit!'}
+                                        {saving ? '...' : '✅ Ich bringe es mit!'}
                                     </button>
                                 </div>
                             </div>
