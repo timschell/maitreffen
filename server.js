@@ -56,6 +56,18 @@ async function initDB() {
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_time TIME DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_time TIME DEFAULT NULL`);
 
+    // Spiele-Tabelle
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS games (
+        id SERIAL PRIMARY KEY,
+        game_name VARCHAR(200) NOT NULL,
+        person_name VARCHAR(100) NOT NULL,
+        type VARCHAR(20) NOT NULL DEFAULT 'bring',
+        fulfilled_by VARCHAR(100) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Warteliste-Tabelle
     await client.query(`
       CREATE TABLE IF NOT EXISTS waitlist (
@@ -280,6 +292,88 @@ app.delete('/api/waitlist/:id', async (req, res) => {
     res.json({ success: true, id });
   } catch (err) {
     console.error('Fehler beim Entfernen von der Warteliste:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// === SPIELE API ===
+
+// Alle Spiele laden
+app.get('/api/games', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM games ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler beim Laden der Spiele:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Spiel hinzufügen
+app.post('/api/games', async (req, res) => {
+  const { gameName, personName, type } = req.body;
+  
+  if (!gameName?.trim() || !personName?.trim()) {
+    return res.status(400).json({ error: 'Spielname und Name sind erforderlich' });
+  }
+  
+  if (!['bring', 'wish'].includes(type)) {
+    return res.status(400).json({ error: 'Ungültiger Typ' });
+  }
+  
+  try {
+    const result = await pool.query(
+      'INSERT INTO games (game_name, person_name, type) VALUES ($1, $2, $3) RETURNING *',
+      [gameName.trim(), personName.trim(), type]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler beim Hinzufügen:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Spiel löschen
+app.delete('/api/games/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM games WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler beim Löschen:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Wunsch erfüllen
+app.post('/api/games/:id/fulfill', async (req, res) => {
+  const { id } = req.params;
+  const { fulfilledBy } = req.body;
+  
+  if (!fulfilledBy?.trim()) {
+    return res.status(400).json({ error: 'Name ist erforderlich' });
+  }
+  
+  try {
+    const result = await pool.query(
+      'UPDATE games SET fulfilled_by = $1 WHERE id = $2 AND type = $3 RETURNING *',
+      [fulfilledBy.trim(), id, 'wish']
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Erfüllung zurücknehmen
+app.delete('/api/games/:id/fulfill', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('UPDATE games SET fulfilled_by = NULL WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });

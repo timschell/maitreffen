@@ -861,6 +861,128 @@
 
         .info-text a { color: var(--accent); }
 
+        /* Games Section */
+        .games-section {
+            background: var(--bg-paper);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #e8e8e8;
+        }
+
+        .games-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .games-title {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.2rem;
+            color: #6a1b9a;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .games-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .games-tab {
+            flex: 1;
+            padding: 0.6rem;
+            border: none;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .games-tab.active {
+            background: #6a1b9a;
+            color: white;
+        }
+
+        .games-tab.wish.active {
+            background: #ff9800;
+        }
+
+        .games-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+        .game-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #f3e5f5;
+            border-radius: 10px;
+            border: 1px solid #ce93d8;
+        }
+
+        .game-item.wish {
+            background: var(--waitlist-light);
+            border-color: #ffcc80;
+        }
+
+        .game-item.fulfilled {
+            background: #e8f5e9;
+            border-color: #a5d6a7;
+        }
+
+        .game-icon { font-size: 1.3rem; }
+        .game-info { flex: 1; min-width: 0; }
+        .game-name { font-weight: 600; color: var(--text-dark); word-break: break-word; }
+        .game-meta { font-size: 0.8rem; color: var(--text-muted); }
+        .game-fulfilled { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-top: 0.2rem; }
+
+        .game-actions { display: flex; gap: 0.25rem; }
+
+        .game-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.4rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .game-btn:hover { background: rgba(0,0,0,0.1); }
+        .game-btn.fulfill { color: var(--accent); }
+        .game-btn.delete { color: var(--bed-booked); }
+
+        .games-empty {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-muted);
+        }
+
+        .games-add-btns {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-games {
+            background: #6a1b9a;
+            color: white;
+        }
+
+        .btn-wish {
+            background: #ff9800;
+            color: white;
+        }
+
         /* Desktop */
         @media (min-width: 768px) {
             .app { padding: 1.5rem; }
@@ -960,8 +1082,17 @@
             const [roomRestriction, setRoomRestriction] = useState('none');
             const [companions, setCompanions] = useState([]); // [{name: '', bedId: ''}]
             const [activeFloor, setActiveFloor] = useState('eg');
+            const [games, setGames] = useState([]);
+            const [gamesTab, setGamesTab] = useState('bring');
+            const [gameModalOpen, setGameModalOpen] = useState(false);
+            const [gameModalType, setGameModalType] = useState('bring');
+            const [gameName, setGameName] = useState('');
+            const [gamePersonName, setGamePersonName] = useState('');
+            const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
+            const [selectedGame, setSelectedGame] = useState(null);
+            const [fulfillName, setFulfillName] = useState('');
 
-            useEffect(() => { loadBookings(); loadWaitlist(); }, []);
+            useEffect(() => { loadBookings(); loadWaitlist(); loadGames(); }, []);
 
             useEffect(() => {
                 if (transport !== 'oepnv') {
@@ -992,6 +1123,13 @@
                 try {
                     const res = await fetch(`${API_URL}/waitlist`);
                     if (res.ok) setWaitlist(await res.json());
+                } catch {}
+            };
+
+            const loadGames = async () => {
+                try {
+                    const res = await fetch(`${API_URL}/games`);
+                    if (res.ok) setGames(await res.json());
                 } catch {}
             };
 
@@ -1130,6 +1268,77 @@
                 } catch { setError('Entfernen fehlgeschlagen.'); }
                 finally { setSaving(false); }
             };
+
+            // === SPIELE FUNKTIONEN ===
+            const openGameModal = (type) => {
+                setGameModalType(type);
+                setGameName('');
+                setGamePersonName('');
+                setGameModalOpen(true);
+            };
+
+            const handleAddGame = async () => {
+                if (!gameName.trim() || !gamePersonName.trim() || saving) return;
+                setSaving(true);
+                try {
+                    await fetch(`${API_URL}/games`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ gameName: gameName.trim(), personName: gamePersonName.trim(), type: gameModalType })
+                    });
+                    await loadGames();
+                    setGameModalOpen(false);
+                    setGameName('');
+                    setGamePersonName('');
+                } catch { setError('Spiel konnte nicht hinzugefügt werden.'); }
+                finally { setSaving(false); }
+            };
+
+            const handleDeleteGame = async (id) => {
+                if (saving || !confirm('Wirklich löschen?')) return;
+                setSaving(true);
+                try {
+                    await fetch(`${API_URL}/games/${id}`, { method: 'DELETE' });
+                    await loadGames();
+                } catch { setError('Löschen fehlgeschlagen.'); }
+                finally { setSaving(false); }
+            };
+
+            const openFulfillModal = (game) => {
+                setSelectedGame(game);
+                setFulfillName('');
+                setFulfillModalOpen(true);
+            };
+
+            const handleFulfillWish = async () => {
+                if (!fulfillName.trim() || saving || !selectedGame) return;
+                setSaving(true);
+                try {
+                    await fetch(`${API_URL}/games/${selectedGame.id}/fulfill`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fulfilledBy: fulfillName.trim() })
+                    });
+                    await loadGames();
+                    setFulfillModalOpen(false);
+                    setSelectedGame(null);
+                    setFulfillName('');
+                } catch { setError('Fehler beim Erfüllen.'); }
+                finally { setSaving(false); }
+            };
+
+            const handleUnfulfillWish = async (id) => {
+                if (saving) return;
+                setSaving(true);
+                try {
+                    await fetch(`${API_URL}/games/${id}/fulfill`, { method: 'DELETE' });
+                    await loadGames();
+                } catch { setError('Fehler.'); }
+                finally { setSaving(false); }
+            };
+
+            const bringGames = games.filter(g => g.type === 'bring');
+            const wishGames = games.filter(g => g.type === 'wish');
 
             const closeModal = () => {
                 setModalOpen(false);
@@ -1496,6 +1705,71 @@
                         </div>
                     )}
 
+                    {/* Spiele */}
+                    <div className="games-section">
+                        <div className="games-header">
+                            <h4 className="games-title">🎲 Spiele</h4>
+                            <div className="games-add-btns">
+                                <button className="btn btn-games" style={{flex: 'none', padding: '0.5rem 0.75rem', fontSize: '0.8rem'}} onClick={() => openGameModal('bring')}>+ Ich bringe mit</button>
+                                <button className="btn btn-wish" style={{flex: 'none', padding: '0.5rem 0.75rem', fontSize: '0.8rem'}} onClick={() => openGameModal('wish')}>+ Spielwunsch</button>
+                            </div>
+                        </div>
+
+                        <div className="games-tabs">
+                            <button className={`games-tab ${gamesTab === 'bring' ? 'active' : ''}`} onClick={() => setGamesTab('bring')}>
+                                🎲 Mitgebracht ({bringGames.length})
+                            </button>
+                            <button className={`games-tab wish ${gamesTab === 'wish' ? 'active' : ''}`} onClick={() => setGamesTab('wish')}>
+                                💭 Wünsche ({wishGames.length})
+                            </button>
+                        </div>
+
+                        {gamesTab === 'bring' && (
+                            bringGames.length === 0 ? (
+                                <div className="games-empty">Noch keine Spiele eingetragen. Klicke "+ Ich bringe mit"!</div>
+                            ) : (
+                                <div className="games-list">
+                                    {bringGames.map(g => (
+                                        <div key={g.id} className="game-item">
+                                            <span className="game-icon">🎲</span>
+                                            <div className="game-info">
+                                                <div className="game-name">{g.game_name}</div>
+                                                <div className="game-meta">von {g.person_name}</div>
+                                            </div>
+                                            <div className="game-actions">
+                                                <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        )}
+
+                        {gamesTab === 'wish' && (
+                            wishGames.length === 0 ? (
+                                <div className="games-empty">Keine Spielwünsche. Klicke "+ Spielwunsch" wenn du dir ein Spiel wünschst!</div>
+                            ) : (
+                                <div className="games-list">
+                                    {wishGames.map(g => (
+                                        <div key={g.id} className={`game-item wish ${g.fulfilled_by ? 'fulfilled' : ''}`}>
+                                            <span className="game-icon">{g.fulfilled_by ? '✅' : '💭'}</span>
+                                            <div className="game-info">
+                                                <div className="game-name">{g.game_name}</div>
+                                                <div className="game-meta">gewünscht von {g.person_name}</div>
+                                                {g.fulfilled_by && <div className="game-fulfilled">→ {g.fulfilled_by} bringt es mit!</div>}
+                                            </div>
+                                            <div className="game-actions">
+                                                {!g.fulfilled_by && <button className="game-btn fulfill" onClick={() => openFulfillModal(g)}>🙋</button>}
+                                                {g.fulfilled_by && <button className="game-btn" onClick={() => handleUnfulfillWish(g.id)}>↩️</button>}
+                                                <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        )}
+                    </div>
+
                     {/* Warteliste */}
                     <div className="waitlist-section">
                         <div className="waitlist-header">
@@ -1530,7 +1804,8 @@
                             ⏰ <strong>Check-in ab 16:00 Uhr</strong> · <strong>Check-out bis ca. 11:00 Uhr</strong><br/><br/>
                             🔒 <strong>Zimmer-Optionen:</strong> Beim Buchen kannst du restliche Betten blockieren oder als Frauen-/Männerzimmer markieren.<br/>
                             🚗 <strong>Fahrgemeinschaften:</strong> Autofahrer können Mitfahrgelegenheiten anbieten.<br/>
-                            🚆 <strong>Zugverbindungen:</strong> Trage deine Verbindung ein um Reisepartner zu finden!<br/><br/>
+                            🚆 <strong>Zugverbindungen:</strong> Trage deine Verbindung ein um Reisepartner zu finden!<br/>
+                            🎲 <strong>Spiele:</strong> Trage ein was du mitbringst oder wünsch dir ein Spiel!<br/><br/>
                             📍 Kirchstraße 7, 15757 Halbe<br/>
                             🌐 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">www.freizeitheim-halbe.de</a>
                         </p>
@@ -1662,6 +1937,83 @@
                                 <div className="modal-buttons">
                                     <button className="btn btn-secondary" onClick={closeWaitlistModal}>Abbrechen</button>
                                     <button className="btn btn-waitlist" onClick={handleAddToWaitlist} disabled={saving || !waitlistName.trim()}>{saving ? '...' : 'Eintragen'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Spiel hinzufügen Modal */}
+                    {gameModalOpen && (
+                        <div className="modal-overlay" onClick={() => setGameModalOpen(false)}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
+                                <div className="modal-handle"></div>
+                                <h2 style={{color: gameModalType === 'bring' ? '#6a1b9a' : '#ff9800'}}>
+                                    {gameModalType === 'bring' ? '🎲 Spiel mitbringen' : '💭 Spielwunsch'}
+                                </h2>
+                                <p className="modal-room">
+                                    {gameModalType === 'bring' 
+                                        ? 'Trage ein welches Spiel du mitbringst.' 
+                                        : 'Wünsch dir ein Spiel, das jemand mitbringen soll.'}
+                                </p>
+                                <input 
+                                    type="text" 
+                                    className="modal-input" 
+                                    placeholder="Spielname" 
+                                    value={gameName} 
+                                    onChange={e => setGameName(e.target.value)} 
+                                    autoFocus 
+                                    disabled={saving} 
+                                />
+                                <input 
+                                    type="text" 
+                                    className="modal-input" 
+                                    placeholder="Dein Name" 
+                                    value={gamePersonName} 
+                                    onChange={e => setGamePersonName(e.target.value)} 
+                                    disabled={saving} 
+                                />
+                                <div className="modal-buttons">
+                                    <button className="btn btn-secondary" onClick={() => setGameModalOpen(false)}>Abbrechen</button>
+                                    <button 
+                                        className={`btn ${gameModalType === 'bring' ? 'btn-games' : 'btn-wish'}`} 
+                                        onClick={handleAddGame} 
+                                        disabled={saving || !gameName.trim() || !gamePersonName.trim()}
+                                    >
+                                        {saving ? '...' : 'Hinzufügen'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Wunsch erfüllen Modal */}
+                    {fulfillModalOpen && selectedGame && (
+                        <div className="modal-overlay" onClick={() => setFulfillModalOpen(false)}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
+                                <div className="modal-handle"></div>
+                                <h2 style={{color: 'var(--accent)'}}>🙋 Wunsch erfüllen</h2>
+                                <p className="modal-room">
+                                    <strong>{selectedGame.person_name}</strong> wünscht sich:<br/>
+                                    <span style={{fontSize: '1.1rem', fontWeight: 600}}>🎲 {selectedGame.game_name}</span>
+                                </p>
+                                <input 
+                                    type="text" 
+                                    className="modal-input" 
+                                    placeholder="Dein Name" 
+                                    value={fulfillName} 
+                                    onChange={e => setFulfillName(e.target.value)} 
+                                    autoFocus 
+                                    disabled={saving} 
+                                />
+                                <div className="modal-buttons">
+                                    <button className="btn btn-secondary" onClick={() => setFulfillModalOpen(false)}>Abbrechen</button>
+                                    <button 
+                                        className="btn btn-primary" 
+                                        onClick={handleFulfillWish} 
+                                        disabled={saving || !fulfillName.trim()}
+                                    >
+                                        {saving ? '...' : 'Ich bringe es mit!'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
