@@ -4,6 +4,43 @@ const cors = require('cors');
 const path = require('path');
 const fetch = require('node-fetch');
 
+// BGG API Token (Non-Commercial License)
+const BGG_API_TOKEN = process.env.BGG_API_TOKEN || '';
+
+// Einfacher In-Memory Cache für BGG Requests (1 Stunde)
+const bggCache = new Map();
+const BGG_CACHE_TTL = 60 * 60 * 1000; // 1 Stunde
+
+const getCachedOrFetch = async (url) => {
+  const cached = bggCache.get(url);
+  if (cached && Date.now() - cached.timestamp < BGG_CACHE_TTL) {
+    console.log('BGG Cache Hit:', url);
+    return cached.data;
+  }
+  
+  console.log('BGG Fetching:', url);
+  const headers = {};
+  if (BGG_API_TOKEN) {
+    headers['Authorization'] = `Bearer ${BGG_API_TOKEN}`;
+  }
+  
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new Error(`BGG API Error: ${response.status}`);
+  }
+  
+  const data = await response.text();
+  bggCache.set(url, { data, timestamp: Date.now() });
+  
+  // Cache aufräumen (max 500 Einträge)
+  if (bggCache.size > 500) {
+    const oldestKey = bggCache.keys().next().value;
+    bggCache.delete(oldestKey);
+  }
+  
+  return data;
+};
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -317,31 +354,37 @@ app.delete('/api/waitlist/:id', async (req, res) => {
 
 // === SPIELE API ===
 
-// BGG Suche
+// BGG API Status Endpoint
+app.get('/api/bgg/status', (req, res) => {
+  res.json({ 
+    configured: !!BGG_API_TOKEN,
+    cacheSize: bggCache.size
+  });
+});
+
+// BGG Suche (Server-side mit Caching gemäß BGG Richtlinien)
 app.get('/api/bgg/search', async (req, res) => {
   const { query } = req.query;
-  console.log('BGG Suche gestartet für:', query);
   
   if (!query?.trim()) {
     return res.json([]);
   }
   
+  if (!BGG_API_TOKEN) {
+    console.log('BGG: Kein API Token konfiguriert');
+    return res.json([]);
+  }
+  
   try {
+    // WICHTIG: boardgamegeek.com OHNE www (gemäß BGG Richtlinien)
     const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(query)}&type=boardgame`;
-    console.log('BGG URL:', searchUrl);
+    const xml = await getCachedOrFetch(searchUrl);
     
-    const response = await fetch(searchUrl);
-    console.log('BGG Response Status:', response.status);
-    
-    const xml = await response.text();
-    console.log('BGG XML Länge:', xml.length);
-    
-    // Einfaches XML Parsing
+    // XML Parsing
     const items = [];
     const itemMatches = xml.match(/<item.*?<\/item>/gs) || [];
-    console.log('Gefundene Items:', itemMatches.length);
     
-    for (const item of itemMatches.slice(0, 10)) {
+    for (const item of itemMatches.slice(0, 15)) {
       const idMatch = item.match(/id="(\d+)"/);
       const nameMatch = item.match(/<name.*?value="([^"]+)"/);
       const yearMatch = item.match(/<yearpublished.*?value="(\d+)"/);
@@ -355,24 +398,26 @@ app.get('/api/bgg/search', async (req, res) => {
       }
     }
     
-    console.log('Parsed Items:', items.length);
+    console.log(`BGG Suche "${query}": ${items.length} Ergebnisse`);
     res.json(items);
   } catch (err) {
-    console.error('BGG Suche Fehler:', err);
+    console.error('BGG Suche Fehler:', err.message);
     res.json([]);
   }
 });
 
-// BGG Details abrufen
+// BGG Details abrufen (Server-side mit Caching)
 app.get('/api/bgg/details/:id', async (req, res) => {
   const { id } = req.params;
-  console.log('BGG Details für ID:', id);
+  
+  if (!BGG_API_TOKEN) {
+    return res.status(503).json({ error: 'BGG API nicht konfiguriert' });
+  }
   
   try {
-    const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${id}&stats=1`;
-    const response = await fetch(detailUrl);
-    const xml = await response.text();
-    console.log('BGG Details XML Länge:', xml.length);
+    // WICHTIG: boardgamegeek.com OHNE www
+    const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${id}`;
+    const xml = await getCachedOrFetch(detailUrl);
     
     const nameMatch = xml.match(/<name type="primary".*?value="([^"]+)"/);
     const yearMatch = xml.match(/<yearpublished.*?value="(\d+)"/);
@@ -381,7 +426,6 @@ app.get('/api/bgg/details/:id', async (req, res) => {
     const playtimeMatch = xml.match(/<playingtime.*?value="(\d+)"/);
     const thumbnailMatch = xml.match(/<thumbnail>([^<]+)<\/thumbnail>/);
     const imageMatch = xml.match(/<image>([^<]+)<\/image>/);
-    const descMatch = xml.match(/<description>([^<]*)<\/description>/);
     
     const result = {
       bggId: parseInt(id),
@@ -391,13 +435,13 @@ app.get('/api/bgg/details/:id', async (req, res) => {
       maxPlayers: maxPlayersMatch ? parseInt(maxPlayersMatch[1]) : null,
       playtime: playtimeMatch ? playtimeMatch[1] : null,
       thumbnail: thumbnailMatch ? thumbnailMatch[1] : null,
-      image: imageMatch ? imageMatch[1] : null,
-      description: descMatch ? descMatch[1].replace(/&#10;/g, '\n').slice(0, 500) : null
+      image: imageMatch ? imageMatch[1] : null
     };
-    console.log('BGG Details geparst:', result.name, result.thumbnail ? 'mit Bild' : 'ohne Bild');
+    
+    console.log(`BGG Details für ${id}: ${result.name}`);
     res.json(result);
   } catch (err) {
-    console.error('BGG Details Fehler:', err);
+    console.error('BGG Details Fehler:', err.message);
     res.status(500).json({ error: 'BGG Fehler' });
   }
 });

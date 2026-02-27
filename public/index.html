@@ -1018,6 +1018,34 @@
             color: var(--text-muted);
         }
 
+        /* Powered by BGG (gemäß BGG API Richtlinien) */
+        .powered-by-bgg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #eee;
+        }
+
+        .powered-by-bgg a {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.75rem;
+        }
+
+        .powered-by-bgg a:hover {
+            color: #ff5100;
+        }
+
+        .powered-by-bgg img {
+            height: 20px;
+        }
+
         .games-add-btns {
             display: flex;
             gap: 0.5rem;
@@ -1214,6 +1242,8 @@
             const [gameModalOpen, setGameModalOpen] = useState(false);
             const [gameModalType, setGameModalType] = useState('bring');
             const [gamePersonName, setGamePersonName] = useState('');
+            const [gameName, setGameName] = useState('');
+            const [gameBggLink, setGameBggLink] = useState('');
             const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
             const [selectedGame, setSelectedGame] = useState(null);
             const [fulfillName, setFulfillName] = useState('');
@@ -1417,38 +1447,7 @@
                 setGameModalOpen(true);
             };
 
-            // CORS Proxy für BGG API (BGG unterstützt kein CORS)
-            // Mehrere Proxies als Fallback
-            const fetchWithProxy = async (url) => {
-                const proxies = [
-                    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-                    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-                    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-                    (u) => `https://proxy.cors.sh/${u}`
-                ];
-                
-                for (const proxy of proxies) {
-                    try {
-                        const proxyUrl = proxy(url);
-                        console.log('BGG: Trying proxy:', proxyUrl);
-                        const res = await fetch(proxyUrl);
-                        console.log('BGG: Response status:', res.status);
-                        if (res.ok) {
-                            const text = await res.text();
-                            console.log('BGG: Response length:', text.length, 'First 100 chars:', text.substring(0, 100));
-                            if (text && (text.includes('<?xml') || text.includes('<items') || text.includes('<item'))) {
-                                console.log('BGG: Valid XML found!');
-                                return text;
-                            }
-                        }
-                    } catch (e) {
-                        console.log('BGG: Proxy failed:', e.message);
-                    }
-                }
-                throw new Error('All proxies failed');
-            };
-            
-            // BGG Suche mit Debounce
+            // BGG Suche mit Debounce (Server-side gemäß BGG Richtlinien)
             useEffect(() => {
                 if (!bggSearchQuery.trim() || bggSearchQuery.length < 2) {
                     setBggSearchResults([]);
@@ -1458,30 +1457,13 @@
                 const timeoutId = setTimeout(async () => {
                     setBggSearching(true);
                     try {
-                        const bggUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(bggSearchQuery)}&type=boardgame`;
-                        const xml = await fetchWithProxy(bggUrl);
-                        
-                        // XML parsen
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(xml, 'text/xml');
-                        const items = doc.querySelectorAll('item');
-                        
-                        const results = [];
-                        items.forEach((item, idx) => {
-                            if (idx >= 10) return;
-                            const id = item.getAttribute('id');
-                            const nameEl = item.querySelector('name');
-                            const yearEl = item.querySelector('yearpublished');
-                            if (id && nameEl) {
-                                results.push({
-                                    bggId: parseInt(id),
-                                    name: nameEl.getAttribute('value'),
-                                    year: yearEl ? parseInt(yearEl.getAttribute('value')) : null
-                                });
-                            }
-                        });
-                        
-                        setBggSearchResults(results);
+                        const res = await fetch(`${API_URL}/bgg/search?query=${encodeURIComponent(bggSearchQuery)}`);
+                        if (res.ok) {
+                            const results = await res.json();
+                            setBggSearchResults(results);
+                        } else {
+                            setBggSearchResults([]);
+                        }
                     } catch (err) {
                         console.error('BGG Suche Fehler:', err);
                         setBggSearchResults([]);
@@ -1498,33 +1480,10 @@
                 setBggSearching(true);
                 
                 try {
-                    // Details von BGG holen (via CORS Proxy)
-                    const bggUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggGame.bggId}`;
-                    const xml = await fetchWithProxy(bggUrl);
-                    
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(xml, 'text/xml');
-                    const item = doc.querySelector('item');
-                    
-                    if (item) {
-                        const nameEl = item.querySelector('name[type="primary"]');
-                        const yearEl = item.querySelector('yearpublished');
-                        const minPlayersEl = item.querySelector('minplayers');
-                        const maxPlayersEl = item.querySelector('maxplayers');
-                        const playtimeEl = item.querySelector('playingtime');
-                        const thumbnailEl = item.querySelector('thumbnail');
-                        const imageEl = item.querySelector('image');
-                        
-                        setSelectedBggGame({
-                            bggId: bggGame.bggId,
-                            name: nameEl ? nameEl.getAttribute('value') : bggGame.name,
-                            year: yearEl ? parseInt(yearEl.getAttribute('value')) : null,
-                            minPlayers: minPlayersEl ? parseInt(minPlayersEl.getAttribute('value')) : null,
-                            maxPlayers: maxPlayersEl ? parseInt(maxPlayersEl.getAttribute('value')) : null,
-                            playtime: playtimeEl ? playtimeEl.getAttribute('value') : null,
-                            thumbnail: thumbnailEl ? thumbnailEl.textContent : null,
-                            image: imageEl ? imageEl.textContent : null
-                        });
+                    const res = await fetch(`${API_URL}/bgg/details/${bggGame.bggId}`);
+                    if (res.ok) {
+                        const details = await res.json();
+                        setSelectedBggGame(details);
                     } else {
                         setSelectedBggGame(bggGame);
                     }
@@ -2074,6 +2033,14 @@
                                 </div>
                             )
                         )}
+
+                        {/* Powered by BGG - Pflicht gemäß BGG API Richtlinien */}
+                        <div className="powered-by-bgg">
+                            <a href="https://boardgamegeek.com" target="_blank" rel="noopener">
+                                <img src="https://cf.geekdo-images.com/images/geekdo_logo.png" alt="BoardGameGeek" />
+                                <span>Powered by BGG</span>
+                            </a>
+                        </div>
                     </div>
 
                     {/* Warteliste */}
