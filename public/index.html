@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Maitreffen – Zimmerbuchung</title>
+    <title>Maitreffen 2026 – Zimmerbuchung</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -84,9 +84,24 @@
             margin-bottom: 0.25rem;
         }
 
+        .event-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.25rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border-radius: 20px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--accent);
+            border: 1px solid #a5d6a7;
+        }
+
         .subtitle { 
             color: var(--text-muted); 
-            font-size: 0.9rem; 
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
         }
 
         .location {
@@ -157,13 +172,6 @@
         .full-banner-text {
             font-size: 0.9rem;
             color: #bf360c;
-            margin-bottom: 0.75rem;
-        }
-
-        .full-banner .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
         }
 
         /* Etagen-Tabs */
@@ -325,9 +333,18 @@
             word-break: break-word;
         }
 
-        .bed-blocked-info {
+        .bed-info {
             font-size: 0.65rem;
-            color: rgba(255,255,255,0.7);
+            color: rgba(255,255,255,0.8);
+            margin-top: 0.2rem;
+        }
+
+        .bed-pickup {
+            display: inline-block;
+            background: rgba(255,255,255,0.25);
+            padding: 0.1rem 0.3rem;
+            border-radius: 4px;
+            font-size: 0.6rem;
             margin-top: 0.2rem;
         }
 
@@ -570,6 +587,99 @@
             border-color: var(--waitlist);
         }
 
+        /* Form Sections */
+        .form-section {
+            margin-bottom: 1rem;
+        }
+
+        .form-section-title {
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .form-group input, .form-group select {
+            padding: 0.75rem;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+            background: #fff;
+            color: var(--text-dark);
+            font-size: 0.95rem;
+            font-family: 'Nunito', sans-serif;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-group select {
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            padding-right: 2rem;
+        }
+
+        /* Checkbox für Abholung */
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem;
+            background: #f5f5f5;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 0.75rem;
+        }
+
+        .checkbox-row:hover {
+            background: #efefef;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .checkbox-row-label {
+            flex: 1;
+        }
+
+        .checkbox-row-main {
+            font-weight: 600;
+            color: var(--text-dark);
+            font-size: 0.9rem;
+        }
+
+        .checkbox-row-sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
         /* Radio Options für Zimmer-Einschränkung */
         .restriction-options {
             margin-bottom: 1rem;
@@ -682,6 +792,15 @@
             color: var(--text-dark);
         }
 
+        .current-guest-details {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
         .blocked-info {
             background: #fff3e0;
             border: 1px solid #ffcc80;
@@ -759,6 +878,59 @@
             color: var(--accent);
         }
 
+        /* Pickup Summary */
+        .pickup-section {
+            background: var(--bg-paper);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #e8e8e8;
+        }
+
+        .pickup-title {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pickup-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .pickup-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .pickup-item-name {
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .pickup-item-date {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .pickup-empty {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 1rem;
+        }
+
         /* Desktop */
         @media (min-width: 768px) {
             .app { padding: 1.5rem; }
@@ -795,7 +967,15 @@
 
         const API_URL = '/api';
 
-        // Zimmer-Konfiguration basierend auf freizeitheim-halbe.de
+        // Event-Daten
+        const EVENT = {
+            name: 'Maitreffen 2026',
+            startDate: '2026-05-13', // Mittwoch
+            endDate: '2026-05-17',   // Sonntag
+            displayDate: '13. – 17. Mai 2026'
+        };
+
+        // Zimmer-Konfiguration
         const ROOMS = [
             { id: 1, name: 'Zimmer 1', beds: 3, floor: 'eg', bath: true, accessible: false },
             { id: 2, name: 'Zimmer 2', beds: 2, floor: 'eg', bath: true, accessible: true },
@@ -808,7 +988,6 @@
             { id: 9, name: 'Zimmer 9', beds: 3, floor: 'og', bath: false, accessible: false },
         ];
 
-        // Generiere Bett-IDs
         const generateBeds = () => {
             const beds = {};
             ROOMS.forEach(room => {
@@ -821,17 +1000,21 @@
         };
 
         const BEDS = generateBeds();
-        const TOTAL_SLOTS = Object.keys(BEDS).length; // 25
+        const TOTAL_SLOTS = Object.keys(BEDS).length;
 
-        // Hilfsfunktion: Alle Bett-IDs eines Zimmers
         const getRoomBedIds = (roomId) => {
             const room = ROOMS.find(r => r.id === roomId);
             if (!room) return [];
             return Array.from({ length: room.beds }, (_, i) => `zi${roomId}-bett${i + 1}`);
         };
 
-        // Datum formatieren
         const formatDate = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+        };
+
+        const formatDateTime = (dateString) => {
             const date = new Date(dateString);
             return date.toLocaleDateString('de-DE', { 
                 day: '2-digit', 
@@ -839,6 +1022,18 @@
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        };
+
+        const formatDateLong = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+        };
+
+        const transportLabels = {
+            'auto': '🚗 Auto',
+            'oepnv': '🚆 Öffis',
+            '': ''
         };
 
         function App() {
@@ -851,6 +1046,10 @@
             const [waitlistModalOpen, setWaitlistModalOpen] = useState(false);
             const [selectedBed, setSelectedBed] = useState(null);
             const [inputName, setInputName] = useState("");
+            const [arrivalDate, setArrivalDate] = useState(EVENT.startDate);
+            const [departureDate, setDepartureDate] = useState(EVENT.endDate);
+            const [transport, setTransport] = useState('');
+            const [needsPickup, setNeedsPickup] = useState(false);
             const [waitlistName, setWaitlistName] = useState("");
             const [waitlistComment, setWaitlistComment] = useState("");
             const [roomRestriction, setRoomRestriction] = useState('none');
@@ -891,7 +1090,12 @@
             const handleBedClick = (bedId) => {
                 setSelectedBed(bedId);
                 const booking = bookings[bedId];
-                setInputName(booking?.name?.replace(/^[🔒♀️♂️]\s*/, '').replace(/^(Frauenzimmer|Männerzimmer)$/, '') || "");
+                const cleanName = booking?.name?.replace(/^[🔒♀️♂️]\s*/, '').replace(/^(Frauenzimmer|Männerzimmer)$/, '') || "";
+                setInputName(cleanName);
+                setArrivalDate(booking?.arrivalDate || EVENT.startDate);
+                setDepartureDate(booking?.departureDate || EVENT.endDate);
+                setTransport(booking?.transport || '');
+                setNeedsPickup(booking?.needsPickup || false);
                 setRoomRestriction('none');
                 setModalOpen(true);
             };
@@ -909,8 +1113,12 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             name: inputName.trim(),
-                            roomRestriction: roomRestriction,
-                            roomBeds: roomBeds
+                            roomRestriction,
+                            roomBeds,
+                            arrivalDate: arrivalDate || null,
+                            departureDate: departureDate || null,
+                            transport: transport || null,
+                            needsPickup
                         })
                     });
                     if (!response.ok) throw new Error('Speichern fehlgeschlagen');
@@ -931,7 +1139,13 @@
                     const response = await fetch(`${API_URL}/bookings/${selectedBed}/claim`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: inputName.trim() })
+                        body: JSON.stringify({ 
+                            name: inputName.trim(),
+                            arrivalDate: arrivalDate || null,
+                            departureDate: departureDate || null,
+                            transport: transport || null,
+                            needsPickup
+                        })
                     });
                     if (!response.ok) throw new Error('Speichern fehlgeschlagen');
                     await loadBookings();
@@ -1017,6 +1231,10 @@
                 setModalOpen(false);
                 setSelectedBed(null);
                 setInputName("");
+                setArrivalDate(EVENT.startDate);
+                setDepartureDate(EVENT.endDate);
+                setTransport('');
+                setNeedsPickup(false);
                 setRoomRestriction('none');
             };
 
@@ -1045,10 +1263,7 @@
 
             const getRoomStats = (roomId) => {
                 const room = ROOMS.find(r => r.id === roomId);
-                let booked = 0;
-                let blocked = 0;
-                let women = 0;
-                let men = 0;
+                let booked = 0, blocked = 0, women = 0, men = 0;
                 for (let i = 1; i <= room.beds; i++) {
                     const booking = bookings[`zi${roomId}-bett${i}`];
                     if (booking) {
@@ -1058,32 +1273,31 @@
                         else booked++;
                     }
                 }
-                return { booked, blocked, women, men, free: room.beds - booked - blocked - women - men, total: room.beds };
+                return { booked, blocked, women, men, free: room.beds - booked - blocked - women - men };
             };
 
             const filteredRooms = ROOMS.filter(room => room.floor === activeFloor);
 
             const getFloorFreeCount = (floor) => {
-                return ROOMS.filter(r => r.floor === floor).reduce((sum, r) => {
-                    const s = getRoomStats(r.id);
-                    return sum + s.free;
-                }, 0);
+                return ROOMS.filter(r => r.floor === floor).reduce((sum, r) => sum + getRoomStats(r.id).free, 0);
             };
 
-            // Prüfe ob es freie Betten im Zimmer gibt (für Optionen Anzeige)
             const hasFreeBeds = () => {
                 if (!selectedBed) return false;
                 const roomId = BEDS[selectedBed].roomId;
-                const roomBeds = getRoomBedIds(roomId);
-                return roomBeds.some(bedId => bedId !== selectedBed && !bookings[bedId]);
+                return getRoomBedIds(roomId).some(bedId => bedId !== selectedBed && !bookings[bedId]);
             };
 
-            // Finde den Namen der blockierenden Person
             const getBlockerName = (booking) => {
-                if (!booking || !booking.blockedBy) return null;
-                const blockerBooking = bookings[booking.blockedBy];
-                return blockerBooking?.name || null;
+                if (!booking?.blockedBy) return null;
+                return bookings[booking.blockedBy]?.name || null;
             };
+
+            // Leute die Abholung brauchen
+            const pickupList = Object.entries(bookings)
+                .filter(([_, b]) => b.needsPickup && b.status === 'booked')
+                .map(([bedId, b]) => ({ bedId, ...b }))
+                .sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
 
             if (loading) {
                 return <div className="app"><div className="loading">🌳 Lade Buchungen...</div></div>;
@@ -1103,6 +1317,7 @@
 
                     <header>
                         <h1>🌲 Maitreffen</h1>
+                        <div className="event-date">📅 {EVENT.displayDate}</div>
                         <p className="subtitle">Zimmerbelegung – tippe auf ein Bett</p>
                         <div className="location">
                             📍 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">Freizeitheim Halbe</a>
@@ -1131,7 +1346,6 @@
                         </div>
                     </header>
 
-                    {/* Ausgebucht Banner */}
                     {isFull && (
                         <div className="full-banner">
                             <div className="full-banner-title">🎉 Alle Betten sind belegt!</div>
@@ -1141,7 +1355,6 @@
                         </div>
                     )}
 
-                    {/* Etagen-Tabs */}
                     <div className="floor-tabs">
                         <button 
                             className={`floor-tab ${activeFloor === 'eg' ? 'active' : ''}`}
@@ -1157,7 +1370,6 @@
                         </button>
                     </div>
 
-                    {/* Zimmer Cards */}
                     <div className="rooms-grid">
                         {filteredRooms.map(room => {
                             const roomStats = getRoomStats(room.id);
@@ -1194,8 +1406,16 @@
                                                     <div className="bed-name">
                                                         {isBlocked ? 'Blockiert' : isWomen ? 'Nur Frauen' : isMen ? 'Nur Männer' : (isBooked ? booking.name : 'Frei')}
                                                     </div>
+                                                    {isBooked && booking.arrivalDate && (
+                                                        <div className="bed-info">
+                                                            {formatDate(booking.arrivalDate)} – {formatDate(booking.departureDate)}
+                                                        </div>
+                                                    )}
+                                                    {isBooked && booking.needsPickup && (
+                                                        <div className="bed-pickup">🚉 Abholung</div>
+                                                    )}
                                                     {(isBlocked || isWomen || isMen) && booking.blockedBy && (
-                                                        <div className="bed-blocked-info">
+                                                        <div className="bed-info">
                                                             von {bookings[booking.blockedBy]?.name || '?'}
                                                         </div>
                                                     )}
@@ -1215,7 +1435,7 @@
                                         {roomStats.blocked > 0 && (
                                             <div className="room-stat">
                                                 <div className="room-stat-dot blocked"></div>
-                                                <span>{roomStats.blocked} blockiert</span>
+                                                <span>{roomStats.blocked} 🔒</span>
                                             </div>
                                         )}
                                         {roomStats.women > 0 && (
@@ -1236,14 +1456,30 @@
                         })}
                     </div>
 
+                    {/* Abholungen */}
+                    {pickupList.length > 0 && (
+                        <div className="pickup-section">
+                            <h4 className="pickup-title">🚉 Abholungen vom Bahnhof</h4>
+                            <div className="pickup-list">
+                                {pickupList.map(p => (
+                                    <div key={p.bedId} className="pickup-item">
+                                        <span className="pickup-item-name">{p.name}</span>
+                                        <span className="pickup-item-date">
+                                            {formatDateLong(p.arrivalDate)}
+                                            {p.transport && ` • ${transportLabels[p.transport]}`}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Warteliste */}
                     <div className="waitlist-section">
                         <div className="waitlist-header">
                             <h4 className="waitlist-title">
                                 📋 Warteliste
-                                {waitlist.length > 0 && (
-                                    <span className="waitlist-count">{waitlist.length}</span>
-                                )}
+                                {waitlist.length > 0 && <span className="waitlist-count">{waitlist.length}</span>}
                             </h4>
                             <button 
                                 className="btn btn-waitlist" 
@@ -1255,9 +1491,7 @@
                         </div>
                         
                         {waitlist.length === 0 ? (
-                            <div className="waitlist-empty">
-                                <p>Noch niemand auf der Warteliste</p>
-                            </div>
+                            <div className="waitlist-empty">Noch niemand auf der Warteliste</div>
                         ) : (
                             <div className="waitlist-list">
                                 {waitlist.map((entry, index) => (
@@ -1265,20 +1499,10 @@
                                         <div className="waitlist-position">{index + 1}</div>
                                         <div className="waitlist-info">
                                             <div className="waitlist-name">{entry.name}</div>
-                                            <div className="waitlist-meta">
-                                                Eingetragen am {formatDate(entry.created_at)}
-                                            </div>
-                                            {entry.comment && (
-                                                <div className="waitlist-comment">"{entry.comment}"</div>
-                                            )}
+                                            <div className="waitlist-meta">Eingetragen am {formatDateTime(entry.created_at)}</div>
+                                            {entry.comment && <div className="waitlist-comment">"{entry.comment}"</div>}
                                         </div>
-                                        <button 
-                                            className="waitlist-remove"
-                                            onClick={() => handleRemoveFromWaitlist(entry.id)}
-                                            title="Entfernen"
-                                        >
-                                            ✕
-                                        </button>
+                                        <button className="waitlist-remove" onClick={() => handleRemoveFromWaitlist(entry.id)} title="Entfernen">✕</button>
                                     </div>
                                 ))}
                             </div>
@@ -1307,138 +1531,164 @@
                                 <div className="modal-handle"></div>
                                 
                                 {isBlocked ? (
-                                    // Blockiertes Bett Modal
                                     <>
                                         <h2>🔒 Blockiert</h2>
-                                        <p className="modal-room">
-                                            {BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}
-                                        </p>
-                                        
+                                        <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
                                         <div className="blocked-info">
                                             <div className="blocked-info-title">Dieses Bett ist blockiert</div>
-                                            <div className="blocked-info-text">
-                                                Blockiert von: {getBlockerName(selectedBooking) || 'Unbekannt'}
-                                            </div>
+                                            <div className="blocked-info-text">Blockiert von: {getBlockerName(selectedBooking) || 'Unbekannt'}</div>
                                         </div>
-
                                         <div className="modal-buttons">
-                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>
-                                                Schließen
-                                            </button>
-                                            <button className="btn btn-danger" onClick={handleUnblock} disabled={saving}>
-                                                {saving ? '...' : 'Freigeben'}
-                                            </button>
+                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Schließen</button>
+                                            <button className="btn btn-danger" onClick={handleUnblock} disabled={saving}>{saving ? '...' : 'Freigeben'}</button>
                                         </div>
                                     </>
                                 ) : isGenderRestricted ? (
-                                    // Frauen-/Männerzimmer Modal
                                     <>
                                         <h2 className={isWomenOnly ? 'women-modal-title' : 'men-modal-title'}>
                                             {isWomenOnly ? '♀️ Frauenzimmer' : '♂️ Männerzimmer'}
                                         </h2>
-                                        <p className="modal-room">
-                                            {BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}
-                                        </p>
+                                        <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
                                         
                                         <div className={`gender-info ${isWomenOnly ? 'women' : 'men'}`}>
                                             <div className="gender-info-title">
                                                 {isWomenOnly ? 'Dieses Zimmer ist für Frauen reserviert' : 'Dieses Zimmer ist für Männer reserviert'}
                                             </div>
-                                            <div className="gender-info-text">
-                                                Reserviert von: {getBlockerName(selectedBooking) || 'Unbekannt'}
+                                            <div className="gender-info-text">Reserviert von: {getBlockerName(selectedBooking) || 'Unbekannt'}</div>
+                                        </div>
+
+                                        <input type="text" className="modal-input" placeholder="Dein Name" value={inputName}
+                                            onChange={e => setInputName(e.target.value)} autoFocus disabled={saving}
+                                            onKeyDown={e => e.key === 'Enter' && handleClaimGenderBed()}
+                                            autoComplete="name" autoCapitalize="words" />
+
+                                        <div className="form-section">
+                                            <div className="form-section-title">🗓️ Anreise & Abreise</div>
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label>Anreise</label>
+                                                    <input type="date" value={arrivalDate} onChange={e => setArrivalDate(e.target.value)} disabled={saving} />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label>Abreise</label>
+                                                    <input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} disabled={saving} />
+                                                </div>
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Anreise mit</label>
+                                                <select value={transport} onChange={e => setTransport(e.target.value)} disabled={saving}>
+                                                    <option value="">– Bitte wählen –</option>
+                                                    <option value="auto">🚗 Auto</option>
+                                                    <option value="oepnv">🚆 Öffentliche Verkehrsmittel</option>
+                                                </select>
                                             </div>
                                         </div>
 
-                                        <input
-                                            type="text"
-                                            className="modal-input"
-                                            placeholder="Dein Name"
-                                            value={inputName}
-                                            onChange={e => setInputName(e.target.value)}
-                                            autoFocus
-                                            disabled={saving}
-                                            onKeyDown={e => e.key === 'Enter' && handleClaimGenderBed()}
-                                            autoComplete="name"
-                                            autoCapitalize="words"
-                                        />
+                                        {transport === 'oepnv' && (
+                                            <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
+                                                <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
+                                                <div className="checkbox-row-label">
+                                                    <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
+                                                    <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof ab</div>
+                                                </div>
+                                            </label>
+                                        )}
 
                                         <div className="modal-buttons">
-                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>
-                                                Abbrechen
-                                            </button>
-                                            <button className="btn btn-danger" onClick={handleUnblock} disabled={saving}>
-                                                {saving ? '...' : 'Aufheben'}
-                                            </button>
-                                            <button 
-                                                className={`btn ${isWomenOnly ? 'btn-women' : 'btn-men'}`}
-                                                onClick={handleClaimGenderBed} 
-                                                disabled={saving || !inputName.trim()}
-                                            >
+                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Abbrechen</button>
+                                            <button className="btn btn-danger" onClick={handleUnblock} disabled={saving}>{saving ? '...' : 'Aufheben'}</button>
+                                            <button className={`btn ${isWomenOnly ? 'btn-women' : 'btn-men'}`}
+                                                onClick={handleClaimGenderBed} disabled={saving || !inputName.trim()}>
                                                 {saving ? '...' : 'Buchen'}
                                             </button>
                                         </div>
                                     </>
                                 ) : (
-                                    // Normale Buchung Modal
                                     <>
                                         <h2>{isBooked ? '📝 Bearbeiten' : '✨ Reservieren'}</h2>
-                                        <p className="modal-room">
-                                            {BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}
-                                        </p>
+                                        <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
 
                                         {isBooked && (
                                             <div className="current-guest">
                                                 <div className="current-guest-label">Aktuell gebucht:</div>
                                                 <div className="current-guest-name">{selectedBooking.name}</div>
+                                                {(selectedBooking.arrivalDate || selectedBooking.transport) && (
+                                                    <div className="current-guest-details">
+                                                        {selectedBooking.arrivalDate && (
+                                                            <span>📅 {formatDateLong(selectedBooking.arrivalDate)} – {formatDateLong(selectedBooking.departureDate)}</span>
+                                                        )}
+                                                        {selectedBooking.transport && (
+                                                            <span>{transportLabels[selectedBooking.transport]}</span>
+                                                        )}
+                                                        {selectedBooking.needsPickup && (
+                                                            <span>🚉 Abholung gewünscht</span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
-                                        <input
-                                            type="text"
-                                            className="modal-input"
-                                            placeholder="Dein Name"
-                                            value={inputName}
-                                            onChange={e => setInputName(e.target.value)}
-                                            autoFocus
-                                            disabled={saving}
+                                        <input type="text" className="modal-input" placeholder="Dein Name" value={inputName}
+                                            onChange={e => setInputName(e.target.value)} autoFocus disabled={saving}
                                             onKeyDown={e => e.key === 'Enter' && handleBook()}
-                                            autoComplete="name"
-                                            autoCapitalize="words"
-                                        />
+                                            autoComplete="name" autoCapitalize="words" />
 
-                                        {/* Zimmer-Optionen - nur bei neuer Buchung und wenn freie Betten */}
+                                        <div className="form-section">
+                                            <div className="form-section-title">🗓️ Anreise & Abreise</div>
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label>Anreise</label>
+                                                    <input type="date" value={arrivalDate} onChange={e => setArrivalDate(e.target.value)} disabled={saving} />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label>Abreise</label>
+                                                    <input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} disabled={saving} />
+                                                </div>
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Anreise mit</label>
+                                                <select value={transport} onChange={e => setTransport(e.target.value)} disabled={saving}>
+                                                    <option value="">– Bitte wählen –</option>
+                                                    <option value="auto">🚗 Auto</option>
+                                                    <option value="oepnv">🚆 Öffentliche Verkehrsmittel</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {transport === 'oepnv' && (
+                                            <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
+                                                <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
+                                                <div className="checkbox-row-label">
+                                                    <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
+                                                    <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof ab</div>
+                                                </div>
+                                            </label>
+                                        )}
+
                                         {!isBooked && hasFreeBeds() && (
                                             <div className="restriction-options">
                                                 <div className="restriction-label">Restliche Betten im Zimmer:</div>
                                                 <div className="restriction-grid">
-                                                    <label 
-                                                        className={`restriction-option ${roomRestriction === 'none' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('none')}
-                                                    >
+                                                    <label className={`restriction-option ${roomRestriction === 'none' ? 'selected' : ''}`}
+                                                        onClick={() => setRoomRestriction('none')}>
                                                         <input type="radio" name="restriction" checked={roomRestriction === 'none'} readOnly />
                                                         <span className="restriction-option-icon">✓</span>
                                                         <span className="restriction-option-text">Offen lassen</span>
                                                     </label>
-                                                    <label 
-                                                        className={`restriction-option blocked ${roomRestriction === 'blocked' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('blocked')}
-                                                    >
+                                                    <label className={`restriction-option blocked ${roomRestriction === 'blocked' ? 'selected' : ''}`}
+                                                        onClick={() => setRoomRestriction('blocked')}>
                                                         <input type="radio" name="restriction" checked={roomRestriction === 'blocked'} readOnly />
                                                         <span className="restriction-option-icon">🔒</span>
                                                         <span className="restriction-option-text">Blockieren</span>
                                                     </label>
-                                                    <label 
-                                                        className={`restriction-option women ${roomRestriction === 'women' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('women')}
-                                                    >
+                                                    <label className={`restriction-option women ${roomRestriction === 'women' ? 'selected' : ''}`}
+                                                        onClick={() => setRoomRestriction('women')}>
                                                         <input type="radio" name="restriction" checked={roomRestriction === 'women'} readOnly />
                                                         <span className="restriction-option-icon">♀️</span>
                                                         <span className="restriction-option-text">Frauenzimmer</span>
                                                     </label>
-                                                    <label 
-                                                        className={`restriction-option men ${roomRestriction === 'men' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('men')}
-                                                    >
+                                                    <label className={`restriction-option men ${roomRestriction === 'men' ? 'selected' : ''}`}
+                                                        onClick={() => setRoomRestriction('men')}>
                                                         <input type="radio" name="restriction" checked={roomRestriction === 'men'} readOnly />
                                                         <span className="restriction-option-icon">♂️</span>
                                                         <span className="restriction-option-text">Männerzimmer</span>
@@ -1448,13 +1698,9 @@
                                         )}
 
                                         <div className="modal-buttons">
-                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>
-                                                Abbrechen
-                                            </button>
+                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Abbrechen</button>
                                             {isBooked && (
-                                                <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>
-                                                    {saving ? '...' : 'Stornieren'}
-                                                </button>
+                                                <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>{saving ? '...' : 'Stornieren'}</button>
                                             )}
                                             <button className="btn btn-primary" onClick={handleBook} disabled={saving || !inputName.trim()}>
                                                 {saving ? '...' : (isBooked ? 'Ändern' : 'Buchen')}
@@ -1476,35 +1722,17 @@
                                     Trage dich ein, falls gerade kein passendes Bett frei ist – z.B. wenn du mit mehreren Personen kommst oder ein bestimmtes Zimmer möchtest.
                                 </p>
 
-                                <input
-                                    type="text"
-                                    className="modal-input waitlist-input"
-                                    placeholder="Dein Name"
-                                    value={waitlistName}
-                                    onChange={e => setWaitlistName(e.target.value)}
-                                    autoFocus
-                                    disabled={saving}
-                                    autoComplete="name"
-                                    autoCapitalize="words"
-                                />
+                                <input type="text" className="modal-input waitlist-input" placeholder="Dein Name" value={waitlistName}
+                                    onChange={e => setWaitlistName(e.target.value)} autoFocus disabled={saving}
+                                    autoComplete="name" autoCapitalize="words" />
 
-                                <textarea
-                                    className="modal-textarea"
+                                <textarea className="modal-textarea"
                                     placeholder="Kommentar (optional) – z.B. bevorzugtes Zimmer, Anreise, Anzahl Personen..."
-                                    value={waitlistComment}
-                                    onChange={e => setWaitlistComment(e.target.value)}
-                                    disabled={saving}
-                                />
+                                    value={waitlistComment} onChange={e => setWaitlistComment(e.target.value)} disabled={saving} />
 
                                 <div className="modal-buttons">
-                                    <button className="btn btn-secondary" onClick={closeWaitlistModal} disabled={saving}>
-                                        Abbrechen
-                                    </button>
-                                    <button 
-                                        className="btn btn-waitlist" 
-                                        onClick={handleAddToWaitlist} 
-                                        disabled={saving || !waitlistName.trim()}
-                                    >
+                                    <button className="btn btn-secondary" onClick={closeWaitlistModal} disabled={saving}>Abbrechen</button>
+                                    <button className="btn btn-waitlist" onClick={handleAddToWaitlist} disabled={saving || !waitlistName.trim()}>
                                         {saving ? '...' : 'Eintragen'}
                                     </button>
                                 </div>

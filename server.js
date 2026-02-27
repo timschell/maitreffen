@@ -29,21 +29,21 @@ async function initDB() {
         name VARCHAR(100) NOT NULL,
         booked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         status VARCHAR(20) DEFAULT 'booked',
-        blocked_by VARCHAR(50) DEFAULT NULL
+        blocked_by VARCHAR(50) DEFAULT NULL,
+        arrival_date DATE DEFAULT NULL,
+        departure_date DATE DEFAULT NULL,
+        transport VARCHAR(20) DEFAULT NULL,
+        needs_pickup BOOLEAN DEFAULT FALSE
       )
     `);
     
-    // Status-Spalte hinzufügen falls nicht vorhanden (für bestehende DBs)
-    await client.query(`
-      ALTER TABLE bookings 
-      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'booked'
-    `);
-    
-    // blocked_by-Spalte hinzufügen falls nicht vorhanden
-    await client.query(`
-      ALTER TABLE bookings 
-      ADD COLUMN IF NOT EXISTS blocked_by VARCHAR(50) DEFAULT NULL
-    `);
+    // Spalten hinzufügen falls nicht vorhanden (für bestehende DBs)
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'booked'`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS blocked_by VARCHAR(50) DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_date DATE DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_date DATE DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS transport VARCHAR(20) DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS needs_pickup BOOLEAN DEFAULT FALSE`);
 
     // Warteliste-Tabelle
     await client.query(`
@@ -80,7 +80,11 @@ app.get('/api/bookings', async (req, res) => {
         name: row.name,
         bookedAt: row.booked_at,
         status: row.status || 'booked',
-        blockedBy: row.blocked_by
+        blockedBy: row.blocked_by,
+        arrivalDate: row.arrival_date,
+        departureDate: row.departure_date,
+        transport: row.transport,
+        needsPickup: row.needs_pickup
       };
     });
     res.json(bookings);
@@ -93,8 +97,7 @@ app.get('/api/bookings', async (req, res) => {
 // Buchung erstellen/aktualisieren
 app.post('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
-  const { name, roomRestriction, roomBeds } = req.body;
-  // roomRestriction: 'none', 'blocked', 'women', 'men'
+  const { name, roomRestriction, roomBeds, arrivalDate, departureDate, transport, needsPickup } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -107,17 +110,17 @@ app.post('/api/bookings/:bedId', async (req, res) => {
     
     // Hauptbuchung erstellen
     await client.query(`
-      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by)
-      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL)
+      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, transport, needs_pickup)
+      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL, $3, $4, $5, $6)
       ON CONFLICT (bed_id) 
-      DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL
-    `, [bedId, name.trim()]);
+      DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL,
+                    arrival_date = $3, departure_date = $4, transport = $5, needs_pickup = $6
+    `, [bedId, name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false]);
     
     // Zimmer-Einschränkung setzen
     if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
       for (const otherBedId of roomBeds) {
         if (otherBedId !== bedId) {
-          // Nur setzen wenn das Bett noch frei ist
           const existing = await client.query('SELECT * FROM bookings WHERE bed_id = $1', [otherBedId]);
           if (existing.rows.length === 0) {
             let status, displayName;
@@ -163,13 +166,8 @@ app.delete('/api/bookings/:bedId', async (req, res) => {
   
   try {
     await client.query('BEGIN');
-    
-    // Auch alle Betten löschen, die von dieser Buchung blockiert/markiert wurden
     await client.query('DELETE FROM bookings WHERE blocked_by = $1', [bedId]);
-    
-    // Hauptbuchung löschen
     await client.query('DELETE FROM bookings WHERE bed_id = $1', [bedId]);
-    
     await client.query('COMMIT');
     res.json({ success: true, bedId });
   } catch (err) {
@@ -186,7 +184,6 @@ app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
   const { bedId } = req.params;
 
   try {
-    // Nur löschen wenn es ein blockiertes oder markiertes Bett ist
     await pool.query("DELETE FROM bookings WHERE bed_id = $1 AND status IN ('blocked', 'women_only', 'men_only')", [bedId]);
     res.json({ success: true, bedId });
   } catch (err) {
@@ -198,19 +195,19 @@ app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
 // Markiertes Bett buchen (Frau/Mann bucht in Frauen-/Männerzimmer)
 app.post('/api/bookings/:bedId/claim', async (req, res) => {
   const { bedId } = req.params;
-  const { name } = req.body;
+  const { name, arrivalDate, departureDate, transport, needsPickup } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
 
   try {
-    // Bett von markiert auf gebucht ändern
     await pool.query(`
       UPDATE bookings 
-      SET name = $1, status = 'booked', booked_at = CURRENT_TIMESTAMP
-      WHERE bed_id = $2 AND status IN ('women_only', 'men_only')
-    `, [name.trim(), bedId]);
+      SET name = $1, status = 'booked', booked_at = CURRENT_TIMESTAMP,
+          arrival_date = $2, departure_date = $3, transport = $4, needs_pickup = $5
+      WHERE bed_id = $6 AND status IN ('women_only', 'men_only')
+    `, [name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false, bedId]);
     
     res.json({ success: true, bedId, name });
   } catch (err) {
@@ -221,7 +218,6 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
 
 // ==================== WARTELISTE ====================
 
-// Warteliste abrufen
 app.get('/api/waitlist', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM waitlist ORDER BY created_at ASC');
@@ -232,7 +228,6 @@ app.get('/api/waitlist', async (req, res) => {
   }
 });
 
-// Zur Warteliste hinzufügen
 app.post('/api/waitlist', async (req, res) => {
   const { name, comment } = req.body;
 
@@ -254,7 +249,6 @@ app.post('/api/waitlist', async (req, res) => {
   }
 });
 
-// Von Warteliste entfernen
 app.delete('/api/waitlist/:id', async (req, res) => {
   const { id } = req.params;
 
