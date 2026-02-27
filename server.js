@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -319,18 +320,26 @@ app.delete('/api/waitlist/:id', async (req, res) => {
 // BGG Suche
 app.get('/api/bgg/search', async (req, res) => {
   const { query } = req.query;
+  console.log('BGG Suche gestartet für:', query);
+  
   if (!query?.trim()) {
     return res.json([]);
   }
   
   try {
     const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(query)}&type=boardgame`;
+    console.log('BGG URL:', searchUrl);
+    
     const response = await fetch(searchUrl);
+    console.log('BGG Response Status:', response.status);
+    
     const xml = await response.text();
+    console.log('BGG XML Länge:', xml.length);
     
     // Einfaches XML Parsing
     const items = [];
     const itemMatches = xml.match(/<item.*?<\/item>/gs) || [];
+    console.log('Gefundene Items:', itemMatches.length);
     
     for (const item of itemMatches.slice(0, 10)) {
       const idMatch = item.match(/id="(\d+)"/);
@@ -346,9 +355,10 @@ app.get('/api/bgg/search', async (req, res) => {
       }
     }
     
+    console.log('Parsed Items:', items.length);
     res.json(items);
   } catch (err) {
-    console.error('BGG Suche Fehler:', err.message);
+    console.error('BGG Suche Fehler:', err);
     res.json([]);
   }
 });
@@ -356,11 +366,13 @@ app.get('/api/bgg/search', async (req, res) => {
 // BGG Details abrufen
 app.get('/api/bgg/details/:id', async (req, res) => {
   const { id } = req.params;
+  console.log('BGG Details für ID:', id);
   
   try {
     const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${id}&stats=1`;
     const response = await fetch(detailUrl);
     const xml = await response.text();
+    console.log('BGG Details XML Länge:', xml.length);
     
     const nameMatch = xml.match(/<name type="primary".*?value="([^"]+)"/);
     const yearMatch = xml.match(/<yearpublished.*?value="(\d+)"/);
@@ -371,7 +383,7 @@ app.get('/api/bgg/details/:id', async (req, res) => {
     const imageMatch = xml.match(/<image>([^<]+)<\/image>/);
     const descMatch = xml.match(/<description>([^<]*)<\/description>/);
     
-    res.json({
+    const result = {
       bggId: parseInt(id),
       name: nameMatch ? nameMatch[1] : 'Unbekannt',
       year: yearMatch ? parseInt(yearMatch[1]) : null,
@@ -381,9 +393,11 @@ app.get('/api/bgg/details/:id', async (req, res) => {
       thumbnail: thumbnailMatch ? thumbnailMatch[1] : null,
       image: imageMatch ? imageMatch[1] : null,
       description: descMatch ? descMatch[1].replace(/&#10;/g, '\n').slice(0, 500) : null
-    });
+    };
+    console.log('BGG Details geparst:', result.name, result.thumbnail ? 'mit Bild' : 'ohne Bild');
+    res.json(result);
   } catch (err) {
-    console.error('BGG Details Fehler:', err.message);
+    console.error('BGG Details Fehler:', err);
     res.status(500).json({ error: 'BGG Fehler' });
   }
 });
