@@ -133,6 +133,24 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Persönliche Spielesammlungen (persistent über Events hinweg)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS game_collections (
+        id SERIAL PRIMARY KEY,
+        owner_name VARCHAR(100) NOT NULL,
+        bgg_id INTEGER NOT NULL,
+        game_name VARCHAR(200) NOT NULL,
+        bgg_thumbnail VARCHAR(500) DEFAULT NULL,
+        bgg_image VARCHAR(500) DEFAULT NULL,
+        bgg_year INTEGER DEFAULT NULL,
+        bgg_min_players INTEGER DEFAULT NULL,
+        bgg_max_players INTEGER DEFAULT NULL,
+        bgg_playtime VARCHAR(50) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(owner_name, bgg_id)
+      )
+    `);
     
     console.log('✅ Datenbank-Tabellen bereit');
   } catch (err) {
@@ -521,6 +539,111 @@ app.delete('/api/games/:id/fulfill', async (req, res) => {
   try {
     await pool.query('UPDATE games SET fulfilled_by = NULL WHERE id = $1', [id]);
     res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== SPIELESAMMLUNG (PERSISTENT) ====================
+
+// Spielesammlung eines Nutzers laden
+app.get('/api/collection/:ownerName', async (req, res) => {
+  const { ownerName } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM game_collections WHERE LOWER(owner_name) = LOWER($1) ORDER BY game_name ASC',
+      [ownerName]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler beim Laden der Sammlung:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Alle Sammlungen laden (für Übersicht)
+app.get('/api/collections', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT owner_name, COUNT(*) as game_count 
+      FROM game_collections 
+      GROUP BY owner_name 
+      ORDER BY owner_name ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Spiel zur Sammlung hinzufügen
+app.post('/api/collection', async (req, res) => {
+  const { ownerName, bggId, gameName, bggThumbnail, bggImage, bggYear, bggMinPlayers, bggMaxPlayers, bggPlaytime } = req.body;
+  
+  if (!ownerName?.trim() || !bggId || !gameName?.trim()) {
+    return res.status(400).json({ error: 'ownerName, bggId und gameName sind erforderlich' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `INSERT INTO game_collections (owner_name, bgg_id, game_name, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+       ON CONFLICT (owner_name, bgg_id) DO NOTHING
+       RETURNING *`,
+      [ownerName.trim(), bggId, gameName.trim(), bggThumbnail || null, bggImage || null, bggYear || null, bggMinPlayers || null, bggMaxPlayers || null, bggPlaytime || null]
+    );
+    res.json(result.rows[0] || { exists: true });
+  } catch (err) {
+    console.error('Fehler beim Hinzufügen zur Sammlung:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Spiel aus Sammlung entfernen
+app.delete('/api/collection/:ownerName/:bggId', async (req, res) => {
+  const { ownerName, bggId } = req.params;
+  try {
+    await pool.query(
+      'DELETE FROM game_collections WHERE LOWER(owner_name) = LOWER($1) AND bgg_id = $2',
+      [ownerName, bggId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler beim Entfernen aus Sammlung:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Spiel aus Sammlung zum Event hinzufügen
+app.post('/api/collection/bring', async (req, res) => {
+  const { ownerName, bggId } = req.body;
+  
+  if (!ownerName?.trim() || !bggId) {
+    return res.status(400).json({ error: 'ownerName und bggId sind erforderlich' });
+  }
+  
+  try {
+    // Spiel aus Sammlung holen
+    const collectionResult = await pool.query(
+      'SELECT * FROM game_collections WHERE LOWER(owner_name) = LOWER($1) AND bgg_id = $2',
+      [ownerName, bggId]
+    );
+    
+    if (collectionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Spiel nicht in Sammlung gefunden' });
+    }
+    
+    const game = collectionResult.rows[0];
+    
+    // Zum Event hinzufügen
+    const result = await pool.query(
+      `INSERT INTO games (game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime) 
+       VALUES ($1, $2, 'bring', $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [game.game_name, ownerName.trim(), game.bgg_id, game.bgg_thumbnail, game.bgg_image, game.bgg_year, game.bgg_min_players, game.bgg_max_players, game.bgg_playtime]
+    );
+    res.json(result.rows[0]);
   } catch (err) {
     console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
