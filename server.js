@@ -55,32 +55,126 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Event-Erkennung Middleware (erkennt Event anhand Subdomain)
+app.use(async (req, res, next) => {
+  // Skip für statische Dateien und Admin-Routes
+  if (req.path.startsWith('/api/admin') || !req.path.startsWith('/api/')) {
+    return next();
+  }
+  
+  try {
+    const host = req.hostname || req.headers.host || '';
+    const subdomain = host.split('.')[0];
+    
+    // Versuche Event anhand Subdomain zu finden
+    let event = null;
+    if (subdomain && subdomain !== 'www' && subdomain !== 'localhost') {
+      const result = await pool.query(
+        'SELECT * FROM events WHERE slug = $1',
+        [subdomain]
+      );
+      if (result.rows.length > 0) {
+        event = result.rows[0];
+      }
+    }
+    
+    // Fallback: Aktives Event laden
+    if (!event) {
+      const result = await pool.query(
+        'SELECT * FROM events WHERE is_active = true LIMIT 1'
+      );
+      if (result.rows.length > 0) {
+        event = result.rows[0];
+      }
+    }
+    
+    req.event = event;
+    req.eventId = event?.id || null;
+    next();
+  } catch (err) {
+    console.error('Event-Middleware Fehler:', err.message);
+    next();
+  }
+});
+
 // Datenbank initialisieren
 async function initDB() {
   const client = await pool.connect();
   try {
-    // Buchungen-Tabelle
+    // ==================== MULTI-EVENT SYSTEM ====================
+    
+    // Events-Tabelle (persistent)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS events (
+        id SERIAL PRIMARY KEY,
+        slug VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        description TEXT DEFAULT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        location_name VARCHAR(200) DEFAULT NULL,
+        location_address TEXT DEFAULT NULL,
+        location_url VARCHAR(500) DEFAULT NULL,
+        check_in_time TIME DEFAULT '15:00',
+        check_out_time TIME DEFAULT '11:00',
+        is_active BOOLEAN DEFAULT FALSE,
+        is_booking_open BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Zimmer pro Event (konfigurierbar statt hardcoded)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS event_rooms (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        room_name VARCHAR(100) NOT NULL,
+        floor VARCHAR(50) DEFAULT NULL,
+        beds_count INTEGER NOT NULL DEFAULT 1,
+        has_private_bath BOOLEAN DEFAULT FALSE,
+        is_accessible BOOLEAN DEFAULT FALSE,
+        notes TEXT DEFAULT NULL,
+        sort_order INTEGER DEFAULT 0
+      )
+    `);
+
+    // Nutzer-Tabelle (persistent über Events hinweg)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        pin_hash VARCHAR(64) DEFAULT NULL,
+        is_admin BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP DEFAULT NULL
+      )
+    `);
+
+    // Buchungen-Tabelle (mit event_id für Multi-Event Support)
     await client.query(`
       CREATE TABLE IF NOT EXISTS bookings (
         id SERIAL PRIMARY KEY,
-        bed_id VARCHAR(50) UNIQUE NOT NULL,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        bed_id VARCHAR(100) NOT NULL,
         name VARCHAR(100) NOT NULL,
         booked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         status VARCHAR(20) DEFAULT 'booked',
-        blocked_by VARCHAR(50) DEFAULT NULL,
+        blocked_by VARCHAR(100) DEFAULT NULL,
         arrival_date DATE DEFAULT NULL,
         departure_date DATE DEFAULT NULL,
         transport VARCHAR(20) DEFAULT NULL,
         needs_pickup BOOLEAN DEFAULT FALSE,
         can_offer_ride BOOLEAN DEFAULT FALSE,
         seats_available INTEGER DEFAULT 0,
-        departure_city VARCHAR(100) DEFAULT NULL
+        departure_city VARCHAR(100) DEFAULT NULL,
+        UNIQUE(event_id, bed_id)
       )
     `);
     
-    // Spalten hinzufügen falls nicht vorhanden (für bestehende DBs)
+    // Migration: Spalten hinzufügen falls nicht vorhanden (für bestehende DBs)
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS event_id INTEGER REFERENCES events(id) ON DELETE CASCADE`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'booked'`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS blocked_by VARCHAR(50) DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS blocked_by VARCHAR(100) DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_date DATE DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_date DATE DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS transport VARCHAR(20) DEFAULT NULL`);
@@ -94,10 +188,11 @@ async function initDB() {
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_time TIME DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_time TIME DEFAULT NULL`);
 
-    // Spiele-Tabelle
+    // Spiele-Tabelle (mit event_id)
     await client.query(`
       CREATE TABLE IF NOT EXISTS games (
         id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
         game_name VARCHAR(200) NOT NULL,
         person_name VARCHAR(100) NOT NULL,
         type VARCHAR(20) NOT NULL DEFAULT 'bring',
@@ -114,7 +209,8 @@ async function initDB() {
       )
     `);
     
-    // Neue Spalten hinzufügen falls Tabelle schon existiert
+    // Migration: Spalten zu games hinzufügen falls nicht vorhanden
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS event_id INTEGER REFERENCES events(id) ON DELETE CASCADE`);
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_id INTEGER DEFAULT NULL`);
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_thumbnail VARCHAR(500) DEFAULT NULL`);
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_image VARCHAR(500) DEFAULT NULL`);
@@ -124,15 +220,19 @@ async function initDB() {
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_playtime VARCHAR(50) DEFAULT NULL`);
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_description TEXT DEFAULT NULL`);
 
-    // Warteliste-Tabelle
+    // Warteliste-Tabelle (mit event_id)
     await client.query(`
       CREATE TABLE IF NOT EXISTS waitlist (
         id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
         name VARCHAR(100) NOT NULL,
         comment VARCHAR(255) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Migration: event_id zu waitlist hinzufügen
+    await client.query(`ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS event_id INTEGER REFERENCES events(id) ON DELETE CASCADE`);
 
     // Persönliche Spielesammlungen (persistent über Events hinweg)
     await client.query(`
@@ -167,10 +267,146 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Alle Buchungen abrufen
-app.get('/api/bookings', async (req, res) => {
+// ==================== EVENT API ====================
+
+// Aktuelles Event abrufen (basierend auf Subdomain/aktivem Event)
+app.get('/api/event', async (req, res) => {
+  if (!req.event) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
   try {
-    const result = await pool.query('SELECT * FROM bookings');
+    // Zimmer für dieses Event laden
+    const roomsResult = await pool.query(
+      'SELECT * FROM event_rooms WHERE event_id = $1 ORDER BY sort_order, room_name',
+      [req.event.id]
+    );
+    
+    res.json({
+      ...req.event,
+      rooms: roomsResult.rows
+    });
+  } catch (err) {
+    console.error('Fehler beim Laden des Events:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== ADMIN API (Event-Verwaltung) ====================
+
+// Alle Events auflisten
+app.get('/api/admin/events', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM events ORDER BY start_date DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Neues Event erstellen
+app.post('/api/admin/events', async (req, res) => {
+  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime } = req.body;
+  
+  if (!slug?.trim() || !name?.trim() || !startDate || !endDate) {
+    return res.status(400).json({ error: 'slug, name, startDate und endDate sind erforderlich' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `INSERT INTO events (slug, name, description, start_date, end_date, location_name, location_address, location_url, check_in_time, check_out_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [slug.trim().toLowerCase(), name.trim(), description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00']
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Event aktivieren (nur eines kann aktiv sein)
+app.post('/api/admin/events/:id/activate', async (req, res) => {
+  const { id } = req.params;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('UPDATE events SET is_active = false');
+    await client.query('UPDATE events SET is_active = true WHERE id = $1', [id]);
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// Zimmer zu Event hinzufügen
+app.post('/api/admin/events/:eventId/rooms', async (req, res) => {
+  const { eventId } = req.params;
+  const { roomName, floor, bedsCount, hasPrivateBath, isAccessible, notes, sortOrder } = req.body;
+  
+  if (!roomName?.trim() || !bedsCount) {
+    return res.status(400).json({ error: 'roomName und bedsCount sind erforderlich' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `INSERT INTO event_rooms (event_id, room_name, floor, beds_count, has_private_bath, is_accessible, notes, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [eventId, roomName.trim(), floor || null, bedsCount, hasPrivateBath || false, isAccessible || false, notes || null, sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Alle Zimmer eines Events abrufen
+app.get('/api/admin/events/:eventId/rooms', async (req, res) => {
+  const { eventId } = req.params;
+  
+  try {
+    const result = await pool.query(
+      'SELECT * FROM event_rooms WHERE event_id = $1 ORDER BY sort_order, room_name',
+      [eventId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Zimmer löschen
+app.delete('/api/admin/rooms/:roomId', async (req, res) => {
+  const { roomId } = req.params;
+  
+  try {
+    await pool.query('DELETE FROM event_rooms WHERE id = $1', [roomId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== BUCHUNGEN ====================
+
+// Alle Buchungen abrufen (für aktuelles Event)
+app.get('/api/bookings', async (req, res) => {
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  try {
+    const result = await pool.query('SELECT * FROM bookings WHERE event_id = $1', [req.eventId]);
     const bookings = {};
     result.rows.forEach(row => {
       bookings[row.bed_id] = {
@@ -204,6 +440,10 @@ app.post('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
   const { name, roomRestriction, roomBeds, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber } = req.body;
 
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
@@ -215,20 +455,20 @@ app.post('/api/bookings/:bedId', async (req, res) => {
     
     // Hauptbuchung erstellen
     await client.query(`
-      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, arrival_time, departure_time, transport, needs_pickup, can_offer_ride, seats_available, departure_city, train_station, train_time, train_number)
-      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      ON CONFLICT (bed_id) 
-      DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL,
-                    arrival_date = $3, departure_date = $4, arrival_time = $5, departure_time = $6, transport = $7, needs_pickup = $8,
-                    can_offer_ride = $9, seats_available = $10, departure_city = $11,
-                    train_station = $12, train_time = $13, train_number = $14
-    `, [bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null]);
+      INSERT INTO bookings (event_id, bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, arrival_time, departure_time, transport, needs_pickup, can_offer_ride, seats_available, departure_city, train_station, train_time, train_number)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'booked', NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ON CONFLICT (event_id, bed_id) 
+      DO UPDATE SET name = $3, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL,
+                    arrival_date = $4, departure_date = $5, arrival_time = $6, departure_time = $7, transport = $8, needs_pickup = $9,
+                    can_offer_ride = $10, seats_available = $11, departure_city = $12,
+                    train_station = $13, train_time = $14, train_number = $15
+    `, [req.eventId, bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null]);
     
     // Zimmer-Einschränkung setzen
     if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
       for (const otherBedId of roomBeds) {
         if (otherBedId !== bedId) {
-          const existing = await client.query('SELECT * FROM bookings WHERE bed_id = $1', [otherBedId]);
+          const existing = await client.query('SELECT * FROM bookings WHERE event_id = $1 AND bed_id = $2', [req.eventId, otherBedId]);
           if (existing.rows.length === 0) {
             let status, displayName;
             
@@ -245,9 +485,9 @@ app.post('/api/bookings/:bedId', async (req, res) => {
             
             if (status) {
               await client.query(`
-                INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by)
-                VALUES ($1, $2, CURRENT_TIMESTAMP, $3, $4)
-              `, [otherBedId, displayName, status, bedId]);
+                INSERT INTO bookings (event_id, bed_id, name, booked_at, status, blocked_by)
+                VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5)
+              `, [req.eventId, otherBedId, displayName, status, bedId]);
             }
           }
         }
@@ -269,12 +509,16 @@ app.post('/api/bookings/:bedId', async (req, res) => {
 app.delete('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
 
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   const client = await pool.connect();
   
   try {
     await client.query('BEGIN');
-    await client.query('DELETE FROM bookings WHERE blocked_by = $1', [bedId]);
-    await client.query('DELETE FROM bookings WHERE bed_id = $1', [bedId]);
+    await client.query('DELETE FROM bookings WHERE event_id = $1 AND blocked_by = $2', [req.eventId, bedId]);
+    await client.query('DELETE FROM bookings WHERE event_id = $1 AND bed_id = $2', [req.eventId, bedId]);
     await client.query('COMMIT');
     res.json({ success: true, bedId });
   } catch (err) {
@@ -290,8 +534,12 @@ app.delete('/api/bookings/:bedId', async (req, res) => {
 app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
   const { bedId } = req.params;
 
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   try {
-    await pool.query("DELETE FROM bookings WHERE bed_id = $1 AND status IN ('blocked', 'women_only', 'men_only')", [bedId]);
+    await pool.query("DELETE FROM bookings WHERE event_id = $1 AND bed_id = $2 AND status IN ('blocked', 'women_only', 'men_only')", [req.eventId, bedId]);
     res.json({ success: true, bedId });
   } catch (err) {
     console.error('Fehler beim Freigeben:', err.message);
@@ -304,6 +552,10 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
   const { bedId } = req.params;
   const { name, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber } = req.body;
 
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
@@ -315,8 +567,8 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
           arrival_date = $2, departure_date = $3, arrival_time = $4, departure_time = $5, transport = $6, needs_pickup = $7,
           can_offer_ride = $8, seats_available = $9, departure_city = $10,
           train_station = $11, train_time = $12, train_number = $13
-      WHERE bed_id = $14 AND status IN ('women_only', 'men_only')
-    `, [name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, bedId]);
+      WHERE event_id = $14 AND bed_id = $15 AND status IN ('women_only', 'men_only')
+    `, [name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, req.eventId, bedId]);
     
     res.json({ success: true, bedId, name });
   } catch (err) {
@@ -328,8 +580,12 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
 // ==================== WARTELISTE ====================
 
 app.get('/api/waitlist', async (req, res) => {
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   try {
-    const result = await pool.query('SELECT * FROM waitlist ORDER BY created_at ASC');
+    const result = await pool.query('SELECT * FROM waitlist WHERE event_id = $1 ORDER BY created_at ASC', [req.eventId]);
     res.json(result.rows);
   } catch (err) {
     console.error('Fehler beim Abrufen der Warteliste:', err.message);
@@ -340,16 +596,20 @@ app.get('/api/waitlist', async (req, res) => {
 app.post('/api/waitlist', async (req, res) => {
   const { name, comment } = req.body;
 
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
 
   try {
     const result = await pool.query(`
-      INSERT INTO waitlist (name, comment, created_at)
-      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      INSERT INTO waitlist (event_id, name, comment, created_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
       RETURNING *
-    `, [name.trim(), comment?.trim() || null]);
+    `, [req.eventId, name.trim(), comment?.trim() || null]);
     
     res.json({ success: true, entry: result.rows[0] });
   } catch (err) {
@@ -361,8 +621,12 @@ app.post('/api/waitlist', async (req, res) => {
 app.delete('/api/waitlist/:id', async (req, res) => {
   const { id } = req.params;
 
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   try {
-    await pool.query('DELETE FROM waitlist WHERE id = $1', [id]);
+    await pool.query('DELETE FROM waitlist WHERE id = $1 AND event_id = $2', [id, req.eventId]);
     res.json({ success: true, id });
   } catch (err) {
     console.error('Fehler beim Entfernen von der Warteliste:', err.message);
@@ -464,10 +728,14 @@ app.get('/api/bgg/details/:id', async (req, res) => {
   }
 });
 
-// Alle Spiele laden
+// Alle Spiele laden (für aktuelles Event)
 app.get('/api/games', async (req, res) => {
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   try {
-    const result = await pool.query('SELECT * FROM games ORDER BY created_at DESC');
+    const result = await pool.query('SELECT * FROM games WHERE event_id = $1 ORDER BY created_at DESC', [req.eventId]);
     res.json(result.rows);
   } catch (err) {
     console.error('Fehler beim Laden der Spiele:', err.message);
@@ -479,6 +747,10 @@ app.get('/api/games', async (req, res) => {
 app.post('/api/games', async (req, res) => {
   const { gameName, personName, type, bggId, bggThumbnail, bggImage, bggYear, bggMinPlayers, bggMaxPlayers, bggPlaytime, bggDescription } = req.body;
   
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   if (!gameName?.trim() || !personName?.trim()) {
     return res.status(400).json({ error: 'Spielname und Name sind erforderlich' });
   }
@@ -489,9 +761,9 @@ app.post('/api/games', async (req, res) => {
   
   try {
     const result = await pool.query(
-      `INSERT INTO games (game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime, bgg_description) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [gameName.trim(), personName.trim(), type, bggId || null, bggThumbnail || null, bggImage || null, bggYear || null, bggMinPlayers || null, bggMaxPlayers || null, bggPlaytime || null, bggDescription || null]
+      `INSERT INTO games (event_id, game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime, bgg_description) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [req.eventId, gameName.trim(), personName.trim(), type, bggId || null, bggThumbnail || null, bggImage || null, bggYear || null, bggMinPlayers || null, bggMaxPlayers || null, bggPlaytime || null, bggDescription || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -503,8 +775,13 @@ app.post('/api/games', async (req, res) => {
 // Spiel löschen
 app.delete('/api/games/:id', async (req, res) => {
   const { id } = req.params;
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   try {
-    await pool.query('DELETE FROM games WHERE id = $1', [id]);
+    await pool.query('DELETE FROM games WHERE id = $1 AND event_id = $2', [id, req.eventId]);
     res.json({ success: true });
   } catch (err) {
     console.error('Fehler beim Löschen:', err.message);
@@ -517,14 +794,18 @@ app.post('/api/games/:id/fulfill', async (req, res) => {
   const { id } = req.params;
   const { fulfilledBy } = req.body;
   
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   if (!fulfilledBy?.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
   
   try {
     const result = await pool.query(
-      'UPDATE games SET fulfilled_by = $1 WHERE id = $2 AND type = $3 RETURNING *',
-      [fulfilledBy.trim(), id, 'wish']
+      'UPDATE games SET fulfilled_by = $1 WHERE id = $2 AND event_id = $3 AND type = $4 RETURNING *',
+      [fulfilledBy.trim(), id, req.eventId, 'wish']
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -536,8 +817,13 @@ app.post('/api/games/:id/fulfill', async (req, res) => {
 // Erfüllung zurücknehmen
 app.delete('/api/games/:id/fulfill', async (req, res) => {
   const { id } = req.params;
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   try {
-    await pool.query('UPDATE games SET fulfilled_by = NULL WHERE id = $1', [id]);
+    await pool.query('UPDATE games SET fulfilled_by = NULL WHERE id = $1 AND event_id = $2', [id, req.eventId]);
     res.json({ success: true });
   } catch (err) {
     console.error('Fehler:', err.message);
@@ -620,6 +906,10 @@ app.delete('/api/collection/:ownerName/:bggId', async (req, res) => {
 app.post('/api/collection/bring', async (req, res) => {
   const { ownerName, bggId } = req.body;
   
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+
   if (!ownerName?.trim() || !bggId) {
     return res.status(400).json({ error: 'ownerName und bggId sind erforderlich' });
   }
@@ -639,9 +929,9 @@ app.post('/api/collection/bring', async (req, res) => {
     
     // Zum Event hinzufügen
     const result = await pool.query(
-      `INSERT INTO games (game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime) 
-       VALUES ($1, $2, 'bring', $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [game.game_name, ownerName.trim(), game.bgg_id, game.bgg_thumbnail, game.bgg_image, game.bgg_year, game.bgg_min_players, game.bgg_max_players, game.bgg_playtime]
+      `INSERT INTO games (event_id, game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime) 
+       VALUES ($1, $2, $3, 'bring', $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [req.eventId, game.game_name, ownerName.trim(), game.bgg_id, game.bgg_thumbnail, game.bgg_image, game.bgg_year, game.bgg_min_players, game.bgg_max_players, game.bgg_playtime]
     );
     res.json(result.rows[0]);
   } catch (err) {
