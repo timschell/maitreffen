@@ -27,6 +27,8 @@
             --waitlist-light: #fff3e0;
             --carpool: #9c27b0;
             --carpool-light: #f3e5f5;
+            --train: #00796b;
+            --train-light: #e0f2f1;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -251,20 +253,9 @@
             white-space: nowrap;
         }
 
-        .room-badge.bath {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .room-badge.accessible {
-            background: #fff3e0;
-            color: #f57c00;
-        }
-
-        .room-badge.shared {
-            background: #f5f5f5;
-            color: #666;
-        }
+        .room-badge.bath { background: #e3f2fd; color: #1976d2; }
+        .room-badge.accessible { background: #fff3e0; color: #f57c00; }
+        .room-badge.shared { background: #f5f5f5; color: #666; }
 
         .beds-grid {
             display: grid;
@@ -286,60 +277,17 @@
             justify-content: center;
         }
 
-        .bed-card.booked {
-            background: var(--bed-booked);
-            border-color: #b84a40;
-        }
+        .bed-card.booked { background: var(--bed-booked); border-color: #b84a40; }
+        .bed-card.blocked { background: var(--bed-blocked); border-color: #757575; }
+        .bed-card.women-only { background: var(--bed-women); border-color: #c2185b; }
+        .bed-card.men-only { background: var(--bed-men); border-color: #1976d2; }
 
-        .bed-card.blocked {
-            background: var(--bed-blocked);
-            border-color: #757575;
-            background-image: repeating-linear-gradient(
-                45deg,
-                transparent,
-                transparent 10px,
-                rgba(255,255,255,0.1) 10px,
-                rgba(255,255,255,0.1) 20px
-            );
-        }
+        .bed-card:active { transform: scale(0.97); }
 
-        .bed-card.women-only {
-            background: var(--bed-women);
-            border-color: #c2185b;
-        }
-
-        .bed-card.men-only {
-            background: var(--bed-men);
-            border-color: #1976d2;
-        }
-
-        .bed-card:active {
-            transform: scale(0.97);
-        }
-
-        .bed-icon {
-            font-size: 1.1rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .bed-label {
-            font-size: 0.7rem;
-            color: rgba(255,255,255,0.85);
-            margin-bottom: 0.15rem;
-        }
-
-        .bed-name {
-            font-weight: 700;
-            color: white;
-            font-size: 0.95rem;
-            word-break: break-word;
-        }
-
-        .bed-info {
-            font-size: 0.65rem;
-            color: rgba(255,255,255,0.8);
-            margin-top: 0.2rem;
-        }
+        .bed-icon { font-size: 1.1rem; margin-bottom: 0.25rem; }
+        .bed-label { font-size: 0.7rem; color: rgba(255,255,255,0.85); margin-bottom: 0.15rem; }
+        .bed-name { font-weight: 700; color: white; font-size: 0.95rem; word-break: break-word; }
+        .bed-info { font-size: 0.65rem; color: rgba(255,255,255,0.8); margin-top: 0.2rem; }
 
         .bed-badges {
             display: flex;
@@ -369,18 +317,8 @@
             flex-wrap: wrap;
         }
 
-        .room-stat {
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .room-stat-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
-
+        .room-stat { display: flex; align-items: center; gap: 0.3rem; }
+        .room-stat-dot { width: 8px; height: 8px; border-radius: 50%; }
         .room-stat-dot.free { background: var(--bed-free); }
         .room-stat-dot.booked { background: var(--bed-booked); }
         .room-stat-dot.blocked { background: var(--bed-blocked); }
@@ -408,12 +346,9 @@
 
         .transport-title.pickup { color: var(--accent); }
         .transport-title.carpool { color: var(--carpool); }
+        .transport-title.train { color: var(--train); }
 
-        .transport-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
+        .transport-list { display: flex; flex-direction: column; gap: 0.5rem; }
 
         .transport-item {
             display: flex;
@@ -425,26 +360,13 @@
             font-size: 0.9rem;
         }
 
-        .transport-item.carpool {
-            background: var(--carpool-light);
-        }
+        .transport-item.carpool { background: var(--carpool-light); }
+        .transport-item.train { background: var(--train-light); }
 
-        .transport-item-icon {
-            font-size: 1.2rem;
-        }
-
-        .transport-item-info {
-            flex: 1;
-        }
-
-        .transport-item-name {
-            font-weight: 600;
-        }
-
-        .transport-item-details {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-        }
+        .transport-item-icon { font-size: 1.2rem; }
+        .transport-item-info { flex: 1; }
+        .transport-item-name { font-weight: 600; }
+        .transport-item-details { color: var(--text-muted); font-size: 0.8rem; }
 
         .transport-item-seats {
             background: var(--carpool);
@@ -462,7 +384,49 @@
             padding: 1rem;
         }
 
-        /* Warteliste Section */
+        /* Train Groups */
+        .train-group {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--train-light);
+            border-radius: 10px;
+            border-left: 4px solid var(--train);
+        }
+
+        .train-group:last-child { margin-bottom: 0; }
+
+        .train-group-header {
+            font-weight: 600;
+            color: var(--train);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .train-group-badge {
+            background: var(--train);
+            color: white;
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.7rem;
+        }
+
+        .train-group-members {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .train-member {
+            background: white;
+            padding: 0.4rem 0.75rem;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            border: 1px solid #b2dfdb;
+        }
+
+        /* Waitlist Section */
         .waitlist-section {
             background: var(--bg-paper);
             border-radius: 16px;
@@ -497,17 +461,8 @@
             font-weight: 600;
         }
 
-        .waitlist-empty {
-            text-align: center;
-            padding: 2rem 1rem;
-            color: var(--text-muted);
-        }
-
-        .waitlist-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
+        .waitlist-empty { text-align: center; padding: 2rem 1rem; color: var(--text-muted); }
+        .waitlist-list { display: flex; flex-direction: column; gap: 0.75rem; }
 
         .waitlist-item {
             display: flex;
@@ -533,29 +488,10 @@
             flex-shrink: 0;
         }
 
-        .waitlist-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .waitlist-name {
-            font-weight: 600;
-            color: var(--text-dark);
-            word-break: break-word;
-        }
-
-        .waitlist-meta {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 0.15rem;
-        }
-
-        .waitlist-comment {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            font-style: italic;
-            margin-top: 0.25rem;
-        }
+        .waitlist-info { flex: 1; min-width: 0; }
+        .waitlist-name { font-weight: 600; color: var(--text-dark); word-break: break-word; }
+        .waitlist-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem; }
+        .waitlist-comment { font-size: 0.8rem; color: var(--text-muted); font-style: italic; margin-top: 0.25rem; }
 
         .waitlist-remove {
             background: none;
@@ -568,9 +504,7 @@
             transition: opacity 0.2s;
         }
 
-        .waitlist-remove:hover {
-            opacity: 1;
-        }
+        .waitlist-remove:hover { opacity: 1; }
 
         /* Modal */
         .modal-overlay {
@@ -609,23 +543,11 @@
             color: var(--accent);
         }
 
-        .modal h2.waitlist-modal-title {
-            color: var(--waitlist);
-        }
+        .modal h2.waitlist-modal-title { color: var(--waitlist); }
+        .modal h2.women-modal-title { color: var(--bed-women); }
+        .modal h2.men-modal-title { color: var(--bed-men); }
 
-        .modal h2.women-modal-title {
-            color: var(--bed-women);
-        }
-
-        .modal h2.men-modal-title {
-            color: var(--bed-men);
-        }
-
-        .modal-room {
-            color: var(--text-muted);
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-        }
+        .modal-room { color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem; }
 
         .modal-input {
             width: 100%;
@@ -641,14 +563,8 @@
             -webkit-appearance: none;
         }
 
-        .modal-input:focus { 
-            outline: none; 
-            border-color: var(--accent); 
-        }
-
-        .modal-input.waitlist-input:focus {
-            border-color: var(--waitlist);
-        }
+        .modal-input:focus { outline: none; border-color: var(--accent); }
+        .modal-input.waitlist-input:focus { border-color: var(--waitlist); }
 
         .modal-textarea {
             width: 100%;
@@ -660,28 +576,15 @@
             font-size: 1rem;
             font-family: 'Nunito', sans-serif;
             margin-bottom: 0.75rem;
-            transition: border-color 0.2s;
-            -webkit-appearance: none;
             resize: vertical;
             min-height: 80px;
         }
 
-        .modal-textarea:focus {
-            outline: none;
-            border-color: var(--waitlist);
-        }
+        .modal-textarea:focus { outline: none; border-color: var(--waitlist); }
 
         /* Form Sections */
-        .form-section {
-            margin-bottom: 1rem;
-        }
-
-        .form-section-title {
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
+        .form-section { margin-bottom: 1rem; }
+        .form-section-title { font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem; font-size: 0.9rem; }
 
         .form-row {
             display: grid;
@@ -690,16 +593,12 @@
             margin-bottom: 0.75rem;
         }
 
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
+        .form-row.three-col {
+            grid-template-columns: 1fr 1fr 1fr;
         }
 
-        .form-group label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
+        .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+        .form-group label { font-size: 0.8rem; color: var(--text-muted); }
 
         .form-group input, .form-group select {
             padding: 0.75rem;
@@ -709,7 +608,6 @@
             color: var(--text-dark);
             font-size: 0.95rem;
             font-family: 'Nunito', sans-serif;
-            transition: border-color 0.2s;
             -webkit-appearance: none;
         }
 
@@ -726,7 +624,7 @@
             padding-right: 2rem;
         }
 
-        /* Checkbox für Abholung/Fahrgemeinschaft */
+        /* Checkbox rows */
         .checkbox-row {
             display: flex;
             align-items: center;
@@ -738,17 +636,9 @@
             margin-bottom: 0.75rem;
         }
 
-        .checkbox-row:hover {
-            background: #efefef;
-        }
-
-        .checkbox-row.carpool {
-            background: var(--carpool-light);
-        }
-
-        .checkbox-row.carpool:hover {
-            background: #ede7f6;
-        }
+        .checkbox-row:hover { background: #efefef; }
+        .checkbox-row.carpool { background: var(--carpool-light); }
+        .checkbox-row.carpool:hover { background: #ede7f6; }
 
         .checkbox-row input[type="checkbox"] {
             width: 20px;
@@ -757,28 +647,14 @@
             cursor: pointer;
         }
 
-        .checkbox-row.carpool input[type="checkbox"] {
-            accent-color: var(--carpool);
-        }
+        .checkbox-row.carpool input[type="checkbox"] { accent-color: var(--carpool); }
 
-        .checkbox-row-label {
-            flex: 1;
-        }
+        .checkbox-row-label { flex: 1; }
+        .checkbox-row-main { font-weight: 600; color: var(--text-dark); font-size: 0.9rem; }
+        .checkbox-row-sub { font-size: 0.75rem; color: var(--text-muted); }
 
-        .checkbox-row-main {
-            font-weight: 600;
-            color: var(--text-dark);
-            font-size: 0.9rem;
-        }
-
-        .checkbox-row-sub {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        /* Carpool extra fields */
-        .carpool-details {
-            background: var(--carpool-light);
+        /* Carpool/Train details */
+        .extra-details {
             padding: 0.75rem;
             border-radius: 10px;
             margin-bottom: 0.75rem;
@@ -787,29 +663,21 @@
             gap: 0.75rem;
         }
 
-        .carpool-details .form-group label {
-            color: var(--carpool);
-        }
+        .extra-details.carpool { background: var(--carpool-light); }
+        .extra-details.train { background: var(--train-light); }
 
-        .carpool-details input {
-            border-color: #ce93d8;
-        }
+        .extra-details .form-group label { color: var(--carpool); }
+        .extra-details.train .form-group label { color: var(--train); }
 
-        .carpool-details input:focus {
-            border-color: var(--carpool);
-        }
+        .extra-details input { border-color: #ce93d8; }
+        .extra-details.train input { border-color: #80cbc4; }
 
-        /* Radio Options für Zimmer-Einschränkung */
-        .restriction-options {
-            margin-bottom: 1rem;
-        }
+        .extra-details input:focus { border-color: var(--carpool); }
+        .extra-details.train input:focus { border-color: var(--train); }
 
-        .restriction-label {
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
+        /* Restriction options */
+        .restriction-options { margin-bottom: 1rem; }
+        .restriction-label { font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem; font-size: 0.9rem; }
 
         .restriction-grid {
             display: grid;
@@ -829,48 +697,17 @@
             transition: all 0.2s;
         }
 
-        .restriction-option:hover {
-            background: #efefef;
-        }
+        .restriction-option:hover { background: #efefef; }
+        .restriction-option.selected { border-color: var(--accent); background: var(--accent-light); }
+        .restriction-option.selected.women { border-color: var(--bed-women); background: #fce4ec; }
+        .restriction-option.selected.men { border-color: var(--bed-men); background: #e3f2fd; }
+        .restriction-option.selected.blocked { border-color: var(--bed-blocked); background: #f5f5f5; }
 
-        .restriction-option.selected {
-            border-color: var(--accent);
-            background: var(--accent-light);
-        }
+        .restriction-option input[type="radio"] { display: none; }
+        .restriction-option-icon { font-size: 1.1rem; }
+        .restriction-option-text { font-size: 0.85rem; color: var(--text-dark); }
 
-        .restriction-option.selected.women {
-            border-color: var(--bed-women);
-            background: #fce4ec;
-        }
-
-        .restriction-option.selected.men {
-            border-color: var(--bed-men);
-            background: #e3f2fd;
-        }
-
-        .restriction-option.selected.blocked {
-            border-color: var(--bed-blocked);
-            background: #f5f5f5;
-        }
-
-        .restriction-option input[type="radio"] {
-            display: none;
-        }
-
-        .restriction-option-icon {
-            font-size: 1.1rem;
-        }
-
-        .restriction-option-text {
-            font-size: 0.85rem;
-            color: var(--text-dark);
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 0.75rem;
-            margin-top: 1rem;
-        }
+        .modal-buttons { display: flex; gap: 0.75rem; margin-top: 1rem; }
 
         .btn {
             flex: 1;
@@ -900,25 +737,9 @@
             margin-bottom: 1rem;
         }
 
-        .current-guest-label { 
-            font-size: 0.75rem; 
-            color: var(--text-muted); 
-            margin-bottom: 0.2rem; 
-        }
-        
-        .current-guest-name { 
-            font-weight: 600; 
-            color: var(--text-dark);
-        }
-
-        .current-guest-details {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.2rem;
-        }
+        .current-guest-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem; }
+        .current-guest-name { font-weight: 600; color: var(--text-dark); }
+        .current-guest-details { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.2rem; }
 
         .blocked-info {
             background: #fff3e0;
@@ -928,45 +749,16 @@
             margin-bottom: 1rem;
         }
 
-        .blocked-info-title {
-            font-weight: 600;
-            color: #e65100;
-            margin-bottom: 0.25rem;
-        }
+        .blocked-info-title { font-weight: 600; color: #e65100; margin-bottom: 0.25rem; }
+        .blocked-info-text { font-size: 0.85rem; color: #bf360c; }
 
-        .blocked-info-text {
-            font-size: 0.85rem;
-            color: #bf360c;
-        }
-
-        .gender-info {
-            padding: 1rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-        }
-
-        .gender-info.women {
-            background: #fce4ec;
-            border: 1px solid #f48fb1;
-        }
-
-        .gender-info.men {
-            background: #e3f2fd;
-            border: 1px solid #90caf9;
-        }
-
-        .gender-info-title {
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
+        .gender-info { padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
+        .gender-info.women { background: #fce4ec; border: 1px solid #f48fb1; }
+        .gender-info.men { background: #e3f2fd; border: 1px solid #90caf9; }
+        .gender-info-title { font-weight: 600; margin-bottom: 0.25rem; }
         .gender-info.women .gender-info-title { color: #c2185b; }
         .gender-info.men .gender-info-title { color: #1976d2; }
-
-        .gender-info-text {
-            font-size: 0.85rem;
-        }
-
+        .gender-info-text { font-size: 0.85rem; }
         .gender-info.women .gender-info-text { color: #880e4f; }
         .gender-info.men .gender-info-text { color: #0d47a1; }
 
@@ -993,35 +785,20 @@
             line-height: 1.5;
         }
 
-        .info-text a {
-            color: var(--accent);
-        }
+        .info-text a { color: var(--accent); }
 
         /* Desktop */
         @media (min-width: 768px) {
             .app { padding: 1.5rem; }
             h1 { font-size: 2.4rem; }
-            
-            .rooms-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .modal-overlay {
-                align-items: center;
-                padding: 1rem;
-            }
-            
-            .modal {
-                border-radius: 20px;
-            }
-            
+            .rooms-grid { grid-template-columns: repeat(2, 1fr); }
+            .modal-overlay { align-items: center; padding: 1rem; }
+            .modal { border-radius: 20px; }
             .modal-handle { display: none; }
         }
 
         @media (min-width: 1024px) {
-            .rooms-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
+            .rooms-grid { grid-template-columns: repeat(3, 1fr); }
         }
     </style>
 </head>
@@ -1033,15 +810,13 @@
 
         const API_URL = '/api';
 
-        // Event-Daten
         const EVENT = {
             name: 'Maitreffen 2026',
-            startDate: '2026-05-13', // Mittwoch
-            endDate: '2026-05-17',   // Sonntag
+            startDate: '2026-05-13',
+            endDate: '2026-05-17',
             displayDate: '13. – 17. Mai 2026'
         };
 
-        // Zimmer-Konfiguration
         const ROOMS = [
             { id: 1, name: 'Zimmer 1', beds: 3, floor: 'eg', bath: true, accessible: false },
             { id: 2, name: 'Zimmer 2', beds: 2, floor: 'eg', bath: true, accessible: true },
@@ -1058,8 +833,7 @@
             const beds = {};
             ROOMS.forEach(room => {
                 for (let i = 1; i <= room.beds; i++) {
-                    const bedId = `zi${room.id}-bett${i}`;
-                    beds[bedId] = { room: room.name, roomId: room.id, bedNum: i };
+                    beds[`zi${room.id}-bett${i}`] = { room: room.name, roomId: room.id, bedNum: i };
                 }
             });
             return beds;
@@ -1070,37 +844,15 @@
 
         const getRoomBedIds = (roomId) => {
             const room = ROOMS.find(r => r.id === roomId);
-            if (!room) return [];
-            return Array.from({ length: room.beds }, (_, i) => `zi${roomId}-bett${i + 1}`);
+            return room ? Array.from({ length: room.beds }, (_, i) => `zi${roomId}-bett${i + 1}`) : [];
         };
 
-        const formatDate = (dateString) => {
-            if (!dateString) return '';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-        };
+        const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '';
+        const formatDateTime = (d) => new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const formatDateLong = (d) => d ? new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '';
+        const formatTime = (t) => t ? t.slice(0,5) : '';
 
-        const formatDateTime = (dateString) => {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('de-DE', { 
-                day: '2-digit', 
-                month: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        };
-
-        const formatDateLong = (dateString) => {
-            if (!dateString) return '';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-        };
-
-        const transportLabels = {
-            'auto': '🚗 Auto',
-            'oepnv': '🚆 Öffis',
-            '': ''
-        };
+        const transportLabels = { 'auto': '🚗 Auto', 'oepnv': '🚆 Öffis', '': '' };
 
         function App() {
             const [bookings, setBookings] = useState({});
@@ -1119,20 +871,24 @@
             const [canOfferRide, setCanOfferRide] = useState(false);
             const [seatsAvailable, setSeatsAvailable] = useState(1);
             const [departureCity, setDepartureCity] = useState('');
+            const [trainStation, setTrainStation] = useState('');
+            const [trainTime, setTrainTime] = useState('');
+            const [trainNumber, setTrainNumber] = useState('');
+            const [arrivalTime, setArrivalTime] = useState('');
+            const [departureTime, setDepartureTime] = useState('');
             const [waitlistName, setWaitlistName] = useState("");
             const [waitlistComment, setWaitlistComment] = useState("");
             const [roomRestriction, setRoomRestriction] = useState('none');
             const [activeFloor, setActiveFloor] = useState('eg');
 
-            useEffect(() => { 
-                loadBookings(); 
-                loadWaitlist();
-            }, []);
+            useEffect(() => { loadBookings(); loadWaitlist(); }, []);
 
-            // Reset pickup wenn nicht öffis, reset carpool wenn nicht auto
             useEffect(() => {
                 if (transport !== 'oepnv') {
                     setNeedsPickup(false);
+                    setTrainStation('');
+                    setTrainTime('');
+                    setTrainNumber('');
                 }
                 if (transport !== 'auto') {
                     setCanOfferRide(false);
@@ -1145,77 +901,71 @@
                 try {
                     setLoading(true);
                     setError(null);
-                    const response = await fetch(`${API_URL}/bookings`);
-                    if (!response.ok) throw new Error('Fehler beim Laden');
-                    const data = await response.json();
-                    setBookings(data);
-                } catch (err) {
-                    console.error('Ladefehler:', err);
-                    setError('Buchungen konnten nicht geladen werden.');
-                } finally {
-                    setLoading(false);
-                }
+                    const res = await fetch(`${API_URL}/bookings`);
+                    if (!res.ok) throw new Error();
+                    setBookings(await res.json());
+                } catch { setError('Buchungen konnten nicht geladen werden.'); }
+                finally { setLoading(false); }
             };
 
             const loadWaitlist = async () => {
                 try {
-                    const response = await fetch(`${API_URL}/waitlist`);
-                    if (!response.ok) throw new Error('Fehler beim Laden');
-                    const data = await response.json();
-                    setWaitlist(data);
-                } catch (err) {
-                    console.error('Warteliste Ladefehler:', err);
-                }
+                    const res = await fetch(`${API_URL}/waitlist`);
+                    if (res.ok) setWaitlist(await res.json());
+                } catch {}
             };
 
             const handleBedClick = (bedId) => {
                 setSelectedBed(bedId);
-                const booking = bookings[bedId];
-                const cleanName = booking?.name?.replace(/^[🔒♀️♂️]\s*/, '').replace(/^(Frauenzimmer|Männerzimmer)$/, '') || "";
-                setInputName(cleanName);
-                setArrivalDate(booking?.arrivalDate || EVENT.startDate);
-                setDepartureDate(booking?.departureDate || EVENT.endDate);
-                setTransport(booking?.transport || '');
-                setNeedsPickup(booking?.needsPickup || false);
-                setCanOfferRide(booking?.canOfferRide || false);
-                setSeatsAvailable(booking?.seatsAvailable || 1);
-                setDepartureCity(booking?.departureCity || '');
+                const b = bookings[bedId];
+                setInputName(b?.name?.replace(/^[🔒♀️♂️]\s*/, '').replace(/^(Frauenzimmer|Männerzimmer)$/, '') || "");
+                setArrivalDate(b?.arrivalDate || EVENT.startDate);
+                setDepartureDate(b?.departureDate || EVENT.endDate);
+                setTransport(b?.transport || '');
+                setNeedsPickup(b?.needsPickup || false);
+                setCanOfferRide(b?.canOfferRide || false);
+                setSeatsAvailable(b?.seatsAvailable || 1);
+                setDepartureCity(b?.departureCity || '');
+                setTrainStation(b?.trainStation || '');
+                setTrainTime(b?.trainTime ? formatTime(b.trainTime) : '');
+                setTrainNumber(b?.trainNumber || '');
+                setArrivalTime(b?.arrivalTime ? formatTime(b.arrivalTime) : '');
+                setDepartureTime(b?.departureTime ? formatTime(b.departureTime) : '');
                 setRoomRestriction('none');
                 setModalOpen(true);
             };
+
+            const getBookingPayload = () => ({
+                name: inputName.trim(),
+                arrivalDate: arrivalDate || null,
+                departureDate: departureDate || null,
+                transport: transport || null,
+                needsPickup: transport === 'oepnv' ? needsPickup : false,
+                canOfferRide: transport === 'auto' ? canOfferRide : false,
+                seatsAvailable: transport === 'auto' && canOfferRide ? seatsAvailable : 0,
+                departureCity: transport === 'auto' && canOfferRide ? departureCity : null,
+                trainStation: transport === 'oepnv' ? trainStation : null,
+                trainTime: transport === 'oepnv' && trainTime ? trainTime : null,
+                trainNumber: transport === 'oepnv' ? trainNumber : null,
+                arrivalTime: arrivalTime || null,
+                departureTime: departureTime || null
+            });
 
             const handleBook = async () => {
                 if (!inputName.trim() || saving) return;
                 setSaving(true);
                 setError(null);
                 try {
-                    const roomId = BEDS[selectedBed].roomId;
-                    const roomBeds = getRoomBedIds(roomId);
-                    
-                    const response = await fetch(`${API_URL}/bookings/${selectedBed}`, {
+                    const res = await fetch(`${API_URL}/bookings/${selectedBed}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            name: inputName.trim(),
-                            roomRestriction,
-                            roomBeds,
-                            arrivalDate: arrivalDate || null,
-                            departureDate: departureDate || null,
-                            transport: transport || null,
-                            needsPickup: transport === 'oepnv' ? needsPickup : false,
-                            canOfferRide: transport === 'auto' ? canOfferRide : false,
-                            seatsAvailable: transport === 'auto' && canOfferRide ? seatsAvailable : 0,
-                            departureCity: transport === 'auto' && canOfferRide ? departureCity : null
-                        })
+                        body: JSON.stringify({ ...getBookingPayload(), roomRestriction, roomBeds: getRoomBedIds(BEDS[selectedBed].roomId) })
                     });
-                    if (!response.ok) throw new Error('Speichern fehlgeschlagen');
+                    if (!res.ok) throw new Error();
                     await loadBookings();
                     closeModal();
-                } catch (err) {
-                    setError('Buchung konnte nicht gespeichert werden.');
-                } finally {
-                    setSaving(false);
-                }
+                } catch { setError('Buchung konnte nicht gespeichert werden.'); }
+                finally { setSaving(false); }
             };
 
             const handleClaimGenderBed = async () => {
@@ -1223,98 +973,63 @@
                 setSaving(true);
                 setError(null);
                 try {
-                    const response = await fetch(`${API_URL}/bookings/${selectedBed}/claim`, {
+                    const res = await fetch(`${API_URL}/bookings/${selectedBed}/claim`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            name: inputName.trim(),
-                            arrivalDate: arrivalDate || null,
-                            departureDate: departureDate || null,
-                            transport: transport || null,
-                            needsPickup: transport === 'oepnv' ? needsPickup : false,
-                            canOfferRide: transport === 'auto' ? canOfferRide : false,
-                            seatsAvailable: transport === 'auto' && canOfferRide ? seatsAvailable : 0,
-                            departureCity: transport === 'auto' && canOfferRide ? departureCity : null
-                        })
+                        body: JSON.stringify(getBookingPayload())
                     });
-                    if (!response.ok) throw new Error('Speichern fehlgeschlagen');
+                    if (!res.ok) throw new Error();
                     await loadBookings();
                     closeModal();
-                } catch (err) {
-                    setError('Buchung konnte nicht gespeichert werden.');
-                } finally {
-                    setSaving(false);
-                }
+                } catch { setError('Buchung konnte nicht gespeichert werden.'); }
+                finally { setSaving(false); }
             };
 
             const handleCancel = async () => {
                 if (saving) return;
                 setSaving(true);
-                setError(null);
                 try {
-                    const response = await fetch(`${API_URL}/bookings/${selectedBed}`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error('Löschen fehlgeschlagen');
+                    await fetch(`${API_URL}/bookings/${selectedBed}`, { method: 'DELETE' });
                     await loadBookings();
                     closeModal();
-                } catch (err) {
-                    setError('Stornierung fehlgeschlagen.');
-                } finally {
-                    setSaving(false);
-                }
+                } catch { setError('Stornierung fehlgeschlagen.'); }
+                finally { setSaving(false); }
             };
 
             const handleUnblock = async () => {
                 if (saving) return;
                 setSaving(true);
-                setError(null);
                 try {
-                    const response = await fetch(`${API_URL}/bookings/${selectedBed}/unblock`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error('Freigeben fehlgeschlagen');
+                    await fetch(`${API_URL}/bookings/${selectedBed}/unblock`, { method: 'DELETE' });
                     await loadBookings();
                     closeModal();
-                } catch (err) {
-                    setError('Freigabe fehlgeschlagen.');
-                } finally {
-                    setSaving(false);
-                }
+                } catch { setError('Freigabe fehlgeschlagen.'); }
+                finally { setSaving(false); }
             };
 
             const handleAddToWaitlist = async () => {
                 if (!waitlistName.trim() || saving) return;
                 setSaving(true);
-                setError(null);
                 try {
-                    const response = await fetch(`${API_URL}/waitlist`, {
+                    await fetch(`${API_URL}/waitlist`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            name: waitlistName.trim(),
-                            comment: waitlistComment.trim() || null
-                        })
+                        body: JSON.stringify({ name: waitlistName.trim(), comment: waitlistComment.trim() || null })
                     });
-                    if (!response.ok) throw new Error('Speichern fehlgeschlagen');
                     await loadWaitlist();
                     closeWaitlistModal();
-                } catch (err) {
-                    setError('Konnte nicht zur Warteliste hinzugefügt werden.');
-                } finally {
-                    setSaving(false);
-                }
+                } catch { setError('Konnte nicht zur Warteliste hinzugefügt werden.'); }
+                finally { setSaving(false); }
             };
 
             const handleRemoveFromWaitlist = async (id) => {
-                if (saving) return;
-                if (!confirm('Wirklich von der Warteliste entfernen?')) return;
+                if (saving || !confirm('Wirklich von der Warteliste entfernen?')) return;
                 setSaving(true);
                 try {
-                    const response = await fetch(`${API_URL}/waitlist/${id}`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error('Löschen fehlgeschlagen');
+                    await fetch(`${API_URL}/waitlist/${id}`, { method: 'DELETE' });
                     await loadWaitlist();
-                } catch (err) {
-                    setError('Entfernen fehlgeschlagen.');
-                } finally {
-                    setSaving(false);
-                }
+                } catch { setError('Entfernen fehlgeschlagen.'); }
+                finally { setSaving(false); }
             };
 
             const closeModal = () => {
@@ -1328,20 +1043,18 @@
                 setCanOfferRide(false);
                 setSeatsAvailable(1);
                 setDepartureCity('');
+                setTrainStation('');
+                setTrainTime('');
+                setTrainNumber('');
+                setArrivalTime('');
+                setDepartureTime('');
                 setRoomRestriction('none');
             };
 
-            const closeWaitlistModal = () => {
-                setWaitlistModalOpen(false);
-                setWaitlistName("");
-                setWaitlistComment("");
-            };
+            const closeWaitlistModal = () => { setWaitlistModalOpen(false); setWaitlistName(""); setWaitlistComment(""); };
 
             const countStats = () => {
-                let booked = 0;
-                let blocked = 0;
-                let women = 0;
-                let men = 0;
+                let booked = 0, blocked = 0, women = 0, men = 0;
                 Object.values(bookings).forEach(b => {
                     if (b.status === 'blocked') blocked++;
                     else if (b.status === 'women_only') women++;
@@ -1358,49 +1071,68 @@
                 const room = ROOMS.find(r => r.id === roomId);
                 let booked = 0, blocked = 0, women = 0, men = 0;
                 for (let i = 1; i <= room.beds; i++) {
-                    const booking = bookings[`zi${roomId}-bett${i}`];
-                    if (booking) {
-                        if (booking.status === 'blocked') blocked++;
-                        else if (booking.status === 'women_only') women++;
-                        else if (booking.status === 'men_only') men++;
+                    const b = bookings[`zi${roomId}-bett${i}`];
+                    if (b) {
+                        if (b.status === 'blocked') blocked++;
+                        else if (b.status === 'women_only') women++;
+                        else if (b.status === 'men_only') men++;
                         else booked++;
                     }
                 }
                 return { booked, blocked, women, men, free: room.beds - booked - blocked - women - men };
             };
 
-            const filteredRooms = ROOMS.filter(room => room.floor === activeFloor);
+            const filteredRooms = ROOMS.filter(r => r.floor === activeFloor);
+            const getFloorFreeCount = (floor) => ROOMS.filter(r => r.floor === floor).reduce((sum, r) => sum + getRoomStats(r.id).free, 0);
+            const hasFreeBeds = () => selectedBed && getRoomBedIds(BEDS[selectedBed].roomId).some(id => id !== selectedBed && !bookings[id]);
+            const getBlockerName = (b) => b?.blockedBy ? bookings[b.blockedBy]?.name : null;
 
-            const getFloorFreeCount = (floor) => {
-                return ROOMS.filter(r => r.floor === floor).reduce((sum, r) => sum + getRoomStats(r.id).free, 0);
-            };
+            const pickupList = Object.entries(bookings).filter(([_, b]) => b.needsPickup && b.status === 'booked').map(([id, b]) => ({ bedId: id, ...b })).sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
+            const carpoolList = Object.entries(bookings).filter(([_, b]) => b.canOfferRide && b.status === 'booked' && b.seatsAvailable > 0).map(([id, b]) => ({ bedId: id, ...b })).sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
 
-            const hasFreeBeds = () => {
-                if (!selectedBed) return false;
-                const roomId = BEDS[selectedBed].roomId;
-                return getRoomBedIds(roomId).some(bedId => bedId !== selectedBed && !bookings[bedId]);
-            };
+            // Zugverbindungen gruppieren
+            const trainTravelers = Object.entries(bookings).filter(([_, b]) => b.status === 'booked' && b.transport === 'oepnv' && (b.trainStation || b.trainNumber)).map(([id, b]) => ({ bedId: id, ...b }));
+            
+            const trainGroups = [];
+            const grouped = new Set();
+            
+            trainTravelers.forEach(t => {
+                if (grouped.has(t.bedId)) return;
+                const group = { key: '', label: '', members: [t] };
+                
+                if (t.trainNumber) {
+                    // Gruppiere nach Zugnummer
+                    group.key = t.trainNumber.toLowerCase().replace(/\s/g, '');
+                    group.label = `🚆 ${t.trainNumber}`;
+                    trainTravelers.forEach(other => {
+                        if (other.bedId !== t.bedId && !grouped.has(other.bedId) && other.trainNumber?.toLowerCase().replace(/\s/g, '') === group.key) {
+                            group.members.push(other);
+                            grouped.add(other.bedId);
+                        }
+                    });
+                } else if (t.trainStation) {
+                    // Gruppiere nach Bahnhof + ähnliche Zeit (±60 min)
+                    group.key = t.trainStation.toLowerCase();
+                    group.label = `📍 ${t.trainStation}${t.trainTime ? ` um ${formatTime(t.trainTime)}` : ''}`;
+                    if (t.trainTime) {
+                        const tTime = parseInt(t.trainTime.replace(':', ''));
+                        trainTravelers.forEach(other => {
+                            if (other.bedId !== t.bedId && !grouped.has(other.bedId) && !other.trainNumber && other.trainStation?.toLowerCase() === group.key && other.trainTime) {
+                                const oTime = parseInt(other.trainTime.replace(':', ''));
+                                if (Math.abs(tTime - oTime) <= 100) { // ca 1 Stunde
+                                    group.members.push(other);
+                                    grouped.add(other.bedId);
+                                }
+                            }
+                        });
+                    }
+                }
+                
+                grouped.add(t.bedId);
+                if (group.members.length > 1) trainGroups.push(group);
+            });
 
-            const getBlockerName = (booking) => {
-                if (!booking?.blockedBy) return null;
-                return bookings[booking.blockedBy]?.name || null;
-            };
-
-            // Leute die Abholung brauchen
-            const pickupList = Object.entries(bookings)
-                .filter(([_, b]) => b.needsPickup && b.status === 'booked')
-                .map(([bedId, b]) => ({ bedId, ...b }))
-                .sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
-
-            // Fahrgemeinschaften
-            const carpoolList = Object.entries(bookings)
-                .filter(([_, b]) => b.canOfferRide && b.status === 'booked' && b.seatsAvailable > 0)
-                .map(([bedId, b]) => ({ bedId, ...b }))
-                .sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
-
-            if (loading) {
-                return <div className="app"><div className="loading">🌳 Lade Buchungen...</div></div>;
-            }
+            if (loading) return <div className="app"><div className="loading">🌳 Lade Buchungen...</div></div>;
 
             const selectedBooking = selectedBed ? bookings[selectedBed] : null;
             const bedStatus = selectedBooking?.status || 'free';
@@ -1410,19 +1142,31 @@
             const isBooked = selectedBooking && !isBlocked && !isWomenOnly && !isMenOnly;
             const isGenderRestricted = isWomenOnly || isMenOnly;
 
-            // Form für Reisedetails (wiederverwendbar)
             const TravelForm = () => (
                 <>
                     <div className="form-section">
                         <div className="form-section-title">🗓️ Anreise & Abreise</div>
+                        <div style={{background: '#e8f5e9', padding: '0.5rem 0.75rem', borderRadius: '8px', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--accent)'}}>
+                            ℹ️ Check-in ab <strong>16:00 Uhr</strong> · Check-out bis ca. <strong>11:00 Uhr</strong>
+                        </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Anreise</label>
+                                <label>Anreise (Datum)</label>
                                 <input type="date" value={arrivalDate} onChange={e => setArrivalDate(e.target.value)} disabled={saving} />
                             </div>
                             <div className="form-group">
-                                <label>Abreise</label>
+                                <label>Uhrzeit</label>
+                                <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)} disabled={saving} placeholder="ab 16:00" />
+                            </div>
+                        </div>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>Abreise (Datum)</label>
                                 <input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} disabled={saving} />
+                            </div>
+                            <div className="form-group">
+                                <label>Uhrzeit</label>
+                                <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)} disabled={saving} placeholder="bis 11:00" />
                             </div>
                         </div>
                         <div className="form-group">
@@ -1436,13 +1180,33 @@
                     </div>
 
                     {transport === 'oepnv' && (
-                        <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
-                            <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
-                            <div className="checkbox-row-label">
-                                <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
-                                <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof ab</div>
+                        <>
+                            <div className="form-section">
+                                <div className="form-section-title">🚆 Zugverbindung (für Reisepartner-Matching)</div>
+                                <div className="extra-details train">
+                                    <div className="form-group">
+                                        <label>Abfahrtsbahnhof</label>
+                                        <input type="text" placeholder="z.B. Berlin Hbf" value={trainStation} onChange={e => setTrainStation(e.target.value)} disabled={saving} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Abfahrtszeit</label>
+                                        <input type="time" value={trainTime} onChange={e => setTrainTime(e.target.value)} disabled={saving} />
+                                    </div>
+                                </div>
+                                <div className="form-group" style={{marginTop: '-0.5rem'}}>
+                                    <label style={{color: 'var(--train)'}}>Zugnummer (optional)</label>
+                                    <input type="text" placeholder="z.B. ICE 1234, RE 12345" value={trainNumber} onChange={e => setTrainNumber(e.target.value)} disabled={saving} style={{borderColor: '#80cbc4'}} />
+                                </div>
                             </div>
-                        </label>
+
+                            <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
+                                <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
+                                <div className="checkbox-row-label">
+                                    <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
+                                    <div className="checkbox-row-sub">Jemand holt dich vom Zielbahnhof ab</div>
+                                </div>
+                            </label>
+                        </>
                     )}
 
                     {transport === 'auto' && (
@@ -1456,16 +1220,14 @@
                             </label>
 
                             {canOfferRide && (
-                                <div className="carpool-details">
+                                <div className="extra-details carpool">
                                     <div className="form-group">
                                         <label>Freie Plätze</label>
-                                        <input type="number" min="1" max="6" value={seatsAvailable} 
-                                            onChange={e => setSeatsAvailable(parseInt(e.target.value) || 1)} disabled={saving} />
+                                        <input type="number" min="1" max="6" value={seatsAvailable} onChange={e => setSeatsAvailable(parseInt(e.target.value) || 1)} disabled={saving} />
                                     </div>
                                     <div className="form-group">
                                         <label>Abfahrt von</label>
-                                        <input type="text" placeholder="z.B. Berlin, Hamburg..." value={departureCity}
-                                            onChange={e => setDepartureCity(e.target.value)} disabled={saving} />
+                                        <input type="text" placeholder="z.B. Berlin" value={departureCity} onChange={e => setDepartureCity(e.target.value)} disabled={saving} />
                                     </div>
                                 </div>
                             )}
@@ -1482,60 +1244,30 @@
                         <h1>🌲 Maitreffen</h1>
                         <div className="event-date">📅 {EVENT.displayDate}</div>
                         <p className="subtitle">Zimmerbelegung – tippe auf ein Bett</p>
-                        <div className="location">
-                            📍 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">Freizeitheim Halbe</a>
-                        </div>
+                        <div className="location">📍 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">Freizeitheim Halbe</a></div>
                         <div className="stats">
-                            <div className="stat">
-                                <div className="stat-dot free"></div>
-                                <span><span className="stat-value">{stats.free}</span> frei</span>
-                            </div>
-                            <div className="stat">
-                                <div className="stat-dot booked"></div>
-                                <span><span className="stat-value">{stats.booked}</span> belegt</span>
-                            </div>
-                            {(stats.blocked > 0 || stats.women > 0 || stats.men > 0) && (
-                                <div className="stat">
-                                    <div className="stat-dot blocked"></div>
-                                    <span><span className="stat-value">{stats.blocked + stats.women + stats.men}</span> reserviert</span>
-                                </div>
-                            )}
-                            {waitlist.length > 0 && (
-                                <div className="stat">
-                                    <div className="stat-dot waitlist"></div>
-                                    <span><span className="stat-value">{waitlist.length}</span> Warteliste</span>
-                                </div>
-                            )}
+                            <div className="stat"><div className="stat-dot free"></div><span><span className="stat-value">{stats.free}</span> frei</span></div>
+                            <div className="stat"><div className="stat-dot booked"></div><span><span className="stat-value">{stats.booked}</span> belegt</span></div>
+                            {(stats.blocked + stats.women + stats.men > 0) && <div className="stat"><div className="stat-dot blocked"></div><span><span className="stat-value">{stats.blocked + stats.women + stats.men}</span> reserviert</span></div>}
+                            {waitlist.length > 0 && <div className="stat"><div className="stat-dot waitlist"></div><span><span className="stat-value">{waitlist.length}</span> Warteliste</span></div>}
                         </div>
                     </header>
 
                     {isFull && (
                         <div className="full-banner">
                             <div className="full-banner-title">🎉 Alle Betten sind belegt!</div>
-                            <div className="full-banner-text">
-                                Du kannst dich unten auf die Warteliste setzen lassen, falls jemand absagt.
-                            </div>
+                            <div className="full-banner-text">Du kannst dich unten auf die Warteliste setzen lassen.</div>
                         </div>
                     )}
 
                     <div className="floor-tabs">
-                        <button 
-                            className={`floor-tab ${activeFloor === 'eg' ? 'active' : ''}`}
-                            onClick={() => setActiveFloor('eg')}
-                        >
-                            Erdgeschoss ({getFloorFreeCount('eg')} frei)
-                        </button>
-                        <button 
-                            className={`floor-tab ${activeFloor === 'og' ? 'active' : ''}`}
-                            onClick={() => setActiveFloor('og')}
-                        >
-                            Obergeschoss ({getFloorFreeCount('og')} frei)
-                        </button>
+                        <button className={`floor-tab ${activeFloor === 'eg' ? 'active' : ''}`} onClick={() => setActiveFloor('eg')}>Erdgeschoss ({getFloorFreeCount('eg')} frei)</button>
+                        <button className={`floor-tab ${activeFloor === 'og' ? 'active' : ''}`} onClick={() => setActiveFloor('og')}>Obergeschoss ({getFloorFreeCount('og')} frei)</button>
                     </div>
 
                     <div className="rooms-grid">
                         {filteredRooms.map(room => {
-                            const roomStats = getRoomStats(room.id);
+                            const rs = getRoomStats(room.id);
                             return (
                                 <div key={room.id} className="room-card">
                                     <div className="room-header">
@@ -1549,78 +1281,60 @@
                                     <div className="beds-grid">
                                         {Array.from({ length: room.beds }, (_, i) => {
                                             const bedId = `zi${room.id}-bett${i + 1}`;
-                                            const booking = bookings[bedId];
-                                            const status = booking?.status || 'free';
-                                            const isBooked = booking && status === 'booked';
-                                            const isBlocked = status === 'blocked';
-                                            const isWomen = status === 'women_only';
-                                            const isMen = status === 'men_only';
+                                            const b = bookings[bedId];
+                                            const status = b?.status || 'free';
+                                            const booked = b && status === 'booked';
+                                            const blocked = status === 'blocked';
+                                            const women = status === 'women_only';
+                                            const men = status === 'men_only';
                                             
                                             return (
-                                                <div 
-                                                    key={bedId}
-                                                    className={`bed-card ${isBooked ? 'booked' : ''} ${isBlocked ? 'blocked' : ''} ${isWomen ? 'women-only' : ''} ${isMen ? 'men-only' : ''}`}
-                                                    onClick={() => handleBedClick(bedId)}
-                                                >
-                                                    <div className="bed-icon">
-                                                        {isBlocked ? '🔒' : isWomen ? '♀️' : isMen ? '♂️' : (isBooked ? '😴' : '🛏️')}
-                                                    </div>
+                                                <div key={bedId} className={`bed-card ${booked ? 'booked' : ''} ${blocked ? 'blocked' : ''} ${women ? 'women-only' : ''} ${men ? 'men-only' : ''}`} onClick={() => handleBedClick(bedId)}>
+                                                    <div className="bed-icon">{blocked ? '🔒' : women ? '♀️' : men ? '♂️' : booked ? '😴' : '🛏️'}</div>
                                                     <div className="bed-label">Bett {i + 1}</div>
-                                                    <div className="bed-name">
-                                                        {isBlocked ? 'Blockiert' : isWomen ? 'Nur Frauen' : isMen ? 'Nur Männer' : (isBooked ? booking.name : 'Frei')}
-                                                    </div>
-                                                    {isBooked && booking.arrivalDate && (
-                                                        <div className="bed-info">
-                                                            {formatDate(booking.arrivalDate)} – {formatDate(booking.departureDate)}
-                                                        </div>
-                                                    )}
-                                                    {isBooked && (booking.needsPickup || booking.canOfferRide) && (
+                                                    <div className="bed-name">{blocked ? 'Blockiert' : women ? 'Nur Frauen' : men ? 'Nur Männer' : booked ? b.name : 'Frei'}</div>
+                                                    {booked && b.arrivalDate && <div className="bed-info">{formatDate(b.arrivalDate)}{b.arrivalTime ? ` ${formatTime(b.arrivalTime)}` : ''} – {formatDate(b.departureDate)}{b.departureTime ? ` ${formatTime(b.departureTime)}` : ''}</div>}
+                                                    {booked && (b.needsPickup || b.canOfferRide || b.trainNumber) && (
                                                         <div className="bed-badges">
-                                                            {booking.needsPickup && <span className="bed-mini-badge">🚉 Abholung</span>}
-                                                            {booking.canOfferRide && <span className="bed-mini-badge">🚗 +{booking.seatsAvailable}</span>}
+                                                            {b.needsPickup && <span className="bed-mini-badge">🚉</span>}
+                                                            {b.canOfferRide && <span className="bed-mini-badge">🚗+{b.seatsAvailable}</span>}
+                                                            {b.trainNumber && <span className="bed-mini-badge">🚆</span>}
                                                         </div>
                                                     )}
-                                                    {(isBlocked || isWomen || isMen) && booking.blockedBy && (
-                                                        <div className="bed-info">
-                                                            von {bookings[booking.blockedBy]?.name || '?'}
-                                                        </div>
-                                                    )}
+                                                    {(blocked || women || men) && b.blockedBy && <div className="bed-info">von {bookings[b.blockedBy]?.name || '?'}</div>}
                                                 </div>
                                             );
                                         })}
                                     </div>
                                     <div className="room-summary">
-                                        <div className="room-stat">
-                                            <div className="room-stat-dot free"></div>
-                                            <span>{roomStats.free} frei</span>
-                                        </div>
-                                        <div className="room-stat">
-                                            <div className="room-stat-dot booked"></div>
-                                            <span>{roomStats.booked} belegt</span>
-                                        </div>
-                                        {roomStats.blocked > 0 && (
-                                            <div className="room-stat">
-                                                <div className="room-stat-dot blocked"></div>
-                                                <span>{roomStats.blocked} 🔒</span>
-                                            </div>
-                                        )}
-                                        {roomStats.women > 0 && (
-                                            <div className="room-stat">
-                                                <div className="room-stat-dot women"></div>
-                                                <span>{roomStats.women} ♀️</span>
-                                            </div>
-                                        )}
-                                        {roomStats.men > 0 && (
-                                            <div className="room-stat">
-                                                <div className="room-stat-dot men"></div>
-                                                <span>{roomStats.men} ♂️</span>
-                                            </div>
-                                        )}
+                                        <div className="room-stat"><div className="room-stat-dot free"></div><span>{rs.free} frei</span></div>
+                                        <div className="room-stat"><div className="room-stat-dot booked"></div><span>{rs.booked} belegt</span></div>
+                                        {rs.blocked > 0 && <div className="room-stat"><div className="room-stat-dot blocked"></div><span>{rs.blocked} 🔒</span></div>}
+                                        {rs.women > 0 && <div className="room-stat"><div className="room-stat-dot women"></div><span>{rs.women} ♀️</span></div>}
+                                        {rs.men > 0 && <div className="room-stat"><div className="room-stat-dot men"></div><span>{rs.men} ♂️</span></div>}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
+
+                    {/* Gemeinsame Zugfahrten */}
+                    {trainGroups.length > 0 && (
+                        <div className="transport-section">
+                            <h4 className="transport-title train">🚆 Gemeinsam im Zug?</h4>
+                            {trainGroups.map((g, i) => (
+                                <div key={i} className="train-group">
+                                    <div className="train-group-header">
+                                        {g.label}
+                                        <span className="train-group-badge">{g.members.length} Personen</span>
+                                    </div>
+                                    <div className="train-group-members">
+                                        {g.members.map(m => <span key={m.bedId} className="train-member">{m.name}</span>)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Fahrgemeinschaften */}
                     {carpoolList.length > 0 && (
@@ -1632,10 +1346,7 @@
                                         <span className="transport-item-icon">🚗</span>
                                         <div className="transport-item-info">
                                             <div className="transport-item-name">{p.name}</div>
-                                            <div className="transport-item-details">
-                                                {p.departureCity && `Ab ${p.departureCity} • `}
-                                                {formatDateLong(p.arrivalDate)}
-                                            </div>
+                                            <div className="transport-item-details">{p.departureCity && `Ab ${p.departureCity} • `}{formatDateLong(p.arrivalDate)}{p.arrivalTime ? ` ${formatTime(p.arrivalTime)}` : ''}</div>
                                         </div>
                                         <span className="transport-item-seats">{p.seatsAvailable} {p.seatsAvailable === 1 ? 'Platz' : 'Plätze'}</span>
                                     </div>
@@ -1654,7 +1365,7 @@
                                         <span className="transport-item-icon">🚉</span>
                                         <div className="transport-item-info">
                                             <div className="transport-item-name">{p.name}</div>
-                                            <div className="transport-item-details">{formatDateLong(p.arrivalDate)}</div>
+                                            <div className="transport-item-details">{formatDateLong(p.arrivalDate)}{p.arrivalTime ? ` um ${formatTime(p.arrivalTime)}` : ''}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -1665,32 +1376,20 @@
                     {/* Warteliste */}
                     <div className="waitlist-section">
                         <div className="waitlist-header">
-                            <h4 className="waitlist-title">
-                                📋 Warteliste
-                                {waitlist.length > 0 && <span className="waitlist-count">{waitlist.length}</span>}
-                            </h4>
-                            <button 
-                                className="btn btn-waitlist" 
-                                style={{flex: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem'}}
-                                onClick={() => setWaitlistModalOpen(true)}
-                            >
-                                + Eintragen
-                            </button>
+                            <h4 className="waitlist-title">📋 Warteliste {waitlist.length > 0 && <span className="waitlist-count">{waitlist.length}</span>}</h4>
+                            <button className="btn btn-waitlist" style={{flex: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem'}} onClick={() => setWaitlistModalOpen(true)}>+ Eintragen</button>
                         </div>
-                        
-                        {waitlist.length === 0 ? (
-                            <div className="waitlist-empty">Noch niemand auf der Warteliste</div>
-                        ) : (
+                        {waitlist.length === 0 ? <div className="waitlist-empty">Noch niemand auf der Warteliste</div> : (
                             <div className="waitlist-list">
-                                {waitlist.map((entry, index) => (
-                                    <div key={entry.id} className="waitlist-item">
-                                        <div className="waitlist-position">{index + 1}</div>
+                                {waitlist.map((e, i) => (
+                                    <div key={e.id} className="waitlist-item">
+                                        <div className="waitlist-position">{i + 1}</div>
                                         <div className="waitlist-info">
-                                            <div className="waitlist-name">{entry.name}</div>
-                                            <div className="waitlist-meta">Eingetragen am {formatDateTime(entry.created_at)}</div>
-                                            {entry.comment && <div className="waitlist-comment">"{entry.comment}"</div>}
+                                            <div className="waitlist-name">{e.name}</div>
+                                            <div className="waitlist-meta">Eingetragen am {formatDateTime(e.created_at)}</div>
+                                            {e.comment && <div className="waitlist-comment">"{e.comment}"</div>}
                                         </div>
-                                        <button className="waitlist-remove" onClick={() => handleRemoveFromWaitlist(entry.id)} title="Entfernen">✕</button>
+                                        <button className="waitlist-remove" onClick={() => handleRemoveFromWaitlist(e.id)}>✕</button>
                                     </div>
                                 ))}
                             </div>
@@ -1705,15 +1404,16 @@
                             <strong>Erdgeschoss:</strong> 3 Zimmer mit eigenem Bad (Zi 2 ist barrierefrei)<br/>
                             <strong>Obergeschoss:</strong> 6 Zimmer mit 2 Gemeinschaftsbädern<br/><br/>
                             🛏️ <strong>Bettwäsche ist mitzubringen</strong> oder kann für 8,50 € ausgeliehen werden.<br/><br/>
+                            ⏰ <strong>Check-in ab 16:00 Uhr</strong> · <strong>Check-out bis ca. 11:00 Uhr</strong><br/><br/>
                             🔒 <strong>Zimmer-Optionen:</strong> Beim Buchen kannst du restliche Betten blockieren oder als Frauen-/Männerzimmer markieren.<br/>
                             🚗 <strong>Fahrgemeinschaften:</strong> Autofahrer können Mitfahrgelegenheiten anbieten.<br/>
-                            📋 <strong>Warteliste:</strong> Falls kein passendes Bett frei ist, trage dich auf die Warteliste ein.<br/><br/>
+                            🚆 <strong>Zugverbindungen:</strong> Trage deine Verbindung ein um Reisepartner zu finden!<br/><br/>
                             📍 Kirchstraße 7, 15757 Halbe<br/>
                             🌐 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">www.freizeitheim-halbe.de</a>
                         </p>
                     </div>
 
-                    {/* Bett Modal */}
+                    {/* Modal */}
                     {modalOpen && selectedBed && (
                         <div className="modal-overlay" onClick={closeModal}>
                             <div className="modal" onClick={e => e.stopPropagation()}>
@@ -1728,113 +1428,64 @@
                                             <div className="blocked-info-text">Blockiert von: {getBlockerName(selectedBooking) || 'Unbekannt'}</div>
                                         </div>
                                         <div className="modal-buttons">
-                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Schließen</button>
+                                            <button className="btn btn-secondary" onClick={closeModal}>Schließen</button>
                                             <button className="btn btn-danger" onClick={handleUnblock} disabled={saving}>{saving ? '...' : 'Freigeben'}</button>
                                         </div>
                                     </>
                                 ) : isGenderRestricted ? (
                                     <>
-                                        <h2 className={isWomenOnly ? 'women-modal-title' : 'men-modal-title'}>
-                                            {isWomenOnly ? '♀️ Frauenzimmer' : '♂️ Männerzimmer'}
-                                        </h2>
+                                        <h2 className={isWomenOnly ? 'women-modal-title' : 'men-modal-title'}>{isWomenOnly ? '♀️ Frauenzimmer' : '♂️ Männerzimmer'}</h2>
                                         <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
-                                        
                                         <div className={`gender-info ${isWomenOnly ? 'women' : 'men'}`}>
-                                            <div className="gender-info-title">
-                                                {isWomenOnly ? 'Dieses Zimmer ist für Frauen reserviert' : 'Dieses Zimmer ist für Männer reserviert'}
-                                            </div>
+                                            <div className="gender-info-title">{isWomenOnly ? 'Dieses Zimmer ist für Frauen reserviert' : 'Dieses Zimmer ist für Männer reserviert'}</div>
                                             <div className="gender-info-text">Reserviert von: {getBlockerName(selectedBooking) || 'Unbekannt'}</div>
                                         </div>
-
-                                        <input type="text" className="modal-input" placeholder="Dein Name" value={inputName}
-                                            onChange={e => setInputName(e.target.value)} autoFocus disabled={saving}
-                                            onKeyDown={e => e.key === 'Enter' && handleClaimGenderBed()}
-                                            autoComplete="name" autoCapitalize="words" />
-
+                                        <input type="text" className="modal-input" placeholder="Dein Name" value={inputName} onChange={e => setInputName(e.target.value)} autoFocus disabled={saving} />
                                         <TravelForm />
-
                                         <div className="modal-buttons">
-                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Abbrechen</button>
+                                            <button className="btn btn-secondary" onClick={closeModal}>Abbrechen</button>
                                             <button className="btn btn-danger" onClick={handleUnblock} disabled={saving}>{saving ? '...' : 'Aufheben'}</button>
-                                            <button className={`btn ${isWomenOnly ? 'btn-women' : 'btn-men'}`}
-                                                onClick={handleClaimGenderBed} disabled={saving || !inputName.trim()}>
-                                                {saving ? '...' : 'Buchen'}
-                                            </button>
+                                            <button className={`btn ${isWomenOnly ? 'btn-women' : 'btn-men'}`} onClick={handleClaimGenderBed} disabled={saving || !inputName.trim()}>{saving ? '...' : 'Buchen'}</button>
                                         </div>
                                     </>
                                 ) : (
                                     <>
                                         <h2>{isBooked ? '📝 Bearbeiten' : '✨ Reservieren'}</h2>
                                         <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
-
                                         {isBooked && (
                                             <div className="current-guest">
                                                 <div className="current-guest-label">Aktuell gebucht:</div>
                                                 <div className="current-guest-name">{selectedBooking.name}</div>
-                                                {(selectedBooking.arrivalDate || selectedBooking.transport) && (
-                                                    <div className="current-guest-details">
-                                                        {selectedBooking.arrivalDate && (
-                                                            <span>📅 {formatDateLong(selectedBooking.arrivalDate)} – {formatDateLong(selectedBooking.departureDate)}</span>
-                                                        )}
-                                                        {selectedBooking.transport && (
-                                                            <span>{transportLabels[selectedBooking.transport]}</span>
-                                                        )}
-                                                        {selectedBooking.needsPickup && <span>🚉 Abholung gewünscht</span>}
-                                                        {selectedBooking.canOfferRide && (
-                                                            <span>🚗 Bietet {selectedBooking.seatsAvailable} Plätze ab {selectedBooking.departureCity || '?'}</span>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                <div className="current-guest-details">
+                                                    {selectedBooking.arrivalDate && <span>📅 {formatDateLong(selectedBooking.arrivalDate)}{selectedBooking.arrivalTime ? ` ${formatTime(selectedBooking.arrivalTime)}` : ''} – {formatDateLong(selectedBooking.departureDate)}{selectedBooking.departureTime ? ` ${formatTime(selectedBooking.departureTime)}` : ''}</span>}
+                                                    {selectedBooking.transport && <span>{transportLabels[selectedBooking.transport]}</span>}
+                                                    {selectedBooking.trainNumber && <span>🚆 {selectedBooking.trainNumber}</span>}
+                                                    {selectedBooking.trainStation && !selectedBooking.trainNumber && <span>📍 Ab {selectedBooking.trainStation}{selectedBooking.trainTime ? ` um ${formatTime(selectedBooking.trainTime)}` : ''}</span>}
+                                                    {selectedBooking.needsPickup && <span>🚉 Abholung gewünscht</span>}
+                                                    {selectedBooking.canOfferRide && <span>🚗 Bietet {selectedBooking.seatsAvailable} Plätze ab {selectedBooking.departureCity || '?'}</span>}
+                                                </div>
                                             </div>
                                         )}
-
-                                        <input type="text" className="modal-input" placeholder="Dein Name" value={inputName}
-                                            onChange={e => setInputName(e.target.value)} autoFocus disabled={saving}
-                                            onKeyDown={e => e.key === 'Enter' && handleBook()}
-                                            autoComplete="name" autoCapitalize="words" />
-
+                                        <input type="text" className="modal-input" placeholder="Dein Name" value={inputName} onChange={e => setInputName(e.target.value)} autoFocus disabled={saving} />
                                         <TravelForm />
-
                                         {!isBooked && hasFreeBeds() && (
                                             <div className="restriction-options">
                                                 <div className="restriction-label">Restliche Betten im Zimmer:</div>
                                                 <div className="restriction-grid">
-                                                    <label className={`restriction-option ${roomRestriction === 'none' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('none')}>
-                                                        <input type="radio" name="restriction" checked={roomRestriction === 'none'} readOnly />
-                                                        <span className="restriction-option-icon">✓</span>
-                                                        <span className="restriction-option-text">Offen lassen</span>
-                                                    </label>
-                                                    <label className={`restriction-option blocked ${roomRestriction === 'blocked' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('blocked')}>
-                                                        <input type="radio" name="restriction" checked={roomRestriction === 'blocked'} readOnly />
-                                                        <span className="restriction-option-icon">🔒</span>
-                                                        <span className="restriction-option-text">Blockieren</span>
-                                                    </label>
-                                                    <label className={`restriction-option women ${roomRestriction === 'women' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('women')}>
-                                                        <input type="radio" name="restriction" checked={roomRestriction === 'women'} readOnly />
-                                                        <span className="restriction-option-icon">♀️</span>
-                                                        <span className="restriction-option-text">Frauenzimmer</span>
-                                                    </label>
-                                                    <label className={`restriction-option men ${roomRestriction === 'men' ? 'selected' : ''}`}
-                                                        onClick={() => setRoomRestriction('men')}>
-                                                        <input type="radio" name="restriction" checked={roomRestriction === 'men'} readOnly />
-                                                        <span className="restriction-option-icon">♂️</span>
-                                                        <span className="restriction-option-text">Männerzimmer</span>
-                                                    </label>
+                                                    {['none', 'blocked', 'women', 'men'].map(r => (
+                                                        <label key={r} className={`restriction-option ${r !== 'none' ? r : ''} ${roomRestriction === r ? 'selected' : ''}`} onClick={() => setRoomRestriction(r)}>
+                                                            <input type="radio" name="restriction" checked={roomRestriction === r} readOnly />
+                                                            <span className="restriction-option-icon">{r === 'none' ? '✓' : r === 'blocked' ? '🔒' : r === 'women' ? '♀️' : '♂️'}</span>
+                                                            <span className="restriction-option-text">{r === 'none' ? 'Offen lassen' : r === 'blocked' ? 'Blockieren' : r === 'women' ? 'Frauenzimmer' : 'Männerzimmer'}</span>
+                                                        </label>
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
-
                                         <div className="modal-buttons">
-                                            <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Abbrechen</button>
-                                            {isBooked && (
-                                                <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>{saving ? '...' : 'Stornieren'}</button>
-                                            )}
-                                            <button className="btn btn-primary" onClick={handleBook} disabled={saving || !inputName.trim()}>
-                                                {saving ? '...' : (isBooked ? 'Ändern' : 'Buchen')}
-                                            </button>
+                                            <button className="btn btn-secondary" onClick={closeModal}>Abbrechen</button>
+                                            {isBooked && <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>{saving ? '...' : 'Stornieren'}</button>}
+                                            <button className="btn btn-primary" onClick={handleBook} disabled={saving || !inputName.trim()}>{saving ? '...' : isBooked ? 'Ändern' : 'Buchen'}</button>
                                         </div>
                                     </>
                                 )}
@@ -1848,23 +1499,12 @@
                             <div className="modal" onClick={e => e.stopPropagation()}>
                                 <div className="modal-handle"></div>
                                 <h2 className="waitlist-modal-title">📋 Warteliste</h2>
-                                <p className="modal-room">
-                                    Trage dich ein, falls gerade kein passendes Bett frei ist – z.B. wenn du mit mehreren Personen kommst oder ein bestimmtes Zimmer möchtest.
-                                </p>
-
-                                <input type="text" className="modal-input waitlist-input" placeholder="Dein Name" value={waitlistName}
-                                    onChange={e => setWaitlistName(e.target.value)} autoFocus disabled={saving}
-                                    autoComplete="name" autoCapitalize="words" />
-
-                                <textarea className="modal-textarea"
-                                    placeholder="Kommentar (optional) – z.B. bevorzugtes Zimmer, Anreise, Anzahl Personen..."
-                                    value={waitlistComment} onChange={e => setWaitlistComment(e.target.value)} disabled={saving} />
-
+                                <p className="modal-room">Trage dich ein, falls gerade kein passendes Bett frei ist.</p>
+                                <input type="text" className="modal-input waitlist-input" placeholder="Dein Name" value={waitlistName} onChange={e => setWaitlistName(e.target.value)} autoFocus disabled={saving} />
+                                <textarea className="modal-textarea" placeholder="Kommentar (optional)..." value={waitlistComment} onChange={e => setWaitlistComment(e.target.value)} disabled={saving} />
                                 <div className="modal-buttons">
-                                    <button className="btn btn-secondary" onClick={closeWaitlistModal} disabled={saving}>Abbrechen</button>
-                                    <button className="btn btn-waitlist" onClick={handleAddToWaitlist} disabled={saving || !waitlistName.trim()}>
-                                        {saving ? '...' : 'Eintragen'}
-                                    </button>
+                                    <button className="btn btn-secondary" onClick={closeWaitlistModal}>Abbrechen</button>
+                                    <button className="btn btn-waitlist" onClick={handleAddToWaitlist} disabled={saving || !waitlistName.trim()}>{saving ? '...' : 'Eintragen'}</button>
                                 </div>
                             </div>
                         </div>

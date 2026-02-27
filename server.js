@@ -50,6 +50,11 @@ async function initDB() {
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS can_offer_ride BOOLEAN DEFAULT FALSE`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS seats_available INTEGER DEFAULT 0`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_city VARCHAR(100) DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS train_station VARCHAR(100) DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS train_time TIME DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS train_number VARCHAR(50) DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_time TIME DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_time TIME DEFAULT NULL`);
 
     // Warteliste-Tabelle
     await client.query(`
@@ -93,7 +98,12 @@ app.get('/api/bookings', async (req, res) => {
         needsPickup: row.needs_pickup,
         canOfferRide: row.can_offer_ride,
         seatsAvailable: row.seats_available,
-        departureCity: row.departure_city
+        departureCity: row.departure_city,
+        trainStation: row.train_station,
+        trainTime: row.train_time,
+        trainNumber: row.train_number,
+        arrivalTime: row.arrival_time,
+        departureTime: row.departure_time
       };
     });
     res.json(bookings);
@@ -106,7 +116,7 @@ app.get('/api/bookings', async (req, res) => {
 // Buchung erstellen/aktualisieren
 app.post('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
-  const { name, roomRestriction, roomBeds, arrivalDate, departureDate, transport, needsPickup, canOfferRide, seatsAvailable, departureCity } = req.body;
+  const { name, roomRestriction, roomBeds, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -119,13 +129,14 @@ app.post('/api/bookings/:bedId', async (req, res) => {
     
     // Hauptbuchung erstellen
     await client.query(`
-      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, transport, needs_pickup, can_offer_ride, seats_available, departure_city)
-      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, arrival_time, departure_time, transport, needs_pickup, can_offer_ride, seats_available, departure_city, train_station, train_time, train_number)
+      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       ON CONFLICT (bed_id) 
       DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL,
-                    arrival_date = $3, departure_date = $4, transport = $5, needs_pickup = $6,
-                    can_offer_ride = $7, seats_available = $8, departure_city = $9
-    `, [bedId, name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null]);
+                    arrival_date = $3, departure_date = $4, arrival_time = $5, departure_time = $6, transport = $7, needs_pickup = $8,
+                    can_offer_ride = $9, seats_available = $10, departure_city = $11,
+                    train_station = $12, train_time = $13, train_number = $14
+    `, [bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null]);
     
     // Zimmer-Einschränkung setzen
     if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
@@ -205,7 +216,7 @@ app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
 // Markiertes Bett buchen (Frau/Mann bucht in Frauen-/Männerzimmer)
 app.post('/api/bookings/:bedId/claim', async (req, res) => {
   const { bedId } = req.params;
-  const { name, arrivalDate, departureDate, transport, needsPickup, canOfferRide, seatsAvailable, departureCity } = req.body;
+  const { name, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -215,10 +226,11 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
     await pool.query(`
       UPDATE bookings 
       SET name = $1, status = 'booked', booked_at = CURRENT_TIMESTAMP,
-          arrival_date = $2, departure_date = $3, transport = $4, needs_pickup = $5,
-          can_offer_ride = $6, seats_available = $7, departure_city = $8
-      WHERE bed_id = $9 AND status IN ('women_only', 'men_only')
-    `, [name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, bedId]);
+          arrival_date = $2, departure_date = $3, arrival_time = $4, departure_time = $5, transport = $6, needs_pickup = $7,
+          can_offer_ride = $8, seats_available = $9, departure_city = $10,
+          train_station = $11, train_time = $12, train_number = $13
+      WHERE bed_id = $14 AND status IN ('women_only', 'men_only')
+    `, [name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, bedId]);
     
     res.json({ success: true, bedId, name });
   } catch (err) {
