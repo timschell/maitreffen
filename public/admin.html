@@ -454,6 +454,7 @@
         
         const API_URL = '/api';
         const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
+        const WP_TOKEN_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/admin-token';
         const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
         
         function AdminApp() {
@@ -496,7 +497,30 @@
                     if (res.ok) {
                         const data = await res.json();
                         if (data.logged_in && data.is_admin) {
-                            // WordPress Admin eingeloggt!
+                            // WordPress Admin eingeloggt! Jetzt Token holen.
+                            try {
+                                const tokenRes = await fetch(WP_TOKEN_URL, {
+                                    credentials: 'include'
+                                });
+                                
+                                if (tokenRes.ok) {
+                                    const tokenData = await tokenRes.json();
+                                    if (tokenData.token) {
+                                        // Token speichern
+                                        sessionStorage.setItem('wp_token', tokenData.token);
+                                        sessionStorage.setItem('admin_auth', 'true');
+                                        setWpUser(data);
+                                        setAuthMethod('wordpress');
+                                        setAuthenticated(true);
+                                        setAuthLoading(false);
+                                        return;
+                                    }
+                                }
+                            } catch (tokenErr) {
+                                console.log('Token-Abruf fehlgeschlagen:', tokenErr.message);
+                            }
+                            
+                            // Fallback: WordPress erkannt aber Token fehlgeschlagen
                             setWpUser(data);
                             setAuthMethod('wordpress');
                             setAuthenticated(true);
@@ -547,6 +571,7 @@
             const handleLogout = () => {
                 sessionStorage.removeItem('admin_auth');
                 sessionStorage.removeItem('admin_token');
+                sessionStorage.removeItem('wp_token');
                 setAuthenticated(false);
                 setAuthMethod(null);
                 setWpUser(null);
@@ -561,14 +586,14 @@
             
             const getAuthHeader = () => ({
                 'Content-Type': 'application/json',
-                'X-Admin-Token': sessionStorage.getItem('admin_token') || ''
+                'X-Admin-Token': sessionStorage.getItem('admin_token') || '',
+                'X-WP-Token': sessionStorage.getItem('wp_token') || ''
             });
             
-            // Fetch mit Credentials (für WordPress SSO Cookies)
+            // Fetch mit Auth-Headers (Passwort-Token ODER WordPress-Token)
             const adminFetch = (url, options = {}) => {
                 return fetch(url, {
                     ...options,
-                    credentials: 'include', // Wichtig für WordPress Cookies!
                     headers: {
                         ...getAuthHeader(),
                         ...(options.headers || {})

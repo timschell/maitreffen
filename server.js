@@ -372,7 +372,10 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brettspielfamilie2026';
 // WordPress SSO URL
 const WP_SSO_URL = process.env.WP_SSO_URL || 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
 
-// Admin-Auth Middleware (WordPress SSO oder Passwort)
+// WordPress Token-Validierung URL
+const WP_VALIDATE_URL = process.env.WP_VALIDATE_URL || 'https://brettspielfamilie.de/wp-json/bsf/v1/validate-token';
+
+// Admin-Auth Middleware (WordPress Token oder Passwort)
 const adminAuth = async (req, res, next) => {
   // Option 1: Passwort-Token
   const token = req.headers['x-admin-token'];
@@ -380,23 +383,25 @@ const adminAuth = async (req, res, next) => {
     return next();
   }
   
-  // Option 2: WordPress SSO prüfen
-  const cookies = req.headers.cookie || '';
-  if (cookies) {
+  // Option 2: WordPress SSO Token validieren
+  const wpToken = req.headers['x-wp-token'];
+  if (wpToken) {
     try {
-      const wpRes = await fetch(WP_SSO_URL, {
-        headers: { 'Cookie': cookies }
+      const wpRes = await fetch(WP_VALIDATE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: wpToken })
       });
       
       if (wpRes.ok) {
         const data = await wpRes.json();
-        if (data.logged_in && data.is_admin) {
+        if (data.valid) {
           req.wpUser = data;
           return next();
         }
       }
     } catch (err) {
-      console.error('WordPress SSO Check fehlgeschlagen:', err.message);
+      console.error('WordPress Token-Validierung fehlgeschlagen:', err.message);
     }
   }
   
