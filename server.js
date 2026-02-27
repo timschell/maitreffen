@@ -372,13 +372,35 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brettspielfamilie2026';
 // WordPress SSO URL
 const WP_SSO_URL = process.env.WP_SSO_URL || 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
 
-// Admin-Auth Middleware
-const adminAuth = (req, res, next) => {
+// Admin-Auth Middleware (WordPress SSO oder Passwort)
+const adminAuth = async (req, res, next) => {
+  // Option 1: Passwort-Token
   const token = req.headers['x-admin-token'];
-  if (token !== ADMIN_PASSWORD) {
-    return res.status(401).json({ error: 'Nicht autorisiert' });
+  if (token === ADMIN_PASSWORD) {
+    return next();
   }
-  next();
+  
+  // Option 2: WordPress SSO prüfen
+  const cookies = req.headers.cookie || '';
+  if (cookies) {
+    try {
+      const wpRes = await fetch(WP_SSO_URL, {
+        headers: { 'Cookie': cookies }
+      });
+      
+      if (wpRes.ok) {
+        const data = await wpRes.json();
+        if (data.logged_in && data.is_admin) {
+          req.wpUser = data;
+          return next();
+        }
+      }
+    } catch (err) {
+      console.error('WordPress SSO Check fehlgeschlagen:', err.message);
+    }
+  }
+  
+  return res.status(401).json({ error: 'Nicht autorisiert' });
 };
 
 // Admin Login (Passwort-Fallback)

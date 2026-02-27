@@ -564,6 +564,18 @@
                 'X-Admin-Token': sessionStorage.getItem('admin_token') || ''
             });
             
+            // Fetch mit Credentials (für WordPress SSO Cookies)
+            const adminFetch = (url, options = {}) => {
+                return fetch(url, {
+                    ...options,
+                    credentials: 'include', // Wichtig für WordPress Cookies!
+                    headers: {
+                        ...getAuthHeader(),
+                        ...(options.headers || {})
+                    }
+                });
+            };
+            
             // Load data
             useEffect(() => {
                 if (authenticated) {
@@ -575,7 +587,7 @@
             const loadEvents = async () => {
                 setLoading(true);
                 try {
-                    const res = await fetch(`${API_URL}/admin/events`, { headers: getAuthHeader() });
+                    const res = await adminFetch(`${API_URL}/admin/events`);
                     if (res.ok) setEvents(await res.json());
                 } catch (err) {
                     console.error('Fehler:', err);
@@ -585,7 +597,7 @@
             
             const loadRooms = async (eventId) => {
                 try {
-                    const res = await fetch(`${API_URL}/admin/events/${eventId}/rooms`, { headers: getAuthHeader() });
+                    const res = await adminFetch(`${API_URL}/admin/events/${eventId}/rooms`);
                     if (res.ok) setRooms(await res.json());
                 } catch (err) {
                     console.error('Fehler:', err);
@@ -594,7 +606,7 @@
             
             const loadUsers = async () => {
                 try {
-                    const res = await fetch(`${API_URL}/admin/users`, { headers: getAuthHeader() });
+                    const res = await adminFetch(`${API_URL}/admin/users`);
                     if (res.ok) setUsers(await res.json());
                 } catch (err) {
                     console.error('Fehler:', err);
@@ -614,9 +626,8 @@
                         : `${API_URL}/admin/events`;
                     const method = editingEvent ? 'PUT' : 'POST';
                     
-                    const res = await fetch(url, {
+                    const res = await adminFetch(url, {
                         method,
-                        headers: getAuthHeader(),
                         body: JSON.stringify(eventData)
                     });
                     
@@ -632,9 +643,8 @@
             
             const handleActivateEvent = async (eventId) => {
                 try {
-                    await fetch(`${API_URL}/admin/events/${eventId}/activate`, {
-                        method: 'POST',
-                        headers: getAuthHeader()
+                    await adminFetch(`${API_URL}/admin/events/${eventId}/activate`, {
+                        method: 'POST'
                     });
                     await loadEvents();
                 } catch (err) {
@@ -646,9 +656,8 @@
                 if (!confirm('Event wirklich löschen? Alle Buchungen werden gelöscht!')) return;
                 
                 try {
-                    await fetch(`${API_URL}/admin/events/${eventId}`, {
-                        method: 'DELETE',
-                        headers: getAuthHeader()
+                    await adminFetch(`${API_URL}/admin/events/${eventId}`, {
+                        method: 'DELETE'
                     });
                     await loadEvents();
                 } catch (err) {
@@ -679,9 +688,8 @@
                         : `${API_URL}/admin/events/${selectedEventForRooms.id}/rooms`;
                     const method = editingRoom ? 'PUT' : 'POST';
                     
-                    const res = await fetch(url, {
+                    const res = await adminFetch(url, {
                         method,
-                        headers: getAuthHeader(),
                         body: JSON.stringify(roomData)
                     });
                     
@@ -699,9 +707,8 @@
                 if (!confirm('Zimmer wirklich löschen?')) return;
                 
                 try {
-                    await fetch(`${API_URL}/admin/rooms/${roomId}`, {
-                        method: 'DELETE',
-                        headers: getAuthHeader()
+                    await adminFetch(`${API_URL}/admin/rooms/${roomId}`, {
+                        method: 'DELETE'
                     });
                     await loadRooms(selectedEventForRooms.id);
                 } catch (err) {
@@ -714,9 +721,8 @@
                 if (!confirm('PIN wirklich zurücksetzen?')) return;
                 
                 try {
-                    await fetch(`${API_URL}/admin/users/${userId}/reset-pin`, {
-                        method: 'POST',
-                        headers: getAuthHeader()
+                    await adminFetch(`${API_URL}/admin/users/${userId}/reset-pin`, {
+                        method: 'POST'
                     });
                     await loadUsers();
                     alert('PIN wurde zurückgesetzt');
@@ -727,9 +733,8 @@
             
             const handleToggleAdmin = async (userId, isAdmin) => {
                 try {
-                    await fetch(`${API_URL}/admin/users/${userId}/admin`, {
+                    await adminFetch(`${API_URL}/admin/users/${userId}/admin`, {
                         method: 'POST',
-                        headers: getAuthHeader(),
                         body: JSON.stringify({ isAdmin: !isAdmin })
                     });
                     await loadUsers();
