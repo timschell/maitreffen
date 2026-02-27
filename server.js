@@ -33,7 +33,10 @@ async function initDB() {
         arrival_date DATE DEFAULT NULL,
         departure_date DATE DEFAULT NULL,
         transport VARCHAR(20) DEFAULT NULL,
-        needs_pickup BOOLEAN DEFAULT FALSE
+        needs_pickup BOOLEAN DEFAULT FALSE,
+        can_offer_ride BOOLEAN DEFAULT FALSE,
+        seats_available INTEGER DEFAULT 0,
+        departure_city VARCHAR(100) DEFAULT NULL
       )
     `);
     
@@ -44,6 +47,9 @@ async function initDB() {
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_date DATE DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS transport VARCHAR(20) DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS needs_pickup BOOLEAN DEFAULT FALSE`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS can_offer_ride BOOLEAN DEFAULT FALSE`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS seats_available INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_city VARCHAR(100) DEFAULT NULL`);
 
     // Warteliste-Tabelle
     await client.query(`
@@ -84,7 +90,10 @@ app.get('/api/bookings', async (req, res) => {
         arrivalDate: row.arrival_date,
         departureDate: row.departure_date,
         transport: row.transport,
-        needsPickup: row.needs_pickup
+        needsPickup: row.needs_pickup,
+        canOfferRide: row.can_offer_ride,
+        seatsAvailable: row.seats_available,
+        departureCity: row.departure_city
       };
     });
     res.json(bookings);
@@ -97,7 +106,7 @@ app.get('/api/bookings', async (req, res) => {
 // Buchung erstellen/aktualisieren
 app.post('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
-  const { name, roomRestriction, roomBeds, arrivalDate, departureDate, transport, needsPickup } = req.body;
+  const { name, roomRestriction, roomBeds, arrivalDate, departureDate, transport, needsPickup, canOfferRide, seatsAvailable, departureCity } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -110,12 +119,13 @@ app.post('/api/bookings/:bedId', async (req, res) => {
     
     // Hauptbuchung erstellen
     await client.query(`
-      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, transport, needs_pickup)
-      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL, $3, $4, $5, $6)
+      INSERT INTO bookings (bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, transport, needs_pickup, can_offer_ride, seats_available, departure_city)
+      VALUES ($1, $2, CURRENT_TIMESTAMP, 'booked', NULL, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (bed_id) 
       DO UPDATE SET name = $2, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL,
-                    arrival_date = $3, departure_date = $4, transport = $5, needs_pickup = $6
-    `, [bedId, name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false]);
+                    arrival_date = $3, departure_date = $4, transport = $5, needs_pickup = $6,
+                    can_offer_ride = $7, seats_available = $8, departure_city = $9
+    `, [bedId, name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null]);
     
     // Zimmer-Einschränkung setzen
     if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
@@ -195,7 +205,7 @@ app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
 // Markiertes Bett buchen (Frau/Mann bucht in Frauen-/Männerzimmer)
 app.post('/api/bookings/:bedId/claim', async (req, res) => {
   const { bedId } = req.params;
-  const { name, arrivalDate, departureDate, transport, needsPickup } = req.body;
+  const { name, arrivalDate, departureDate, transport, needsPickup, canOfferRide, seatsAvailable, departureCity } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -205,9 +215,10 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
     await pool.query(`
       UPDATE bookings 
       SET name = $1, status = 'booked', booked_at = CURRENT_TIMESTAMP,
-          arrival_date = $2, departure_date = $3, transport = $4, needs_pickup = $5
-      WHERE bed_id = $6 AND status IN ('women_only', 'men_only')
-    `, [name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false, bedId]);
+          arrival_date = $2, departure_date = $3, transport = $4, needs_pickup = $5,
+          can_offer_ride = $6, seats_available = $7, departure_city = $8
+      WHERE bed_id = $9 AND status IN ('women_only', 'men_only')
+    `, [name.trim(), arrivalDate || null, departureDate || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, bedId]);
     
     res.json({ success: true, bedId, name });
   } catch (err) {

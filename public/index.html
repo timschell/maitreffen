@@ -25,6 +25,8 @@
             --accent-light: #e8f4e8;
             --waitlist: #ff9800;
             --waitlist-light: #fff3e0;
+            --carpool: #9c27b0;
+            --carpool-light: #f3e5f5;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -339,13 +341,20 @@
             margin-top: 0.2rem;
         }
 
-        .bed-pickup {
+        .bed-badges {
+            display: flex;
+            justify-content: center;
+            gap: 0.25rem;
+            margin-top: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .bed-mini-badge {
             display: inline-block;
             background: rgba(255,255,255,0.25);
             padding: 0.1rem 0.3rem;
             border-radius: 4px;
             font-size: 0.6rem;
-            margin-top: 0.2rem;
         }
 
         /* Room Summary */
@@ -377,6 +386,81 @@
         .room-stat-dot.blocked { background: var(--bed-blocked); }
         .room-stat-dot.women { background: var(--bed-women); }
         .room-stat-dot.men { background: var(--bed-men); }
+
+        /* Transport Sections */
+        .transport-section {
+            background: var(--bg-paper);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #e8e8e8;
+        }
+
+        .transport-title {
+            font-family: 'Architects Daughter', cursive;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .transport-title.pickup { color: var(--accent); }
+        .transport-title.carpool { color: var(--carpool); }
+
+        .transport-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .transport-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .transport-item.carpool {
+            background: var(--carpool-light);
+        }
+
+        .transport-item-icon {
+            font-size: 1.2rem;
+        }
+
+        .transport-item-info {
+            flex: 1;
+        }
+
+        .transport-item-name {
+            font-weight: 600;
+        }
+
+        .transport-item-details {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .transport-item-seats {
+            background: var(--carpool);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .transport-empty {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 1rem;
+        }
 
         /* Warteliste Section */
         .waitlist-section {
@@ -642,7 +726,7 @@
             padding-right: 2rem;
         }
 
-        /* Checkbox für Abholung */
+        /* Checkbox für Abholung/Fahrgemeinschaft */
         .checkbox-row {
             display: flex;
             align-items: center;
@@ -658,11 +742,23 @@
             background: #efefef;
         }
 
+        .checkbox-row.carpool {
+            background: var(--carpool-light);
+        }
+
+        .checkbox-row.carpool:hover {
+            background: #ede7f6;
+        }
+
         .checkbox-row input[type="checkbox"] {
             width: 20px;
             height: 20px;
             accent-color: var(--accent);
             cursor: pointer;
+        }
+
+        .checkbox-row.carpool input[type="checkbox"] {
+            accent-color: var(--carpool);
         }
 
         .checkbox-row-label {
@@ -678,6 +774,29 @@
         .checkbox-row-sub {
             font-size: 0.75rem;
             color: var(--text-muted);
+        }
+
+        /* Carpool extra fields */
+        .carpool-details {
+            background: var(--carpool-light);
+            padding: 0.75rem;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .carpool-details .form-group label {
+            color: var(--carpool);
+        }
+
+        .carpool-details input {
+            border-color: #ce93d8;
+        }
+
+        .carpool-details input:focus {
+            border-color: var(--carpool);
         }
 
         /* Radio Options für Zimmer-Einschränkung */
@@ -878,59 +997,6 @@
             color: var(--accent);
         }
 
-        /* Pickup Summary */
-        .pickup-section {
-            background: var(--bg-paper);
-            border-radius: 16px;
-            padding: 1.25rem;
-            margin-top: 1rem;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-            border: 1px solid #e8e8e8;
-        }
-
-        .pickup-title {
-            font-family: 'Architects Daughter', cursive;
-            font-size: 1.1rem;
-            margin-bottom: 0.75rem;
-            color: var(--accent);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .pickup-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .pickup-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem;
-            background: #f5f5f5;
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-
-        .pickup-item-name {
-            font-weight: 600;
-            flex: 1;
-        }
-
-        .pickup-item-date {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-        }
-
-        .pickup-empty {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            text-align: center;
-            padding: 1rem;
-        }
-
         /* Desktop */
         @media (min-width: 768px) {
             .app { padding: 1.5rem; }
@@ -1050,6 +1116,9 @@
             const [departureDate, setDepartureDate] = useState(EVENT.endDate);
             const [transport, setTransport] = useState('');
             const [needsPickup, setNeedsPickup] = useState(false);
+            const [canOfferRide, setCanOfferRide] = useState(false);
+            const [seatsAvailable, setSeatsAvailable] = useState(1);
+            const [departureCity, setDepartureCity] = useState('');
             const [waitlistName, setWaitlistName] = useState("");
             const [waitlistComment, setWaitlistComment] = useState("");
             const [roomRestriction, setRoomRestriction] = useState('none');
@@ -1059,6 +1128,18 @@
                 loadBookings(); 
                 loadWaitlist();
             }, []);
+
+            // Reset pickup wenn nicht öffis, reset carpool wenn nicht auto
+            useEffect(() => {
+                if (transport !== 'oepnv') {
+                    setNeedsPickup(false);
+                }
+                if (transport !== 'auto') {
+                    setCanOfferRide(false);
+                    setSeatsAvailable(1);
+                    setDepartureCity('');
+                }
+            }, [transport]);
 
             const loadBookings = async () => {
                 try {
@@ -1096,6 +1177,9 @@
                 setDepartureDate(booking?.departureDate || EVENT.endDate);
                 setTransport(booking?.transport || '');
                 setNeedsPickup(booking?.needsPickup || false);
+                setCanOfferRide(booking?.canOfferRide || false);
+                setSeatsAvailable(booking?.seatsAvailable || 1);
+                setDepartureCity(booking?.departureCity || '');
                 setRoomRestriction('none');
                 setModalOpen(true);
             };
@@ -1118,7 +1202,10 @@
                             arrivalDate: arrivalDate || null,
                             departureDate: departureDate || null,
                             transport: transport || null,
-                            needsPickup
+                            needsPickup: transport === 'oepnv' ? needsPickup : false,
+                            canOfferRide: transport === 'auto' ? canOfferRide : false,
+                            seatsAvailable: transport === 'auto' && canOfferRide ? seatsAvailable : 0,
+                            departureCity: transport === 'auto' && canOfferRide ? departureCity : null
                         })
                     });
                     if (!response.ok) throw new Error('Speichern fehlgeschlagen');
@@ -1144,7 +1231,10 @@
                             arrivalDate: arrivalDate || null,
                             departureDate: departureDate || null,
                             transport: transport || null,
-                            needsPickup
+                            needsPickup: transport === 'oepnv' ? needsPickup : false,
+                            canOfferRide: transport === 'auto' ? canOfferRide : false,
+                            seatsAvailable: transport === 'auto' && canOfferRide ? seatsAvailable : 0,
+                            departureCity: transport === 'auto' && canOfferRide ? departureCity : null
                         })
                     });
                     if (!response.ok) throw new Error('Speichern fehlgeschlagen');
@@ -1235,6 +1325,9 @@
                 setDepartureDate(EVENT.endDate);
                 setTransport('');
                 setNeedsPickup(false);
+                setCanOfferRide(false);
+                setSeatsAvailable(1);
+                setDepartureCity('');
                 setRoomRestriction('none');
             };
 
@@ -1299,6 +1392,12 @@
                 .map(([bedId, b]) => ({ bedId, ...b }))
                 .sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
 
+            // Fahrgemeinschaften
+            const carpoolList = Object.entries(bookings)
+                .filter(([_, b]) => b.canOfferRide && b.status === 'booked' && b.seatsAvailable > 0)
+                .map(([bedId, b]) => ({ bedId, ...b }))
+                .sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
+
             if (loading) {
                 return <div className="app"><div className="loading">🌳 Lade Buchungen...</div></div>;
             }
@@ -1310,6 +1409,70 @@
             const isMenOnly = bedStatus === 'men_only';
             const isBooked = selectedBooking && !isBlocked && !isWomenOnly && !isMenOnly;
             const isGenderRestricted = isWomenOnly || isMenOnly;
+
+            // Form für Reisedetails (wiederverwendbar)
+            const TravelForm = () => (
+                <>
+                    <div className="form-section">
+                        <div className="form-section-title">🗓️ Anreise & Abreise</div>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>Anreise</label>
+                                <input type="date" value={arrivalDate} onChange={e => setArrivalDate(e.target.value)} disabled={saving} />
+                            </div>
+                            <div className="form-group">
+                                <label>Abreise</label>
+                                <input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} disabled={saving} />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label>Anreise mit</label>
+                            <select value={transport} onChange={e => setTransport(e.target.value)} disabled={saving}>
+                                <option value="">– Bitte wählen –</option>
+                                <option value="auto">🚗 Auto</option>
+                                <option value="oepnv">🚆 Öffentliche Verkehrsmittel</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {transport === 'oepnv' && (
+                        <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
+                            <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
+                            <div className="checkbox-row-label">
+                                <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
+                                <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof ab</div>
+                            </div>
+                        </label>
+                    )}
+
+                    {transport === 'auto' && (
+                        <>
+                            <label className="checkbox-row carpool" onClick={() => setCanOfferRide(!canOfferRide)}>
+                                <input type="checkbox" checked={canOfferRide} onChange={e => setCanOfferRide(e.target.checked)} onClick={e => e.stopPropagation()} />
+                                <div className="checkbox-row-label">
+                                    <div className="checkbox-row-main">🚗 Ich kann jemanden mitnehmen</div>
+                                    <div className="checkbox-row-sub">Biete eine Mitfahrgelegenheit an</div>
+                                </div>
+                            </label>
+
+                            {canOfferRide && (
+                                <div className="carpool-details">
+                                    <div className="form-group">
+                                        <label>Freie Plätze</label>
+                                        <input type="number" min="1" max="6" value={seatsAvailable} 
+                                            onChange={e => setSeatsAvailable(parseInt(e.target.value) || 1)} disabled={saving} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Abfahrt von</label>
+                                        <input type="text" placeholder="z.B. Berlin, Hamburg..." value={departureCity}
+                                            onChange={e => setDepartureCity(e.target.value)} disabled={saving} />
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </>
+            );
 
             return (
                 <div className="app">
@@ -1411,8 +1574,11 @@
                                                             {formatDate(booking.arrivalDate)} – {formatDate(booking.departureDate)}
                                                         </div>
                                                     )}
-                                                    {isBooked && booking.needsPickup && (
-                                                        <div className="bed-pickup">🚉 Abholung</div>
+                                                    {isBooked && (booking.needsPickup || booking.canOfferRide) && (
+                                                        <div className="bed-badges">
+                                                            {booking.needsPickup && <span className="bed-mini-badge">🚉 Abholung</span>}
+                                                            {booking.canOfferRide && <span className="bed-mini-badge">🚗 +{booking.seatsAvailable}</span>}
+                                                        </div>
                                                     )}
                                                     {(isBlocked || isWomen || isMen) && booking.blockedBy && (
                                                         <div className="bed-info">
@@ -1456,18 +1622,40 @@
                         })}
                     </div>
 
+                    {/* Fahrgemeinschaften */}
+                    {carpoolList.length > 0 && (
+                        <div className="transport-section">
+                            <h4 className="transport-title carpool">🚗 Fahrgemeinschaften</h4>
+                            <div className="transport-list">
+                                {carpoolList.map(p => (
+                                    <div key={p.bedId} className="transport-item carpool">
+                                        <span className="transport-item-icon">🚗</span>
+                                        <div className="transport-item-info">
+                                            <div className="transport-item-name">{p.name}</div>
+                                            <div className="transport-item-details">
+                                                {p.departureCity && `Ab ${p.departureCity} • `}
+                                                {formatDateLong(p.arrivalDate)}
+                                            </div>
+                                        </div>
+                                        <span className="transport-item-seats">{p.seatsAvailable} {p.seatsAvailable === 1 ? 'Platz' : 'Plätze'}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Abholungen */}
                     {pickupList.length > 0 && (
-                        <div className="pickup-section">
-                            <h4 className="pickup-title">🚉 Abholungen vom Bahnhof</h4>
-                            <div className="pickup-list">
+                        <div className="transport-section">
+                            <h4 className="transport-title pickup">🚉 Abholungen vom Bahnhof</h4>
+                            <div className="transport-list">
                                 {pickupList.map(p => (
-                                    <div key={p.bedId} className="pickup-item">
-                                        <span className="pickup-item-name">{p.name}</span>
-                                        <span className="pickup-item-date">
-                                            {formatDateLong(p.arrivalDate)}
-                                            {p.transport && ` • ${transportLabels[p.transport]}`}
-                                        </span>
+                                    <div key={p.bedId} className="transport-item">
+                                        <span className="transport-item-icon">🚉</span>
+                                        <div className="transport-item-info">
+                                            <div className="transport-item-name">{p.name}</div>
+                                            <div className="transport-item-details">{formatDateLong(p.arrivalDate)}</div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -1518,6 +1706,7 @@
                             <strong>Obergeschoss:</strong> 6 Zimmer mit 2 Gemeinschaftsbädern<br/><br/>
                             🛏️ <strong>Bettwäsche ist mitzubringen</strong> oder kann für 8,50 € ausgeliehen werden.<br/><br/>
                             🔒 <strong>Zimmer-Optionen:</strong> Beim Buchen kannst du restliche Betten blockieren oder als Frauen-/Männerzimmer markieren.<br/>
+                            🚗 <strong>Fahrgemeinschaften:</strong> Autofahrer können Mitfahrgelegenheiten anbieten.<br/>
                             📋 <strong>Warteliste:</strong> Falls kein passendes Bett frei ist, trage dich auf die Warteliste ein.<br/><br/>
                             📍 Kirchstraße 7, 15757 Halbe<br/>
                             🌐 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">www.freizeitheim-halbe.de</a>
@@ -1562,37 +1751,7 @@
                                             onKeyDown={e => e.key === 'Enter' && handleClaimGenderBed()}
                                             autoComplete="name" autoCapitalize="words" />
 
-                                        <div className="form-section">
-                                            <div className="form-section-title">🗓️ Anreise & Abreise</div>
-                                            <div className="form-row">
-                                                <div className="form-group">
-                                                    <label>Anreise</label>
-                                                    <input type="date" value={arrivalDate} onChange={e => setArrivalDate(e.target.value)} disabled={saving} />
-                                                </div>
-                                                <div className="form-group">
-                                                    <label>Abreise</label>
-                                                    <input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} disabled={saving} />
-                                                </div>
-                                            </div>
-                                            <div className="form-group">
-                                                <label>Anreise mit</label>
-                                                <select value={transport} onChange={e => setTransport(e.target.value)} disabled={saving}>
-                                                    <option value="">– Bitte wählen –</option>
-                                                    <option value="auto">🚗 Auto</option>
-                                                    <option value="oepnv">🚆 Öffentliche Verkehrsmittel</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        {transport === 'oepnv' && (
-                                            <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
-                                                <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
-                                                <div className="checkbox-row-label">
-                                                    <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
-                                                    <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof ab</div>
-                                                </div>
-                                            </label>
-                                        )}
+                                        <TravelForm />
 
                                         <div className="modal-buttons">
                                             <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Abbrechen</button>
@@ -1620,8 +1779,9 @@
                                                         {selectedBooking.transport && (
                                                             <span>{transportLabels[selectedBooking.transport]}</span>
                                                         )}
-                                                        {selectedBooking.needsPickup && (
-                                                            <span>🚉 Abholung gewünscht</span>
+                                                        {selectedBooking.needsPickup && <span>🚉 Abholung gewünscht</span>}
+                                                        {selectedBooking.canOfferRide && (
+                                                            <span>🚗 Bietet {selectedBooking.seatsAvailable} Plätze ab {selectedBooking.departureCity || '?'}</span>
                                                         )}
                                                     </div>
                                                 )}
@@ -1633,37 +1793,7 @@
                                             onKeyDown={e => e.key === 'Enter' && handleBook()}
                                             autoComplete="name" autoCapitalize="words" />
 
-                                        <div className="form-section">
-                                            <div className="form-section-title">🗓️ Anreise & Abreise</div>
-                                            <div className="form-row">
-                                                <div className="form-group">
-                                                    <label>Anreise</label>
-                                                    <input type="date" value={arrivalDate} onChange={e => setArrivalDate(e.target.value)} disabled={saving} />
-                                                </div>
-                                                <div className="form-group">
-                                                    <label>Abreise</label>
-                                                    <input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} disabled={saving} />
-                                                </div>
-                                            </div>
-                                            <div className="form-group">
-                                                <label>Anreise mit</label>
-                                                <select value={transport} onChange={e => setTransport(e.target.value)} disabled={saving}>
-                                                    <option value="">– Bitte wählen –</option>
-                                                    <option value="auto">🚗 Auto</option>
-                                                    <option value="oepnv">🚆 Öffentliche Verkehrsmittel</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        {transport === 'oepnv' && (
-                                            <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
-                                                <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
-                                                <div className="checkbox-row-label">
-                                                    <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
-                                                    <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof ab</div>
-                                                </div>
-                                            </label>
-                                        )}
+                                        <TravelForm />
 
                                         {!isBooked && hasFreeBeds() && (
                                             <div className="restriction-options">
