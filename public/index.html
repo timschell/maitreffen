@@ -1418,7 +1418,35 @@
             };
 
             // CORS Proxy für BGG API (BGG unterstützt kein CORS)
-            const CORS_PROXY = 'https://corsproxy.io/?';
+            // Mehrere Proxies als Fallback
+            const fetchWithProxy = async (url) => {
+                const proxies = [
+                    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+                    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+                    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+                    (u) => `https://proxy.cors.sh/${u}`
+                ];
+                
+                for (const proxy of proxies) {
+                    try {
+                        const proxyUrl = proxy(url);
+                        console.log('BGG: Trying proxy:', proxyUrl);
+                        const res = await fetch(proxyUrl);
+                        console.log('BGG: Response status:', res.status);
+                        if (res.ok) {
+                            const text = await res.text();
+                            console.log('BGG: Response length:', text.length, 'First 100 chars:', text.substring(0, 100));
+                            if (text && (text.includes('<?xml') || text.includes('<items') || text.includes('<item'))) {
+                                console.log('BGG: Valid XML found!');
+                                return text;
+                            }
+                        }
+                    } catch (e) {
+                        console.log('BGG: Proxy failed:', e.message);
+                    }
+                }
+                throw new Error('All proxies failed');
+            };
             
             // BGG Suche mit Debounce
             useEffect(() => {
@@ -1431,8 +1459,7 @@
                     setBggSearching(true);
                     try {
                         const bggUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(bggSearchQuery)}&type=boardgame`;
-                        const res = await fetch(CORS_PROXY + encodeURIComponent(bggUrl));
-                        const xml = await res.text();
+                        const xml = await fetchWithProxy(bggUrl);
                         
                         // XML parsen
                         const parser = new DOMParser();
@@ -1472,9 +1499,8 @@
                 
                 try {
                     // Details von BGG holen (via CORS Proxy)
-                    const bggUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggGame.bggId}&stats=1`;
-                    const res = await fetch(CORS_PROXY + encodeURIComponent(bggUrl));
-                    const xml = await res.text();
+                    const bggUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggGame.bggId}`;
+                    const xml = await fetchWithProxy(bggUrl);
                     
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(xml, 'text/xml');
