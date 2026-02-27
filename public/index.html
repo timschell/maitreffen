@@ -1208,28 +1208,10 @@
         const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
         const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
 
-        const EVENT = {
-            name: 'Maitreffen 2026',
-            startDate: '2026-05-13',
-            endDate: '2026-05-17',
-            displayDate: '13. – 17. Mai 2026'
-        };
-
-        const ROOMS = [
-            { id: 1, name: 'Zimmer 1', beds: 3, floor: 'eg', bath: true, accessible: false },
-            { id: 2, name: 'Zimmer 2', beds: 2, floor: 'eg', bath: true, accessible: true },
-            { id: 3, name: 'Zimmer 3', beds: 2, floor: 'eg', bath: true, accessible: false },
-            { id: 4, name: 'Zimmer 4', beds: 3, floor: 'og', bath: false, accessible: false },
-            { id: 5, name: 'Zimmer 5', beds: 4, floor: 'og', bath: false, accessible: false },
-            { id: 6, name: 'Zimmer 6', beds: 3, floor: 'og', bath: false, accessible: false },
-            { id: 7, name: 'Zimmer 7', beds: 3, floor: 'og', bath: false, accessible: false },
-            { id: 8, name: 'Zimmer 8', beds: 2, floor: 'og', bath: false, accessible: false },
-            { id: 9, name: 'Zimmer 9', beds: 3, floor: 'og', bath: false, accessible: false },
-        ];
-
-        const generateBeds = () => {
+        // Hilfsfunktionen für dynamische Daten
+        const generateBeds = (rooms) => {
             const beds = {};
-            ROOMS.forEach(room => {
+            rooms.forEach(room => {
                 for (let i = 1; i <= room.beds; i++) {
                     beds[`zi${room.id}-bett${i}`] = { room: room.name, roomId: room.id, bedNum: i };
                 }
@@ -1237,11 +1219,17 @@
             return beds;
         };
 
-        const BEDS = generateBeds();
-        const TOTAL_SLOTS = Object.keys(BEDS).length;
+        const formatDisplayDate = (startDate, endDate) => {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const options = { day: 'numeric', month: 'long', year: 'numeric' };
+            const startStr = start.toLocaleDateString('de-DE', { day: 'numeric' });
+            const endStr = end.toLocaleDateString('de-DE', options);
+            return `${startStr}. – ${endStr}`;
+        };
 
-        const getRoomBedIds = (roomId) => {
-            const room = ROOMS.find(r => r.id === roomId);
+        const getRoomBedIds = (rooms, roomId) => {
+            const room = rooms.find(r => r.id === roomId);
             return room ? Array.from({ length: room.beds }, (_, i) => `zi${roomId}-bett${i + 1}`) : [];
         };
 
@@ -1258,6 +1246,13 @@
         const transportLabels = { 'auto': '🚗 Auto', 'oepnv': '🚆 Öffis', '': '' };
 
         function App() {
+            // Event & Rooms (dynamisch vom API)
+            const [event, setEvent] = useState(null);
+            const [rooms, setRooms] = useState([]);
+            const [beds, setBeds] = useState({});
+            const [eventLoading, setEventLoading] = useState(true);
+            const [eventError, setEventError] = useState(null);
+            
             const [bookings, setBookings] = useState({});
             const [waitlist, setWaitlist] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -1267,8 +1262,8 @@
             const [waitlistModalOpen, setWaitlistModalOpen] = useState(false);
             const [selectedBed, setSelectedBed] = useState(null);
             const [inputName, setInputName] = useState("");
-            const [arrivalDate, setArrivalDate] = useState(EVENT.startDate);
-            const [departureDate, setDepartureDate] = useState(EVENT.endDate);
+            const [arrivalDate, setArrivalDate] = useState('');
+            const [departureDate, setDepartureDate] = useState('');
             const [transport, setTransport] = useState('');
             const [needsPickup, setNeedsPickup] = useState(false);
             const [canOfferRide, setCanOfferRide] = useState(false);
@@ -1303,7 +1298,51 @@
             const [wpUser, setWpUser] = useState(null);
             const [wpLoading, setWpLoading] = useState(true);
 
-            useEffect(() => { loadBookings(); loadWaitlist(); loadGames(); checkWordPressSSO(); }, []);
+            useEffect(() => { loadEvent(); checkWordPressSSO(); }, []);
+            
+            // Lade Buchungen etc. erst wenn Event geladen ist
+            useEffect(() => {
+                if (event && rooms.length > 0) {
+                    loadBookings();
+                    loadWaitlist();
+                    loadGames();
+                }
+            }, [event, rooms]);
+            
+            const loadEvent = async () => {
+                try {
+                    setEventLoading(true);
+                    setEventError(null);
+                    const res = await fetch(`${API_URL}/event`);
+                    if (!res.ok) throw new Error('Event nicht gefunden');
+                    const data = await res.json();
+                    
+                    // Event speichern
+                    setEvent(data);
+                    
+                    // Rooms transformieren (API -> Frontend Format)
+                    const transformedRooms = data.rooms.map(r => ({
+                        id: r.id,
+                        name: r.room_name,
+                        beds: r.beds_count,
+                        floor: r.floor?.toLowerCase() || 'eg',
+                        bath: r.has_private_bath,
+                        accessible: r.is_accessible,
+                        notes: r.notes
+                    }));
+                    setRooms(transformedRooms);
+                    
+                    // Beds generieren
+                    const generatedBeds = generateBeds(transformedRooms);
+                    setBeds(generatedBeds);
+                    
+                } catch (err) {
+                    console.error('Event laden fehlgeschlagen:', err);
+                    setEventError('Event konnte nicht geladen werden.');
+                } finally {
+                    setEventLoading(false);
+                }
+            };
             
             const checkWordPressSSO = async () => {
                 try {
@@ -1374,8 +1413,8 @@
                 // Name vorausfüllen: Wenn gebucht → Buchungsname, sonst WordPress-Name falls eingeloggt
                 const defaultName = b?.name?.replace(/^[🔒♀️♂️]\s*/, '').replace(/^(Frauenzimmer|Männerzimmer)$/, '') || '';
                 setInputName(defaultName || (wpUser?.name || ''));
-                setArrivalDate(b?.arrivalDate ? formatDateForInput(b.arrivalDate) : EVENT.startDate);
-                setDepartureDate(b?.departureDate ? formatDateForInput(b.departureDate) : EVENT.endDate);
+                setArrivalDate(b?.arrivalDate ? formatDateForInput(b.arrivalDate) : (event?.start_date?.split('T')[0] || ''));
+                setDepartureDate(b?.departureDate ? formatDateForInput(b.departureDate) : (event?.end_date?.split('T')[0] || ''));
                 setTransport(b?.transport || '');
                 setNeedsPickup(b?.needsPickup || false);
                 setCanOfferRide(b?.canOfferRide || false);
@@ -1418,7 +1457,7 @@
                     const res = await fetch(`${API_URL}/bookings/${selectedBed}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...getBookingPayload(), roomRestriction, roomBeds: getRoomBedIds(BEDS[selectedBed].roomId) })
+                        body: JSON.stringify({ ...getBookingPayload(), roomRestriction, roomBeds: beds[selectedBed] ? getRoomBedIds(rooms, beds[selectedBed].roomId) : [] })
                     });
                     if (!res.ok) throw new Error();
                     
@@ -1649,8 +1688,8 @@
                 setModalOpen(false);
                 setSelectedBed(null);
                 setInputName("");
-                setArrivalDate(EVENT.startDate);
-                setDepartureDate(EVENT.endDate);
+                setArrivalDate(event?.start_date?.split('T')[0] || '');
+                setDepartureDate(event?.end_date?.split('T')[0] || '');
                 setTransport('');
                 setNeedsPickup(false);
                 setCanOfferRide(false);
@@ -1668,6 +1707,7 @@
             const closeWaitlistModal = () => { setWaitlistModalOpen(false); setWaitlistName(""); setWaitlistComment(""); };
 
             const countStats = () => {
+                const totalSlots = Object.keys(beds).length;
                 let booked = 0, blocked = 0, women = 0, men = 0;
                 Object.values(bookings).forEach(b => {
                     if (b.status === 'blocked') blocked++;
@@ -1675,14 +1715,14 @@
                     else if (b.status === 'men_only') men++;
                     else booked++;
                 });
-                return { booked, blocked, women, men, free: TOTAL_SLOTS - booked - blocked - women - men };
+                return { booked, blocked, women, men, free: totalSlots - booked - blocked - women - men };
             };
 
             const stats = countStats();
             const isFull = stats.free === 0 && stats.women === 0 && stats.men === 0;
 
             const getRoomStats = (roomId) => {
-                const room = ROOMS.find(r => r.id === roomId);
+                const room = rooms.find(r => r.id === roomId);
                 let booked = 0, blocked = 0, women = 0, men = 0;
                 for (let i = 1; i <= room.beds; i++) {
                     const b = bookings[`zi${roomId}-bett${i}`];
@@ -1696,15 +1736,15 @@
                 return { booked, blocked, women, men, free: room.beds - booked - blocked - women - men };
             };
 
-            const filteredRooms = ROOMS.filter(r => r.floor === activeFloor);
-            const getFloorFreeCount = (floor) => ROOMS.filter(r => r.floor === floor).reduce((sum, r) => sum + getRoomStats(r.id).free, 0);
-            const hasFreeBeds = () => selectedBed && getRoomBedIds(BEDS[selectedBed].roomId).some(id => id !== selectedBed && !bookings[id]);
+            const filteredRooms = rooms.filter(r => r.floor === activeFloor);
+            const getFloorFreeCount = (floor) => rooms.filter(r => r.floor === floor).reduce((sum, r) => sum + getRoomStats(r.id).free, 0);
+            const hasFreeBeds = () => selectedBed && beds[selectedBed] && getRoomBedIds(rooms, beds[selectedBed].roomId).some(id => id !== selectedBed && !bookings[id]);
             
             // Alle freien Betten (für Mitreisende-Auswahl)
             const getAvailableBeds = () => {
                 if (!selectedBed) return [];
                 const selectedCompanionBeds = companions.map(c => c.bedId);
-                return Object.entries(BEDS)
+                return Object.entries(beds)
                     .filter(([id, _]) => id !== selectedBed && !bookings[id] && !selectedCompanionBeds.includes(id))
                     .map(([id, info]) => ({ id, ...info }))
                     .sort((a, b) => a.roomId - b.roomId || a.bedNum - b.bedNum);
@@ -1763,6 +1803,10 @@
                 if (group.members.length > 1) trainGroups.push(group);
             });
 
+            // Loading States
+            if (eventLoading) return <div className="app"><div className="loading">🌳 Lade Event...</div></div>;
+            if (eventError) return <div className="app"><div className="error-banner">⚠️ {eventError}</div></div>;
+            if (!event) return <div className="app"><div className="error-banner">⚠️ Kein Event gefunden</div></div>;
             if (loading) return <div className="app"><div className="loading">🌳 Lade Buchungen...</div></div>;
 
             const selectedBooking = selectedBed ? bookings[selectedBed] : null;
@@ -1893,10 +1937,14 @@
                     {error && <div className="error-banner">⚠️ {error}</div>}
 
                     <header>
-                        <h1>🌲 Maitreffen</h1>
-                        <div className="event-date">📅 {EVENT.displayDate}</div>
+                        <h1>🌲 {event.name}</h1>
+                        <div className="event-date">📅 {formatDisplayDate(event.start_date, event.end_date)}</div>
                         <p className="subtitle">Zimmerbelegung – tippe auf ein Bett</p>
-                        <div className="location">📍 <a href="https://www.freizeitheim-halbe.de" target="_blank" rel="noopener">Freizeitheim Halbe</a></div>
+                        {event.location_name && (
+                            <div className="location">📍 {event.location_url ? (
+                                <a href={event.location_url} target="_blank" rel="noopener">{event.location_name}</a>
+                            ) : event.location_name}</div>
+                        )}
                         <div className="stats">
                             <div className="stat"><div className="stat-dot free"></div><span><span className="stat-value">{stats.free}</span> frei</span></div>
                             <div className="stat"><div className="stat-dot booked"></div><span><span className="stat-value">{stats.booked}</span> belegt</span></div>
@@ -2190,7 +2238,7 @@
                                 {isBlocked ? (
                                     <>
                                         <h2>🔒 Blockiert</h2>
-                                        <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
+                                        <p className="modal-room">{beds[selectedBed]?.room} – Bett {beds[selectedBed]?.bedNum}</p>
                                         <div className="blocked-info">
                                             <div className="blocked-info-title">Dieses Bett ist blockiert</div>
                                             <div className="blocked-info-text">Blockiert von: {getBlockerName(selectedBooking) || 'Unbekannt'}</div>
@@ -2203,7 +2251,7 @@
                                 ) : isGenderRestricted ? (
                                     <>
                                         <h2 className={isWomenOnly ? 'women-modal-title' : 'men-modal-title'}>{isWomenOnly ? '♀️ Frauenzimmer' : '♂️ Männerzimmer'}</h2>
-                                        <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
+                                        <p className="modal-room">{beds[selectedBed]?.room} – Bett {beds[selectedBed]?.bedNum}</p>
                                         <div className={`gender-info ${isWomenOnly ? 'women' : 'men'}`}>
                                             <div className="gender-info-title">{isWomenOnly ? 'Dieses Zimmer ist für Frauen reserviert' : 'Dieses Zimmer ist für Männer reserviert'}</div>
                                             <div className="gender-info-text">Reserviert von: {getBlockerName(selectedBooking) || 'Unbekannt'}</div>
@@ -2219,7 +2267,7 @@
                                 ) : (
                                     <>
                                         <h2>{isBooked ? '📝 Bearbeiten' : '✨ Reservieren'}</h2>
-                                        <p className="modal-room">{BEDS[selectedBed].room} – Bett {BEDS[selectedBed].bedNum}</p>
+                                        <p className="modal-room">{beds[selectedBed]?.room} – Bett {beds[selectedBed]?.bedNum}</p>
                                         {isBooked && (
                                             <div className="current-guest">
                                                 <div className="current-guest-label">Aktuell gebucht:</div>
@@ -2258,7 +2306,7 @@
                                                                 <option key={bed.id} value={bed.id}>{bed.room} – Bett {bed.bedNum}</option>
                                                             ))}
                                                             {c.bedId && !getAvailableBeds().find(b => b.id === c.bedId) && (
-                                                                <option value={c.bedId}>{BEDS[c.bedId]?.room} – Bett {BEDS[c.bedId]?.bedNum}</option>
+                                                                <option value={c.bedId}>{beds[c.bedId]?.room} – Bett {beds[c.bedId]?.bedNum}</option>
                                                             )}
                                                         </select>
                                                         <button type="button" className="companion-remove" onClick={() => removeCompanion(idx)}>✕</button>
