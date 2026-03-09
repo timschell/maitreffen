@@ -230,6 +230,18 @@ async function initDB() {
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_max_players INTEGER DEFAULT NULL`);
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_playtime VARCHAR(50) DEFAULT NULL`);
     await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_description TEXT DEFAULT NULL`);
+    await client.query(`ALTER TABLE games ADD COLUMN IF NOT EXISTS bgg_min_age INTEGER DEFAULT NULL`);
+
+    // "Ich spiel mit" - Interesse an Spielen bekunden
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS game_interests (
+        id SERIAL PRIMARY KEY,
+        game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
+        person_name VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(game_id, person_name)
+      )
+    `);
 
     // Warteliste-Tabelle (mit event_id)
     await client.query(`
@@ -1008,6 +1020,7 @@ app.get('/api/bgg/details/:id', async (req, res) => {
     const minPlayersMatch = xml.match(/<minplayers.*?value="(\d+)"/);
     const maxPlayersMatch = xml.match(/<maxplayers.*?value="(\d+)"/);
     const playtimeMatch = xml.match(/<playingtime.*?value="(\d+)"/);
+    const minAgeMatch = xml.match(/<minage.*?value="(\d+)"/);
     const thumbnailMatch = xml.match(/<thumbnail>([^<]+)<\/thumbnail>/);
     const imageMatch = xml.match(/<image>([^<]+)<\/image>/);
     
@@ -1018,6 +1031,7 @@ app.get('/api/bgg/details/:id', async (req, res) => {
       minPlayers: minPlayersMatch ? parseInt(minPlayersMatch[1]) : null,
       maxPlayers: maxPlayersMatch ? parseInt(maxPlayersMatch[1]) : null,
       playtime: playtimeMatch ? playtimeMatch[1] : null,
+      minAge: minAgeMatch ? parseInt(minAgeMatch[1]) : null,
       thumbnail: thumbnailMatch ? thumbnailMatch[1] : null,
       image: imageMatch ? imageMatch[1] : null
     };
@@ -1030,15 +1044,37 @@ app.get('/api/bgg/details/:id', async (req, res) => {
   }
 });
 
-// Alle Spiele laden (für aktuelles Event)
+// Alle Spiele laden (für aktuelles Event) - mit Interessen
 app.get('/api/games', async (req, res) => {
   if (!req.eventId) {
     return res.status(404).json({ error: 'Kein Event gefunden' });
   }
 
   try {
-    const result = await pool.query('SELECT * FROM games WHERE event_id = $1 ORDER BY created_at DESC', [req.eventId]);
-    res.json(result.rows);
+    // Spiele laden
+    const gamesResult = await pool.query('SELECT * FROM games WHERE event_id = $1 ORDER BY created_at DESC', [req.eventId]);
+    
+    // Interessen laden (aggregiert pro Spiel)
+    const interestsResult = await pool.query(`
+      SELECT game_id, array_agg(person_name ORDER BY created_at) as interested_players
+      FROM game_interests 
+      WHERE game_id IN (SELECT id FROM games WHERE event_id = $1)
+      GROUP BY game_id
+    `, [req.eventId]);
+    
+    // Map für schnellen Lookup
+    const interestsMap = {};
+    interestsResult.rows.forEach(row => {
+      interestsMap[row.game_id] = row.interested_players || [];
+    });
+    
+    // Spiele mit Interessen anreichern
+    const games = gamesResult.rows.map(game => ({
+      ...game,
+      interested_players: interestsMap[game.id] || []
+    }));
+    
+    res.json(games);
   } catch (err) {
     console.error('Fehler beim Laden der Spiele:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
@@ -1047,7 +1083,7 @@ app.get('/api/games', async (req, res) => {
 
 // Spiel hinzufügen (mit BGG Daten)
 app.post('/api/games', async (req, res) => {
-  const { gameName, personName, type, bggId, bggThumbnail, bggImage, bggYear, bggMinPlayers, bggMaxPlayers, bggPlaytime, bggDescription } = req.body;
+  const { gameName, personName, type, bggId, bggThumbnail, bggImage, bggYear, bggMinPlayers, bggMaxPlayers, bggPlaytime, bggMinAge, bggDescription } = req.body;
   
   if (!req.eventId) {
     return res.status(404).json({ error: 'Kein Event gefunden' });
@@ -1063,11 +1099,11 @@ app.post('/api/games', async (req, res) => {
   
   try {
     const result = await pool.query(
-      `INSERT INTO games (event_id, game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime, bgg_description) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-      [req.eventId, gameName.trim(), personName.trim(), type, bggId || null, bggThumbnail || null, bggImage || null, bggYear || null, bggMinPlayers || null, bggMaxPlayers || null, bggPlaytime || null, bggDescription || null]
+      `INSERT INTO games (event_id, game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime, bgg_min_age, bgg_description) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [req.eventId, gameName.trim(), personName.trim(), type, bggId || null, bggThumbnail || null, bggImage || null, bggYear || null, bggMinPlayers || null, bggMaxPlayers || null, bggPlaytime || null, bggMinAge || null, bggDescription || null]
     );
-    res.json(result.rows[0]);
+    res.json({ ...result.rows[0], interested_players: [] });
   } catch (err) {
     console.error('Fehler beim Hinzufügen:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
@@ -1203,6 +1239,80 @@ app.delete('/api/collection/:ownerName/:bggId', async (req, res) => {
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });
+
+// ==================== SPIEL-INTERESSEN ("Ich spiel mit") ====================
+
+// Interesse an Spiel bekunden
+app.post('/api/games/:id/interest', async (req, res) => {
+  const { id } = req.params;
+  const { personName } = req.body;
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  if (!personName?.trim()) {
+    return res.status(400).json({ error: 'Name ist erforderlich' });
+  }
+  
+  try {
+    // Prüfe ob Spiel zum Event gehört
+    const gameCheck = await pool.query('SELECT id FROM games WHERE id = $1 AND event_id = $2', [id, req.eventId]);
+    if (gameCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Spiel nicht gefunden' });
+    }
+    
+    await pool.query(
+      `INSERT INTO game_interests (game_id, person_name) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [id, personName.trim()]
+    );
+    
+    // Aktualisierte Liste zurückgeben
+    const interests = await pool.query(
+      'SELECT person_name FROM game_interests WHERE game_id = $1 ORDER BY created_at',
+      [id]
+    );
+    
+    res.json({ interested_players: interests.rows.map(r => r.person_name) });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Interesse zurücknehmen
+app.delete('/api/games/:id/interest', async (req, res) => {
+  const { id } = req.params;
+  const { personName } = req.body;
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  if (!personName?.trim()) {
+    return res.status(400).json({ error: 'Name ist erforderlich' });
+  }
+  
+  try {
+    await pool.query(
+      'DELETE FROM game_interests WHERE game_id = $1 AND person_name = $2',
+      [id, personName.trim()]
+    );
+    
+    // Aktualisierte Liste zurücknehmen
+    const interests = await pool.query(
+      'SELECT person_name FROM game_interests WHERE game_id = $1 ORDER BY created_at',
+      [id]
+    );
+    
+    res.json({ interested_players: interests.rows.map(r => r.person_name) });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== SPIELESAMMLUNG (PERSISTENT) ====================
 
 // Spiel aus Sammlung zum Event hinzufügen
 app.post('/api/collection/bring', async (req, res) => {

@@ -918,70 +918,115 @@
             background: #ff9800;
         }
 
-        .games-list { display: flex; flex-direction: column; gap: 0.75rem; }
+        .games-list { display: flex; flex-direction: column; gap: 0.5rem; }
 
         .game-card {
             display: flex;
-            gap: 0.75rem;
-            padding: 0.75rem;
+            gap: 0.6rem;
+            padding: 0.5rem;
             background: white;
-            border-radius: 12px;
+            border-radius: 10px;
             border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            align-items: center;
         }
 
         .game-card.wish {
             border-color: #ffcc80;
-            background: linear-gradient(135deg, #fff9f0, #fff);
+            background: linear-gradient(135deg, #fffaf5, #fff);
         }
 
         .game-card.fulfilled {
             border-color: #a5d6a7;
-            background: linear-gradient(135deg, #f0fff0, #fff);
+            background: linear-gradient(135deg, #f5fff5, #fff);
         }
 
         .game-thumbnail {
-            width: 80px;
-            height: 80px;
-            border-radius: 8px;
+            width: 50px;
+            height: 50px;
+            border-radius: 6px;
             object-fit: cover;
             background: #f5f5f5;
             flex-shrink: 0;
         }
 
         .game-thumbnail-placeholder {
-            width: 80px;
-            height: 80px;
-            border-radius: 8px;
+            width: 50px;
+            height: 50px;
+            border-radius: 6px;
             background: linear-gradient(135deg, #e8e8e8, #f5f5f5);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2rem;
+            font-size: 1.3rem;
             flex-shrink: 0;
         }
 
         .game-content { flex: 1; min-width: 0; }
-        .game-name { font-weight: 700; color: var(--text-dark); font-size: 1rem; margin-bottom: 0.25rem; }
+        .game-name { font-weight: 700; color: var(--text-dark); font-size: 0.9rem; line-height: 1.2; }
         .game-name a { color: inherit; text-decoration: none; }
         .game-name a:hover { text-decoration: underline; }
-        .game-details { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.25rem; }
-        .game-person { font-size: 0.8rem; color: #6a1b9a; font-weight: 600; }
+        .game-meta { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.15rem; }
+        .game-details { font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .game-person { font-size: 0.7rem; color: #6a1b9a; font-weight: 600; }
         .game-person.wish { color: #e65100; }
-        .game-fulfilled-badge {
+        .game-badge {
             display: inline-flex;
             align-items: center;
-            gap: 0.25rem;
-            background: var(--accent);
-            color: white;
-            padding: 0.2rem 0.5rem;
-            border-radius: 12px;
-            font-size: 0.7rem;
+            padding: 0.1rem 0.35rem;
+            border-radius: 8px;
+            font-size: 0.6rem;
             font-weight: 600;
-            margin-top: 0.25rem;
         }
+        .game-badge.kids { background: #e3f2fd; color: #1565c0; }
+        .game-badge.fulfilled { background: var(--accent); color: white; }
 
-        .game-actions { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end; justify-content: space-between; }
+        /* Interessenten */
+        .game-interests {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-top: 0.2rem;
+        }
+        .game-interest-avatars {
+            display: flex;
+            margin-left: 0.1rem;
+        }
+        .game-interest-avatar {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #9c27b0;
+            color: white;
+            font-size: 0.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: -4px;
+            border: 1.5px solid white;
+        }
+        .game-interest-avatar:first-child { margin-left: 0; }
+        .game-interest-more {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            margin-left: 0.2rem;
+        }
+        .game-interest-btn {
+            background: none;
+            border: 1px dashed #ce93d8;
+            color: #9c27b0;
+            padding: 0.15rem 0.4rem;
+            border-radius: 10px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .game-interest-btn:hover { background: #f3e5f5; border-style: solid; }
+        .game-interest-btn.active { background: #9c27b0; color: white; border-color: #9c27b0; }
+
+        .game-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
 
         .game-btn {
             background: none;
@@ -1622,20 +1667,21 @@
                 setSaving(true);
                 try {
                     await fetch(`${API_URL}/games`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            gameName: selectedBggGame.name,
-                            personName: gamePersonName.trim(), 
-                            type: gameModalType,
-                            bggId: selectedBggGame.bggId,
-                            bggThumbnail: selectedBggGame.thumbnail,
-                            bggImage: selectedBggGame.image,
-                            bggYear: selectedBggGame.year,
-                            bggMinPlayers: selectedBggGame.minPlayers,
-                            bggMaxPlayers: selectedBggGame.maxPlayers,
-                            bggPlaytime: selectedBggGame.playtime,
-                            bggDescription: selectedBggGame.description
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                    gameName: selectedBggGame.name,
+                    personName: gamePersonName.trim(), 
+                    type: gameModalType,
+                    bggId: selectedBggGame.bggId,
+                    bggThumbnail: selectedBggGame.thumbnail,
+                    bggImage: selectedBggGame.image,
+                    bggYear: selectedBggGame.year,
+                    bggMinPlayers: selectedBggGame.minPlayers,
+                    bggMaxPlayers: selectedBggGame.maxPlayers,
+                    bggPlaytime: selectedBggGame.playtime,
+                    bggMinAge: selectedBggGame.minAge,
+                        bggDescription: selectedBggGame.description
                         })
                     });
                     await loadGames();
@@ -1688,6 +1734,35 @@
                 } catch { setError('Fehler.'); }
                 finally { setSaving(false); }
             };
+
+            // "Ich spiel mit" - Interesse toggeln
+            const handleToggleInterest = async (gameId, personName) => {
+                if (saving || !personName) return;
+                
+                const game = games.find(g => g.id === gameId);
+                const isInterested = game?.interested_players?.includes(personName);
+                
+                setSaving(true);
+                try {
+                    const res = await fetch(`${API_URL}/games/${gameId}/interest`, {
+                        method: isInterested ? 'DELETE' : 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ personName })
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Lokalen State updaten
+                        setGames(prev => prev.map(g => 
+                            g.id === gameId ? { ...g, interested_players: data.interested_players } : g
+                        ));
+                    }
+                } catch { setError('Fehler beim Speichern.'); }
+                finally { setSaving(false); }
+            };
+
+            // Kurzform für Initiale
+            const getInitials = (name) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 
             const bringGames = games.filter(g => g.type === 'bring');
             const wishGames = games.filter(g => g.type === 'wish');
@@ -2112,33 +2187,52 @@
                                 <div className="games-empty">Noch keine Spiele eingetragen. Klicke "+ Ich bringe mit"!</div>
                             ) : (
                                 <div className="games-list">
-                                    {bringGames.map(g => (
-                                        <div key={g.id} className="game-card">
-                                            {g.bgg_thumbnail ? (
-                                                <img src={g.bgg_thumbnail} alt={g.game_name} className="game-thumbnail" />
-                                            ) : (
-                                                <div className="game-thumbnail-placeholder">🎲</div>
-                                            )}
-                                            <div className="game-content">
-                                                <div className="game-name">
-                                                    {g.bgg_id ? (
-                                                        <a href={`https://boardgamegeek.com/boardgame/${g.bgg_id}`} target="_blank" rel="noopener">{g.game_name}</a>
-                                                    ) : g.game_name}
-                                                </div>
-                                                {(g.bgg_year || g.bgg_min_players || g.bgg_playtime) && (
-                                                    <div className="game-details">
-                                                        {g.bgg_year && <span>📅 {g.bgg_year}</span>}
-                                                        {g.bgg_min_players && <span>👥 {g.bgg_min_players}{g.bgg_max_players && g.bgg_max_players !== g.bgg_min_players ? `-${g.bgg_max_players}` : ''}</span>}
-                                                        {g.bgg_playtime && <span>⏱ {g.bgg_playtime} Min</span>}
-                                                    </div>
+                                    {bringGames.map(g => {
+                                        const isInterested = g.interested_players?.includes(wpUser?.name);
+                                        return (
+                                            <div key={g.id} className="game-card">
+                                                {g.bgg_thumbnail ? (
+                                                    <img src={g.bgg_thumbnail} alt={g.game_name} className="game-thumbnail" />
+                                                ) : (
+                                                    <div className="game-thumbnail-placeholder">🎲</div>
                                                 )}
-                                                <div className="game-person">von {g.person_name}</div>
+                                                <div className="game-content">
+                                                    <div className="game-name">
+                                                        {g.bgg_id ? (
+                                                            <a href={`https://boardgamegeek.com/boardgame/${g.bgg_id}`} target="_blank" rel="noopener">{g.game_name}</a>
+                                                        ) : g.game_name}
+                                                    </div>
+                                                    <div className="game-meta">
+                                                        <span className="game-person">von {g.person_name}</span>
+                                                        {g.bgg_min_players && <span className="game-details">👥{g.bgg_min_players}{g.bgg_max_players && g.bgg_max_players !== g.bgg_min_players ? `-${g.bgg_max_players}` : ''}</span>}
+                                                        {g.bgg_playtime && <span className="game-details">⏱{g.bgg_playtime}'</span>}
+                                                        {g.bgg_min_age && g.bgg_min_age > 0 && <span className="game-badge kids">{g.bgg_min_age}+</span>}
+                                                    </div>
+                                                    {/* Interessenten */}
+                                                    <div className="game-interests">
+                                                        {g.interested_players?.length > 0 && (
+                                                            <div className="game-interest-avatars">
+                                                                {g.interested_players.slice(0, 4).map((name, i) => (
+                                                                    <div key={i} className="game-interest-avatar" title={name}>{getInitials(name)}</div>
+                                                                ))}
+                                                                {g.interested_players.length > 4 && <span className="game-interest-more">+{g.interested_players.length - 4}</span>}
+                                                            </div>
+                                                        )}
+                                                        <button 
+                                                            className={`game-interest-btn ${isInterested ? 'active' : ''}`}
+                                                            onClick={() => handleToggleInterest(g.id, wpUser?.name || prompt('Dein Name?'))}
+                                                            title={isInterested ? 'Nicht mehr dabei' : 'Ich spiel mit!'}
+                                                        >
+                                                            {isInterested ? '✓ Dabei' : '🙋 Mitspielen'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="game-actions">
+                                                    <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
+                                                </div>
                                             </div>
-                                            <div className="game-actions">
-                                                <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )
                         )}
@@ -2148,42 +2242,60 @@
                                 <div className="games-empty">Keine Spielwünsche. Klicke "+ Spielwunsch" wenn du dir ein Spiel wünschst!</div>
                             ) : (
                                 <div className="games-list">
-                                    {wishGames.map(g => (
-                                        <div key={g.id} className={`game-card wish ${g.fulfilled_by ? 'fulfilled' : ''}`}>
-                                            {g.bgg_thumbnail ? (
-                                                <img src={g.bgg_thumbnail} alt={g.game_name} className="game-thumbnail" />
-                                            ) : (
-                                                <div className="game-thumbnail-placeholder">💭</div>
-                                            )}
-                                            <div className="game-content">
-                                                <div className="game-name">
-                                                    {g.bgg_id ? (
-                                                        <a href={`https://boardgamegeek.com/boardgame/${g.bgg_id}`} target="_blank" rel="noopener">{g.game_name}</a>
-                                                    ) : g.game_name}
-                                                </div>
-                                                {(g.bgg_year || g.bgg_min_players || g.bgg_playtime) && (
-                                                    <div className="game-details">
-                                                        {g.bgg_year && <span>📅 {g.bgg_year}</span>}
-                                                        {g.bgg_min_players && <span>👥 {g.bgg_min_players}{g.bgg_max_players && g.bgg_max_players !== g.bgg_min_players ? `-${g.bgg_max_players}` : ''}</span>}
-                                                        {g.bgg_playtime && <span>⏱ {g.bgg_playtime} Min</span>}
+                                    {wishGames.map(g => {
+                                        const isInterested = g.interested_players?.includes(wpUser?.name);
+                                        return (
+                                            <div key={g.id} className={`game-card wish ${g.fulfilled_by ? 'fulfilled' : ''}`}>
+                                                {g.bgg_thumbnail ? (
+                                                    <img src={g.bgg_thumbnail} alt={g.game_name} className="game-thumbnail" />
+                                                ) : (
+                                                    <div className="game-thumbnail-placeholder">💭</div>
+                                                )}
+                                                <div className="game-content">
+                                                    <div className="game-name">
+                                                        {g.bgg_id ? (
+                                                            <a href={`https://boardgamegeek.com/boardgame/${g.bgg_id}`} target="_blank" rel="noopener">{g.game_name}</a>
+                                                        ) : g.game_name}
                                                     </div>
-                                                )}
-                                                <div className="game-person wish">gewünscht von {g.person_name}</div>
-                                                {g.fulfilled_by && (
-                                                    <div className="game-fulfilled-badge">✅ {g.fulfilled_by} bringt es mit!</div>
-                                                )}
+                                                    <div className="game-meta">
+                                                        <span className="game-person wish">von {g.person_name}</span>
+                                                        {g.bgg_min_players && <span className="game-details">👥{g.bgg_min_players}{g.bgg_max_players && g.bgg_max_players !== g.bgg_min_players ? `-${g.bgg_max_players}` : ''}</span>}
+                                                        {g.bgg_playtime && <span className="game-details">⏱{g.bgg_playtime}'</span>}
+                                                        {g.bgg_min_age && g.bgg_min_age > 0 && <span className="game-badge kids">{g.bgg_min_age}+</span>}
+                                                        {g.fulfilled_by && <span className="game-badge fulfilled">✓ {g.fulfilled_by}</span>}
+                                                    </div>
+                                                    {/* Interessenten */}
+                                                    {!g.fulfilled_by && (
+                                                        <div className="game-interests">
+                                                            {g.interested_players?.length > 0 && (
+                                                                <div className="game-interest-avatars">
+                                                                    {g.interested_players.slice(0, 4).map((name, i) => (
+                                                                        <div key={i} className="game-interest-avatar" title={name}>{getInitials(name)}</div>
+                                                                    ))}
+                                                                    {g.interested_players.length > 4 && <span className="game-interest-more">+{g.interested_players.length - 4}</span>}
+                                                                </div>
+                                                            )}
+                                                            <button 
+                                                                className={`game-interest-btn ${isInterested ? 'active' : ''}`}
+                                                                onClick={() => handleToggleInterest(g.id, wpUser?.name || prompt('Dein Name?'))}
+                                                            >
+                                                                {isInterested ? '✓ Will spielen' : '🙋 Will spielen'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="game-actions">
+                                                    {!g.fulfilled_by && (
+                                                        <button className="btn-fulfill" onClick={() => openFulfillModal(g)}>Ich bring's</button>
+                                                    )}
+                                                    {g.fulfilled_by && (
+                                                        <button className="game-btn" onClick={() => handleUnfulfillWish(g.id)} title="Zurücknehmen">↩️</button>
+                                                    )}
+                                                    <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
+                                                </div>
                                             </div>
-                                            <div className="game-actions">
-                                                {!g.fulfilled_by && (
-                                                    <button className="btn-fulfill" onClick={() => openFulfillModal(g)}>🙋 Ich bring's!</button>
-                                                )}
-                                                {g.fulfilled_by && (
-                                                    <button className="game-btn" onClick={() => handleUnfulfillWish(g.id)} title="Zurücknehmen">↩️</button>
-                                                )}
-                                                <button className="game-btn delete" onClick={() => handleDeleteGame(g.id)}>✕</button>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )
                         )}
