@@ -1127,7 +1127,7 @@ app.delete('/api/games/:id', async (req, res) => {
   }
 });
 
-// Wunsch erfüllen
+// Wunsch erfüllen (markiert Wunsch UND erstellt "bring" Eintrag)
 app.post('/api/games/:id/fulfill', async (req, res) => {
   const { id } = req.params;
   const { fulfilledBy } = req.body;
@@ -1140,19 +1140,42 @@ app.post('/api/games/:id/fulfill', async (req, res) => {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
   
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+    
+    // 1. Wunsch als erfüllt markieren
+    const wishResult = await client.query(
       'UPDATE games SET fulfilled_by = $1 WHERE id = $2 AND event_id = $3 AND type = $4 RETURNING *',
       [fulfilledBy.trim(), id, req.eventId, 'wish']
     );
-    res.json(result.rows[0]);
+    
+    if (wishResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Wunsch nicht gefunden' });
+    }
+    
+    const wish = wishResult.rows[0];
+    
+    // 2. "Bring" Eintrag erstellen (mit gleichen Spieldaten)
+    const bringResult = await client.query(
+      `INSERT INTO games (event_id, game_name, person_name, type, bgg_id, bgg_thumbnail, bgg_image, bgg_year, bgg_min_players, bgg_max_players, bgg_playtime, bgg_min_age, bgg_description, fulfilled_by) 
+       VALUES ($1, $2, $3, 'bring', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [req.eventId, wish.game_name, fulfilledBy.trim(), wish.bgg_id, wish.bgg_thumbnail, wish.bgg_image, wish.bgg_year, wish.bgg_min_players, wish.bgg_max_players, wish.bgg_playtime, wish.bgg_min_age, wish.bgg_description, id] // fulfilled_by speichert ID des Wunsches für Rückverfolgung
+    );
+    
+    await client.query('COMMIT');
+    res.json({ wish: { ...wishResult.rows[0], interested_players: [] }, bring: { ...bringResult.rows[0], interested_players: [] } });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
   }
 });
 
-// Erfüllung zurücknehmen
+// Erfüllung zurücknehmen (entfernt fulfilled_by UND löscht "bring" Eintrag)
 app.delete('/api/games/:id/fulfill', async (req, res) => {
   const { id } = req.params;
   
@@ -1160,12 +1183,27 @@ app.delete('/api/games/:id/fulfill', async (req, res) => {
     return res.status(404).json({ error: 'Kein Event gefunden' });
   }
 
+  const client = await pool.connect();
   try {
-    await pool.query('UPDATE games SET fulfilled_by = NULL WHERE id = $1 AND event_id = $2', [id, req.eventId]);
+    await client.query('BEGIN');
+    
+    // 1. "Bring" Eintrag löschen (der die Wunsch-ID als fulfilled_by hat)
+    await client.query(
+      "DELETE FROM games WHERE event_id = $1 AND type = 'bring' AND fulfilled_by = $2",
+      [req.eventId, id.toString()]
+    );
+    
+    // 2. Wunsch als nicht erfüllt markieren
+    await client.query('UPDATE games SET fulfilled_by = NULL WHERE id = $1 AND event_id = $2', [id, req.eventId]);
+    
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
   }
 });
 

@@ -985,40 +985,45 @@
         .game-interests {
             display: flex;
             align-items: center;
-            gap: 0.25rem;
-            margin-top: 0.2rem;
+            gap: 0.3rem;
+            margin-top: 0.25rem;
+            flex-wrap: wrap;
         }
-        .game-interest-avatars {
+        .game-interest-names {
             display: flex;
-            margin-left: 0.1rem;
+            flex-wrap: wrap;
+            gap: 0.2rem;
         }
-        .game-interest-avatar {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #9c27b0;
-            color: white;
-            font-size: 0.5rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-left: -4px;
-            border: 1.5px solid white;
+        .game-interest-name {
+            background: #f3e5f5;
+            color: #7b1fa2;
+            padding: 0.1rem 0.4rem;
+            border-radius: 10px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid #ce93d8;
         }
-        .game-interest-avatar:first-child { margin-left: 0; }
-        .game-interest-more {
-            font-size: 0.6rem;
-            color: var(--text-muted);
-            margin-left: 0.2rem;
+        .game-interest-name:hover {
+            background: #e1bee7;
+            border-color: #9c27b0;
+        }
+        .game-interest-name::after {
+            content: ' ×';
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .game-interest-name:hover::after {
+            opacity: 0.7;
         }
         .game-interest-btn {
             background: none;
             border: 1px dashed #ce93d8;
             color: #9c27b0;
-            padding: 0.15rem 0.4rem;
+            padding: 0.1rem 0.4rem;
             border-radius: 10px;
-            font-size: 0.6rem;
+            font-size: 0.65rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.15s;
@@ -1761,9 +1766,6 @@
                 finally { setSaving(false); }
             };
 
-            // Kurzform für Initiale
-            const getInitials = (name) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
-
             const bringGames = games.filter(g => g.type === 'bring');
             const wishGames = games.filter(g => g.type === 'wish');
 
@@ -2211,19 +2213,33 @@
                                                     {/* Interessenten */}
                                                     <div className="game-interests">
                                                         {g.interested_players?.length > 0 && (
-                                                            <div className="game-interest-avatars">
-                                                                {g.interested_players.slice(0, 4).map((name, i) => (
-                                                                    <div key={i} className="game-interest-avatar" title={name}>{getInitials(name)}</div>
+                                                            <div className="game-interest-names">
+                                                                {g.interested_players.map((name, i) => (
+                                                                    <span 
+                                                                        key={i} 
+                                                                        className="game-interest-name" 
+                                                                        onClick={() => {
+                                                                            if (confirm(`"${name}" aus Mitspieler-Liste entfernen?`)) {
+                                                                                handleToggleInterest(g.id, name);
+                                                                            }
+                                                                        }}
+                                                                        title="Klicken zum Entfernen"
+                                                                    >
+                                                                        {name}
+                                                                    </span>
                                                                 ))}
-                                                                {g.interested_players.length > 4 && <span className="game-interest-more">+{g.interested_players.length - 4}</span>}
                                                             </div>
                                                         )}
                                                         <button 
-                                                            className={`game-interest-btn ${isInterested ? 'active' : ''}`}
-                                                            onClick={() => handleToggleInterest(g.id, wpUser?.name || prompt('Dein Name?'))}
-                                                            title={isInterested ? 'Nicht mehr dabei' : 'Ich spiel mit!'}
+                                                            className="game-interest-btn"
+                                                            onClick={() => {
+                                                                const name = wpUser?.name || prompt('Dein Name?');
+                                                                if (name && !g.interested_players?.includes(name)) {
+                                                                    handleToggleInterest(g.id, name);
+                                                                }
+                                                            }}
                                                         >
-                                                            {isInterested ? '✓ Dabei' : '🙋 Mitspielen'}
+                                                            🙋 Mitspielen
                                                         </button>
                                                     </div>
                                                 </div>
@@ -2268,18 +2284,33 @@
                                                     {!g.fulfilled_by && (
                                                         <div className="game-interests">
                                                             {g.interested_players?.length > 0 && (
-                                                                <div className="game-interest-avatars">
-                                                                    {g.interested_players.slice(0, 4).map((name, i) => (
-                                                                        <div key={i} className="game-interest-avatar" title={name}>{getInitials(name)}</div>
+                                                                <div className="game-interest-names">
+                                                                    {g.interested_players.map((name, i) => (
+                                                                        <span 
+                                                                            key={i} 
+                                                                            className="game-interest-name" 
+                                                                            onClick={() => {
+                                                                                if (confirm(`"${name}" aus Mitspieler-Liste entfernen?`)) {
+                                                                                    handleToggleInterest(g.id, name);
+                                                                                }
+                                                                            }}
+                                                                            title="Klicken zum Entfernen"
+                                                                        >
+                                                                            {name}
+                                                                        </span>
                                                                     ))}
-                                                                    {g.interested_players.length > 4 && <span className="game-interest-more">+{g.interested_players.length - 4}</span>}
                                                                 </div>
                                                             )}
                                                             <button 
-                                                                className={`game-interest-btn ${isInterested ? 'active' : ''}`}
-                                                                onClick={() => handleToggleInterest(g.id, wpUser?.name || prompt('Dein Name?'))}
+                                                                className="game-interest-btn"
+                                                                onClick={() => {
+                                                                    const name = wpUser?.name || prompt('Dein Name?');
+                                                                    if (name && !g.interested_players?.includes(name)) {
+                                                                        handleToggleInterest(g.id, name);
+                                                                    }
+                                                                }}
                                                             >
-                                                                {isInterested ? '✓ Will spielen' : '🙋 Will spielen'}
+                                                                🙋 Will spielen
                                                             </button>
                                                         </div>
                                                     )}
