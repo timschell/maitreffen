@@ -916,6 +916,7 @@ app.get('/api/bgg/status', (req, res) => {
 });
 
 // BGG Suche (Server-side mit Caching gemäß BGG Richtlinien)
+// Holt auch Thumbnails per Batch-Request für bessere UX
 app.get('/api/bgg/search', async (req, res) => {
   const { query } = req.query;
   
@@ -933,11 +934,11 @@ app.get('/api/bgg/search', async (req, res) => {
     const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(query)}&type=boardgame`;
     const xml = await getCachedOrFetch(searchUrl);
     
-    // XML Parsing
+    // XML Parsing - Sammle IDs
     const items = [];
     const itemMatches = xml.match(/<item.*?<\/item>/gs) || [];
     
-    for (const item of itemMatches.slice(0, 15)) {
+    for (const item of itemMatches.slice(0, 10)) { // Nur Top 10 für Performance
       const idMatch = item.match(/id="(\d+)"/);
       const nameMatch = item.match(/<name.*?value="([^"]+)"/);
       const yearMatch = item.match(/<yearpublished.*?value="(\d+)"/);
@@ -946,12 +947,42 @@ app.get('/api/bgg/search', async (req, res) => {
         items.push({
           bggId: parseInt(idMatch[1]),
           name: nameMatch[1],
-          year: yearMatch ? parseInt(yearMatch[1]) : null
+          year: yearMatch ? parseInt(yearMatch[1]) : null,
+          thumbnail: null // Wird gleich geholt
         });
       }
     }
     
-    console.log(`BGG Suche "${query}": ${items.length} Ergebnisse`);
+    // Batch-Request für Thumbnails (max 10 IDs gleichzeitig)
+    if (items.length > 0) {
+      const ids = items.map(i => i.bggId).join(',');
+      const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${ids}`;
+      
+      try {
+        const detailXml = await getCachedOrFetch(detailUrl);
+        
+        // Thumbnails aus Detail-Response extrahieren
+        const detailItems = detailXml.match(/<item.*?<\/item>/gs) || [];
+        
+        for (const detailItem of detailItems) {
+          const idMatch = detailItem.match(/id="(\d+)"/);
+          const thumbnailMatch = detailItem.match(/<thumbnail>([^<]+)<\/thumbnail>/);
+          
+          if (idMatch && thumbnailMatch) {
+            const itemId = parseInt(idMatch[1]);
+            const item = items.find(i => i.bggId === itemId);
+            if (item) {
+              item.thumbnail = thumbnailMatch[1];
+            }
+          }
+        }
+      } catch (detailErr) {
+        console.log('BGG Thumbnail-Batch Fehler (nicht kritisch):', detailErr.message);
+        // Weiter ohne Thumbnails
+      }
+    }
+    
+    console.log(`BGG Suche "${query}": ${items.length} Ergebnisse (mit Thumbnails)`);
     res.json(items);
   } catch (err) {
     console.error('BGG Suche Fehler:', err.message);
