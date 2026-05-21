@@ -1728,6 +1728,7 @@
                     {templateModalOpen && (
                         <TemplateModal 
                             mealType={templateModalMealType}
+                            itemTemplates={itemTemplates}
                             onSave={handleAddFromTemplates}
                             onClose={() => { setTemplateModalOpen(false); setTemplateModalMealId(null); setTemplateModalMealType(null); }}
                         />
@@ -2497,7 +2498,7 @@
         }
         
         // Template Modal Component
-        function TemplateModal({ mealType, onSave, onClose }) {
+        function TemplateModal({ mealType, itemTemplates, onSave, onClose }) {
             const templates = mealType === 'breakfast' ? itemTemplates.breakfast : itemTemplates.grill;
             const [selectedIds, setSelectedIds] = useState([]);
             const [saving, setSaving] = useState(false);
