@@ -794,8 +794,11 @@
                 if (!selectedEventId) return;
                 setMealsLoading(true);
                 try {
-                    const data = await adminFetch(`${API_URL}/admin/events/${selectedEventId}/meals`);
-                    setMeals(data);
+                    const res = await adminFetch(`${API_URL}/admin/events/${selectedEventId}/meals`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setMeals(data);
+                    }
                 } catch (err) {
                     console.error('Fehler beim Laden der Mahlzeiten:', err);
                 } finally {
@@ -806,8 +809,11 @@
             const loadReport = async () => {
                 if (!selectedEventId) return;
                 try {
-                    const data = await adminFetch(`${API_URL}/admin/events/${selectedEventId}/meals/report`);
-                    setReportData(data);
+                    const res = await adminFetch(`${API_URL}/admin/events/${selectedEventId}/meals/report`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setReportData(data);
+                    }
                 } catch (err) {
                     console.error('Fehler beim Laden des Reports:', err);
                 }
