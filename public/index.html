@@ -1482,6 +1482,10 @@
             const [mealModalSelections, setMealModalSelections] = useState({});
             const [pendingMealPersons, setPendingMealPersons] = useState([]);
             const [totalMealPersons, setTotalMealPersons] = useState(0);
+            // Essensauswahl im Buchungs-Modal
+            const [personMealSelections, setPersonMealSelections] = useState([]);
+            const [editingMealSelections, setEditingMealSelections] = useState(false);
+            const [modalMealSelectionsLoading, setModalMealSelectionsLoading] = useState(false);
             // WordPress SSO
             const [wpUser, setWpUser] = useState(null);
             const [wpLoading, setWpLoading] = useState(true);
@@ -1741,6 +1745,90 @@
                     [dishId]: !prev[dishId]
                 }));
             };
+            
+            // Essensauswahl für Person im Buchungs-Modal laden
+            const loadPersonMealSelections = async (personName) => {
+                if (!personName) return;
+                setModalMealSelectionsLoading(true);
+                try {
+                    const res = await fetch(`${API_URL}/meals/selections/${encodeURIComponent(personName)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPersonMealSelections(data);
+                    } else {
+                        setPersonMealSelections([]);
+                    }
+                } catch (err) {
+                    console.error('Fehler beim Laden der Essensauswahl:', err);
+                    setPersonMealSelections([]);
+                } finally {
+                    setModalMealSelectionsLoading(false);
+                }
+            };
+            
+            // Essensauswahl im Buchungs-Modal editieren
+            const togglePersonMealDish = (dishId) => {
+                setPersonMealSelections(prev => {
+                    const exists = prev.find(s => s.dish_id === dishId);
+                    if (exists) {
+                        return prev.filter(s => s.dish_id !== dishId);
+                    } else {
+                        return [...prev, { dish_id: dishId }];
+                    }
+                });
+            };
+            
+            // Essensauswahl im Buchungs-Modal speichern
+            const savePersonMealSelections = async () => {
+                const personName = bookings[selectedBed]?.name;
+                if (!personName) return;
+                
+                try {
+                    const selections = personMealSelections.map(s => ({ dishId: s.dish_id }));
+                    const res = await fetch(`${API_URL}/meals/selections`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            personName,
+                            selections
+                        })
+                    });
+                    
+                    if (res.ok) {
+                        setEditingMealSelections(false);
+                        await loadPersonMealSelections(personName);
+                    } else {
+                        alert('❌ Fehler beim Speichern');
+                    }
+                } catch (err) {
+                    console.error('Fehler:', err);
+                    alert('❌ Fehler beim Speichern');
+                }
+            };
+            
+            // Essensauswahl im Buchungs-Modal löschen
+            const deletePersonMealSelections = async () => {
+                const personName = bookings[selectedBed]?.name;
+                if (!personName) return;
+                
+                if (!confirm(`Alle Essensauswahlen für ${personName} löschen?`)) return;
+                
+                try {
+                    const res = await fetch(`${API_URL}/meals/selections/${encodeURIComponent(personName)}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (res.ok) {
+                        setPersonMealSelections([]);
+                        setEditingMealSelections(false);
+                    } else {
+                        alert('❌ Fehler beim Löschen');
+                    }
+                } catch (err) {
+                    console.error('Fehler:', err);
+                    alert('❌ Fehler beim Löschen');
+                }
+            };
 
             const handleBedClick = (bedId) => {
                 setSelectedBed(bedId);
@@ -1762,6 +1850,13 @@
                 setDepartureTime(b?.departureTime ? formatTime(b.departureTime) : '');
                 setRoomRestriction('none');
                 setCompanions([]);
+                // Essensauswahl laden wenn Buchung existiert
+                if (b?.name) {
+                    loadPersonMealSelections(b.name);
+                } else {
+                    setPersonMealSelections([]);
+                }
+                setEditingMealSelections(false);
                 setModalOpen(true);
             };
 
@@ -2465,95 +2560,6 @@
                         </div>
                     )}
 
-{/* Essen */}
-                    <div className="meals-section">
-                        <div className="meals-header">
-                            <h4 className="meals-title">🍽️ Essen</h4>
-                            {wpUser?.name && meals.length > 0 && (
-                                <button className="btn btn-primary" onClick={saveMealSelections} style={{padding: '0.5rem 1rem', fontSize: '0.85rem'}}>
-                                    💾 Auswahl speichern
-                                </button>
-                            )}
-                        </div>
-                        
-                        {mealsLoading ? (
-                            <div style={{textAlign: 'center', padding: '2rem', color: '#666'}}>
-                                ⏳ Lade Mahlzeiten...
-                            </div>
-                        ) : meals.length === 0 ? (
-                            <div style={{textAlign: 'center', padding: '2rem', color: '#666'}}>
-                                Noch keine Mahlzeiten verfügbar
-                            </div>
-                        ) : !wpUser?.name ? (
-                            <div style={{textAlign: 'center', padding: '2rem', color: '#666', background: '#fff9e6', borderRadius: '8px'}}>
-                                🔐 Bitte melde dich an um Gerichte auszuwählen
-                            </div>
-                        ) : (
-                            <div>
-                                {meals.map(meal => (
-                                    <div key={meal.id} className="meal-card">
-                                        <div className="meal-card-header">
-                                            <div>
-                                                <div className="meal-name">{meal.name}</div>
-                                                <div className="meal-meta">
-                                                    📅 {new Date(meal.meal_date).toLocaleDateString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit'})} ·
-                                                    🕒 {meal.meal_time.slice(0,5)} Uhr
-                                                    {meal.description && ` · ${meal.description}`}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        {meal.dishes && meal.dishes.length > 0 ? (
-                                            <div>
-                                                {meal.dishes.map(dish => {
-                                                    const isSelected = myMealSelections[dish.id];
-                                                    return (
-                                                        <div 
-                                                            key={dish.id} 
-                                                            className={`dish-option ${isSelected ? 'selected' : ''}`}
-                                                            onClick={() => toggleDishSelection(dish.id)}
-                                                        >
-                                                            <input 
-                                                                type="checkbox" 
-                                                                className="dish-checkbox"
-                                                                checked={isSelected || false}
-                                                                onChange={() => toggleDishSelection(dish.id)}
-                                                                onClick={e => e.stopPropagation()}
-                                                            />
-                                                            <div className="dish-content">
-                                                                <div className="dish-name">
-                                                                    {dish.diet_type === 'Fleisch' && '🥩'}
-                                                                    {dish.diet_type === 'Vegetarisch' && '🧀'}
-                                                                    {dish.diet_type === 'Vegan' && '🌱'}
-                                                                    {dish.name}
-                                                                </div>
-                                                                {dish.description && (
-                                                                    <div className="dish-description">{dish.description}</div>
-                                                                )}
-                                                                <div className="dish-badges">
-                                                                    {dish.diet_type && <span className="dish-badge">{dish.diet_type}</span>}
-                                                                    {dish.allergies && <span className="dish-badge">⚠️ {dish.allergies}</span>}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
-                                                Noch keine Gerichte verfügbar
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                                
-                                <div style={{marginTop: '1rem', padding: '0.75rem', background: '#e8f5e9', borderRadius: '8px', fontSize: '0.85rem', color: '#2e7d32'}}>
-                                    💡 <strong>Tipp:</strong> Wähle für jede Mahlzeit ein Gericht aus und klicke dann auf "Auswahl speichern"
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    
                     {/* Spiele */}
                     <div className="games-section">
                         <div className="games-header">
@@ -2875,6 +2881,130 @@
                                                 </div>
                                             </div>
                                         )}
+                                        
+                                        {/* Essensauswahl */}
+                                        {isBooked && meals.length > 0 && (
+                                            <div style={{marginTop: '1.5rem', padding: '1rem', background: '#f9f9f9', borderRadius: '12px'}}>
+                                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem'}}>
+                                                    <h4 style={{margin: 0, fontSize: '1rem', fontWeight: 600}}>🍽️ Essensauswahl</h4>
+                                                    {!editingMealSelections && (
+                                                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                                                            <button 
+                                                                className="btn btn-secondary" 
+                                                                onClick={() => setEditingMealSelections(true)}
+                                                                style={{padding: '0.4rem 0.75rem', fontSize: '0.8rem'}}
+                                                            >
+                                                                ✏️ Bearbeiten
+                                                            </button>
+                                                            {personMealSelections.length > 0 && (
+                                                                <button 
+                                                                    className="btn btn-danger" 
+                                                                    onClick={deletePersonMealSelections}
+                                                                    style={{padding: '0.4rem 0.75rem', fontSize: '0.8rem'}}
+                                                                >
+                                                                    🗑️ Löschen
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                {modalMealSelectionsLoading ? (
+                                                    <div style={{textAlign: 'center', padding: '1rem', color: '#666'}}>⏳ Lade...</div>
+                                                ) : personMealSelections.length === 0 && !editingMealSelections ? (
+                                                    <div style={{textAlign: 'center', padding: '1rem', color: '#999'}}>
+                                                        Noch keine Gerichte ausgewählt
+                                                    </div>
+                                                ) : (
+                                                    <div style={{maxHeight: '300px', overflowY: 'auto'}}>
+                                                        {meals.map(meal => {
+                                                            const mealDishes = meal.dishes || [];
+                                                            const selectedDishes = mealDishes.filter(d => 
+                                                                personMealSelections.some(s => s.dish_id === d.id)
+                                                            );
+                                                            
+                                                            if (!editingMealSelections && selectedDishes.length === 0) return null;
+                                                            
+                                                            return (
+                                                                <div key={meal.id} style={{marginBottom: '1rem', padding: '0.75rem', background: 'white', borderRadius: '8px'}}>
+                                                                    <div style={{fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem'}}>
+                                                                        {meal.name}
+                                                                    </div>
+                                                                    
+                                                                    {editingMealSelections ? (
+                                                                        mealDishes.map(dish => {
+                                                                            const isSelected = personMealSelections.some(s => s.dish_id === dish.id);
+                                                                            return (
+                                                                                <div 
+                                                                                    key={dish.id}
+                                                                                    onClick={() => togglePersonMealDish(dish.id)}
+                                                                                    style={{
+                                                                                        display: 'flex',
+                                                                                        alignItems: 'center',
+                                                                                        padding: '0.5rem',
+                                                                                        marginBottom: '0.25rem',
+                                                                                        background: isSelected ? '#e8f5e9' : '#fafafa',
+                                                                                        borderRadius: '6px',
+                                                                                        border: `2px solid ${isSelected ? '#4caf50' : 'transparent'}`,
+                                                                                        cursor: 'pointer'
+                                                                                    }}
+                                                                                >
+                                                                                    <input 
+                                                                                        type="checkbox" 
+                                                                                        checked={isSelected}
+                                                                                        onChange={() => togglePersonMealDish(dish.id)}
+                                                                                        onClick={e => e.stopPropagation()}
+                                                                                        style={{marginRight: '0.5rem'}}
+                                                                                    />
+                                                                                    <span style={{fontSize: '0.85rem'}}>
+                                                                                        {dish.diet_type === 'Fleisch' && '🥩 '}
+                                                                                        {dish.diet_type === 'Vegetarisch' && '🧀 '}
+                                                                                        {dish.diet_type === 'Vegan' && '🌱 '}
+                                                                                        {dish.name}
+                                                                                    </span>
+                                                                                </div>
+                                                                            );
+                                                                        })
+                                                                    ) : (
+                                                                        selectedDishes.map(dish => (
+                                                                            <div key={dish.id} style={{fontSize: '0.85rem', padding: '0.25rem 0', color: '#555'}}>
+                                                                                {dish.diet_type === 'Fleisch' && '🥩 '}
+                                                                                {dish.diet_type === 'Vegetarisch' && '🧀 '}
+                                                                                {dish.diet_type === 'Vegan' && '🌱 '}
+                                                                                {dish.name}
+                                                                            </div>
+                                                                        ))
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                                
+                                                {editingMealSelections && (
+                                                    <div style={{display: 'flex', gap: '0.5rem', marginTop: '0.75rem'}}>
+                                                        <button 
+                                                            className="btn btn-secondary"
+                                                            onClick={() => {
+                                                                setEditingMealSelections(false);
+                                                                loadPersonMealSelections(bookings[selectedBed]?.name);
+                                                            }}
+                                                            style={{flex: 1, padding: '0.5rem', fontSize: '0.85rem'}}
+                                                        >
+                                                            Abbrechen
+                                                        </button>
+                                                        <button 
+                                                            className="btn btn-primary"
+                                                            onClick={savePersonMealSelections}
+                                                            style={{flex: 1, padding: '0.5rem', fontSize: '0.85rem'}}
+                                                        >
+                                                            💾 Speichern
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        
                                         <div className="modal-buttons">
                                             <button className="btn btn-secondary" onClick={closeModal}>Abbrechen</button>
                                             {isBooked && <button className="btn btn-danger" onClick={handleCancel} disabled={saving}>{saving ? '...' : 'Stornieren'}</button>}

@@ -1691,6 +1691,30 @@ app.post('/api/meals/selections', async (req, res) => {
   }
 });
 
+// Essensauswahl löschen (für eine Person)
+app.delete('/api/meals/selections/:personName', async (req, res) => {
+  const { personName } = req.params;
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  if (!personName?.trim()) {
+    return res.status(400).json({ error: 'personName ist erforderlich' });
+  }
+  
+  try {
+    await pool.query(
+      'DELETE FROM meal_selections WHERE event_id = $1 AND LOWER(person_name) = LOWER($2)',
+      [req.eventId, personName.trim()]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
 // Fallback für SPA
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
