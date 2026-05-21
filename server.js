@@ -1805,6 +1805,7 @@ app.post('/api/admin/events/:eventId/meals/generate', adminAuth, async (req, res
           date: dateStr,
           time: '09:00',
           description: null,
+          mealType: 'breakfast',  // 🥐 Frühstück ist immer breakfast
           sortOrder: sortOrder++
         });
       }
@@ -1816,6 +1817,7 @@ app.post('/api/admin/events/:eventId/meals/generate', adminAuth, async (req, res
           date: dateStr,
           time: '19:00',
           description: null,
+          mealType: 'meal',  // 🍽️ Abendessen ist erstmal 'meal', kann später zu 'grill' geändert werden
           sortOrder: sortOrder++
         });
       }
@@ -1824,9 +1826,9 @@ app.post('/api/admin/events/:eventId/meals/generate', adminAuth, async (req, res
     // Mahlzeiten in DB einfügen
     for (const meal of mealsToCreate) {
       await pool.query(
-        `INSERT INTO meals (event_id, name, meal_date, meal_time, description, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [eventId, meal.name, meal.date, meal.time, meal.description, meal.sortOrder]
+        `INSERT INTO meals (event_id, name, meal_date, meal_time, description, meal_type, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [eventId, meal.name, meal.date, meal.time, meal.description, meal.mealType, meal.sortOrder]
       );
     }
     
