@@ -1485,6 +1485,7 @@
             const [totalMealPersons, setTotalMealPersons] = useState(0);
             // Essensauswahl im Buchungs-Modal
             const [personMealSelections, setPersonMealSelections] = useState([]);
+            const [personItemSelections, setPersonItemSelections] = useState({}); // { itemId: { quantity: N, notes: "..." } }
             const [editingMealSelections, setEditingMealSelections] = useState(false);
             const [modalMealSelectionsLoading, setModalMealSelectionsLoading] = useState(false);
             // WordPress SSO
@@ -1839,6 +1840,7 @@
                 if (!personName) return;
                 
                 try {
+                    // Speichere Gerichte
                     const selections = personMealSelections.map(s => ({ dishId: s.dish_id }));
                     const res = await fetch(`${API_URL}/meals/selections`, {
                         method: 'POST',
@@ -1849,12 +1851,16 @@
                         })
                     });
                     
-                    if (res.ok) {
-                        setEditingMealSelections(false);
-                        await loadPersonMealSelections(personName);
-                    } else {
+                    if (!res.ok) {
                         alert('❌ Fehler beim Speichern');
+                        return;
                     }
+                    
+                    // Speichere Items (wenn vorhanden)
+                    await savePersonItemSelections();
+                    
+                    setEditingMealSelections(false);
+                    await loadPersonMealSelections(personName);
                 } catch (err) {
                     console.error('Fehler:', err);
                     alert('❌ Fehler beim Speichern');
@@ -1869,6 +1875,7 @@
                 if (!confirm(`Alle Essensauswahlen für ${personName} löschen?`)) return;
                 
                 try {
+                    // Lösche Gerichte
                     const res = await fetch(`${API_URL}/meals/selections/${encodeURIComponent(personName)}`, {
                         method: 'DELETE'
                     });
@@ -1876,6 +1883,113 @@
                     if (res.ok) {
                         setPersonMealSelections([]);
                         setEditingMealSelections(false);
+                    } else {
+                        alert('❌ Fehler beim Löschen');
+                        return;
+                    }
+                    
+                    // Lösche Items
+                    await deletePersonItemSelections();
+                } catch (err) {
+                    console.error('Fehler:', err);
+                    alert('❌ Fehler beim Löschen');
+                }
+            };
+            
+            // Item-Selections im Buchungs-Modal laden
+            const loadPersonItemSelections = async (personName) => {
+                if (!personName) return;
+                try {
+                    const res = await fetch(`${API_URL}/meals/item-selections/${encodeURIComponent(personName)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Convert array to object { itemId: { quantity, notes } }
+                        const selectionsObj = {};
+                        data.forEach(sel => {
+                            selectionsObj[sel.item_id] = {
+                                quantity: sel.quantity || 0,
+                                notes: sel.notes || ''
+                            };
+                        });
+                        setPersonItemSelections(selectionsObj);
+                    } else {
+                        setPersonItemSelections({});
+                    }
+                } catch (err) {
+                    console.error('Fehler beim Laden der Item-Selections:', err);
+                    setPersonItemSelections({});
+                }
+            };
+            
+            // Item-Quantity im Buchungs-Modal aktualisieren
+            const updatePersonItemQuantity = (itemId, quantity) => {
+                setPersonItemSelections(prev => ({
+                    ...prev,
+                    [itemId]: {
+                        quantity: Math.max(0, parseFloat(quantity) || 0),
+                        notes: prev[itemId]?.notes || ''
+                    }
+                }));
+            };
+            
+            // Item-Notes im Buchungs-Modal aktualisieren
+            const updatePersonItemNotes = (itemId, notes) => {
+                setPersonItemSelections(prev => ({
+                    ...prev,
+                    [itemId]: {
+                        quantity: prev[itemId]?.quantity || 0,
+                        notes: notes
+                    }
+                }));
+            };
+            
+            // Item-Selections im Buchungs-Modal speichern
+            const savePersonItemSelections = async () => {
+                const personName = bookings[selectedBed]?.name;
+                if (!personName) return;
+                
+                try {
+                    const itemSelections = Object.keys(personItemSelections)
+                        .filter(itemId => personItemSelections[itemId].quantity > 0)
+                        .map(itemId => ({
+                            itemId: parseInt(itemId),
+                            quantity: personItemSelections[itemId].quantity,
+                            notes: personItemSelections[itemId].notes || null
+                        }));
+                    
+                    const res = await fetch(`${API_URL}/meals/item-selections`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            personName,
+                            itemSelections
+                        })
+                    });
+                    
+                    if (res.ok) {
+                        setEditingMealSelections(false);
+                        await loadPersonItemSelections(personName);
+                    } else {
+                        alert('❌ Fehler beim Speichern');
+                    }
+                } catch (err) {
+                    console.error('Fehler:', err);
+                    alert('❌ Fehler beim Speichern');
+                }
+            };
+            
+            // Item-Selections im Buchungs-Modal löschen
+            const deletePersonItemSelections = async () => {
+                const personName = bookings[selectedBed]?.name;
+                if (!personName) return;
+                
+                try {
+                    const res = await fetch(`${API_URL}/meals/item-selections/${encodeURIComponent(personName)}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (res.ok) {
+                        setPersonItemSelections({});
                     } else {
                         alert('❌ Fehler beim Löschen');
                     }
@@ -1908,8 +2022,10 @@
                 // Essensauswahl laden wenn Buchung existiert
                 if (b?.name) {
                     loadPersonMealSelections(b.name);
+                    loadPersonItemSelections(b.name);
                 } else {
                     setPersonMealSelections([]);
+                    setPersonItemSelections({});
                 }
                 setEditingMealSelections(false);
                 setModalOpen(true);
@@ -2973,12 +3089,23 @@
                                                 ) : (
                                                     <div style={{maxHeight: '300px', overflowY: 'auto'}}>
                                                         {meals.map(meal => {
+                                                            // Check meal type
+                                                            const isItemBased = meal.meal_type === 'grill' || meal.meal_type === 'breakfast';
+                                                            
+                                                            // Get dishes or items
                                                             const mealDishes = meal.dishes || [];
+                                                            const mealItems = meal.items || [];
+                                                            
+                                                            // Check selections
                                                             const selectedDishes = mealDishes.filter(d => 
                                                                 personMealSelections.some(s => s.dish_id === d.id)
                                                             );
+                                                            const selectedItems = mealItems.filter(item => 
+                                                                personItemSelections[item.id]?.quantity > 0
+                                                            );
                                                             
-                                                            if (!editingMealSelections && selectedDishes.length === 0) return null;
+                                                            // Hide if nothing selected and not editing
+                                                            if (!editingMealSelections && selectedDishes.length === 0 && selectedItems.length === 0) return null;
                                                             
                                                             return (
                                                                 <div key={meal.id} style={{marginBottom: '1rem', padding: '0.75rem', background: 'white', borderRadius: '8px'}}>
@@ -2986,49 +3113,123 @@
                                                                         {meal.name}
                                                                     </div>
                                                                     
-                                                                    {editingMealSelections ? (
-                                                                        mealDishes.map(dish => {
-                                                                            const isSelected = personMealSelections.some(s => s.dish_id === dish.id);
-                                                                            return (
-                                                                                <div 
-                                                                                    key={dish.id}
-                                                                                    onClick={() => togglePersonMealDish(dish.id)}
-                                                                                    style={{
-                                                                                        display: 'flex',
-                                                                                        alignItems: 'center',
-                                                                                        padding: '0.5rem',
-                                                                                        marginBottom: '0.25rem',
-                                                                                        background: isSelected ? '#e8f5e9' : '#fafafa',
-                                                                                        borderRadius: '6px',
-                                                                                        border: `2px solid ${isSelected ? '#4caf50' : 'transparent'}`,
-                                                                                        cursor: 'pointer'
-                                                                                    }}
-                                                                                >
-                                                                                    <input 
-                                                                                        type="checkbox" 
-                                                                                        checked={isSelected}
-                                                                                        onChange={() => togglePersonMealDish(dish.id)}
-                                                                                        onClick={e => e.stopPropagation()}
-                                                                                        style={{marginRight: '0.5rem'}}
-                                                                                    />
-                                                                                    <span style={{fontSize: '0.85rem'}}>
-                                                                                        {dish.diet_type === 'Fleisch' && '🥩 '}
-                                                                                        {dish.diet_type === 'Vegetarisch' && '🧀 '}
-                                                                                        {dish.diet_type === 'Vegan' && '🌱 '}
-                                                                                        {dish.name}
-                                                                                    </span>
+                                                                    {/* Render dishes for normal meals */}
+                                                                    {!isItemBased && (
+                                                                        editingMealSelections ? (
+                                                                            mealDishes.map(dish => {
+                                                                                const isSelected = personMealSelections.some(s => s.dish_id === dish.id);
+                                                                                return (
+                                                                                    <div 
+                                                                                        key={dish.id}
+                                                                                        onClick={() => togglePersonMealDish(dish.id)}
+                                                                                        style={{
+                                                                                            display: 'flex',
+                                                                                            alignItems: 'center',
+                                                                                            padding: '0.5rem',
+                                                                                            marginBottom: '0.25rem',
+                                                                                            background: isSelected ? '#e8f5e9' : '#fafafa',
+                                                                                            borderRadius: '6px',
+                                                                                            border: `2px solid ${isSelected ? '#4caf50' : 'transparent'}`,
+                                                                                            cursor: 'pointer'
+                                                                                        }}
+                                                                                    >
+                                                                                        <input 
+                                                                                            type="checkbox" 
+                                                                                            checked={isSelected}
+                                                                                            onChange={() => togglePersonMealDish(dish.id)}
+                                                                                            onClick={e => e.stopPropagation()}
+                                                                                            style={{marginRight: '0.5rem'}}
+                                                                                        />
+                                                                                        <span style={{fontSize: '0.85rem'}}>
+                                                                                            {dish.diet_type === 'Fleisch' && '🥩 '}
+                                                                                            {dish.diet_type === 'Vegetarisch' && '🧀 '}
+                                                                                            {dish.diet_type === 'Vegan' && '🌱 '}
+                                                                                            {dish.name}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                );
+                                                                            })
+                                                                        ) : (
+                                                                            selectedDishes.map(dish => (
+                                                                                <div key={dish.id} style={{fontSize: '0.85rem', padding: '0.25rem 0', color: '#555'}}>
+                                                                                    {dish.diet_type === 'Fleisch' && '🥩 '}
+                                                                                    {dish.diet_type === 'Vegetarisch' && '🧀 '}
+                                                                                    {dish.diet_type === 'Vegan' && '🌱 '}
+                                                                                    {dish.name}
                                                                                 </div>
-                                                                            );
-                                                                        })
-                                                                    ) : (
-                                                                        selectedDishes.map(dish => (
-                                                                            <div key={dish.id} style={{fontSize: '0.85rem', padding: '0.25rem 0', color: '#555'}}>
-                                                                                {dish.diet_type === 'Fleisch' && '🥩 '}
-                                                                                {dish.diet_type === 'Vegetarisch' && '🧀 '}
-                                                                                {dish.diet_type === 'Vegan' && '🌱 '}
-                                                                                {dish.name}
-                                                                            </div>
-                                                                        ))
+                                                                            ))
+                                                                        )
+                                                                    )}
+                                                                    
+                                                                    {/* Render items for Grill/Frühstück */}
+                                                                    {isItemBased && (
+                                                                        editingMealSelections ? (
+                                                                            mealItems.map(item => {
+                                                                                const selection = personItemSelections[item.id] || { quantity: 0, notes: '' };
+                                                                                const hasSelection = selection.quantity > 0;
+                                                                                return (
+                                                                                    <div 
+                                                                                        key={item.id}
+                                                                                        style={{
+                                                                                            padding: '0.5rem',
+                                                                                            marginBottom: '0.5rem',
+                                                                                            background: hasSelection ? '#e8f5e9' : '#fafafa',
+                                                                                            borderRadius: '6px',
+                                                                                            border: `2px solid ${hasSelection ? '#4caf50' : '#e0e0e0'}`
+                                                                                        }}
+                                                                                    >
+                                                                                        <div style={{display: 'flex', alignItems: 'center', marginBottom: '0.25rem'}}>
+                                                                                            <span style={{flex: 1, fontSize: '0.85rem', fontWeight: 500}}>{item.name}</span>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                value={selection.quantity || ''}
+                                                                                                onChange={e => updatePersonItemQuantity(item.id, e.target.value)}
+                                                                                                onClick={e => e.stopPropagation()}
+                                                                                                placeholder="0"
+                                                                                                style={{
+                                                                                                    width: '60px',
+                                                                                                    padding: '0.3rem',
+                                                                                                    border: '1px solid #ccc',
+                                                                                                    borderRadius: '4px',
+                                                                                                    fontSize: '0.85rem',
+                                                                                                    textAlign: 'center',
+                                                                                                    marginRight: '0.3rem'
+                                                                                                }}
+                                                                                            />
+                                                                                            <span style={{fontSize: '0.75rem', color: '#666', minWidth: '35px'}}>
+                                                                                                {item.unit === 'pieces' ? 'Stk' : item.unit}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <textarea
+                                                                                            value={selection.notes || ''}
+                                                                                            onChange={e => updatePersonItemNotes(item.id, e.target.value)}
+                                                                                            onClick={e => e.stopPropagation()}
+                                                                                            placeholder="Kommentar..."
+                                                                                            style={{
+                                                                                                width: '100%',
+                                                                                                padding: '0.3rem',
+                                                                                                border: '1px solid #ddd',
+                                                                                                borderRadius: '4px',
+                                                                                                fontSize: '0.75rem',
+                                                                                                resize: 'vertical',
+                                                                                                minHeight: '40px',
+                                                                                                fontFamily: 'inherit'
+                                                                                            }}
+                                                                                        />
+                                                                                    </div>
+                                                                                );
+                                                                            })
+                                                                        ) : (
+                                                                            selectedItems.map(item => {
+                                                                                const selection = personItemSelections[item.id];
+                                                                                return (
+                                                                                    <div key={item.id} style={{fontSize: '0.85rem', padding: '0.25rem 0', color: '#555'}}>
+                                                                                        {item.name}: <strong>{selection.quantity} {item.unit === 'pieces' ? 'Stück' : item.unit}</strong>
+                                                                                        {selection.notes && <div style={{fontSize: '0.75rem', color: '#999', fontStyle: 'italic', marginTop: '0.15rem'}}>💬 {selection.notes}</div>}
+                                                                                    </div>
+                                                                                );
+                                                                            })
+                                                                        )
                                                                     )}
                                                                 </div>
                                                             );
