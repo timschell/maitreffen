@@ -3575,9 +3575,7 @@
                                                                 <div 
                                                                     key={item.id}
                                                                     onClick={() => {
-                                                                        // Click: quantity +1
-                                                                        const newQty = (selection.quantity || 0) + 1;
-                                                                        updateMealModalItemQuantity(item.id, newQty.toString());
+                                                                        // Click auf Card ist jetzt deaktiviert - nur Buttons funktionieren
                                                                     }}
                                                                     style={{
                                                                         position: 'relative',
@@ -3647,9 +3645,83 @@
                                                                         fontWeight: 600,
                                                                         fontSize: '0.85rem',
                                                                         color: '#333',
-                                                                        lineHeight: 1.2
+                                                                        lineHeight: 1.2,
+                                                                        marginBottom: '0.5rem'
                                                                     }}>
                                                                         {item.name}
+                                                                    </div>
+                                                                    
+                                                                    {/* Plus/Minus Buttons */}
+                                                                    <div style={{
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '0.5rem',
+                                                                        marginTop: '0.5rem'
+                                                                    }}>
+                                                                        {/* Minus Button */}
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const newQty = Math.max(0, (selection.quantity || 0) - 1);
+                                                                                updateMealModalItemQuantity(item.id, newQty.toString());
+                                                                            }}
+                                                                            disabled={!hasSelection}
+                                                                            style={{
+                                                                                width: '32px',
+                                                                                height: '32px',
+                                                                                borderRadius: '8px',
+                                                                                border: 'none',
+                                                                                background: hasSelection ? '#4caf50' : '#e0e0e0',
+                                                                                color: 'white',
+                                                                                fontSize: '1.2rem',
+                                                                                fontWeight: 'bold',
+                                                                                cursor: hasSelection ? 'pointer' : 'not-allowed',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                transition: 'all 0.2s',
+                                                                                opacity: hasSelection ? 1 : 0.5
+                                                                            }}
+                                                                        >
+                                                                            −
+                                                                        </button>
+                                                                        
+                                                                        {/* Quantity Display */}
+                                                                        <div style={{
+                                                                            minWidth: '40px',
+                                                                            textAlign: 'center',
+                                                                            fontWeight: 'bold',
+                                                                            fontSize: '1rem',
+                                                                            color: hasSelection ? '#4caf50' : '#999'
+                                                                        }}>
+                                                                            {selection.quantity || 0}
+                                                                        </div>
+                                                                        
+                                                                        {/* Plus Button */}
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const newQty = (selection.quantity || 0) + 1;
+                                                                                updateMealModalItemQuantity(item.id, newQty.toString());
+                                                                            }}
+                                                                            style={{
+                                                                                width: '32px',
+                                                                                height: '32px',
+                                                                                borderRadius: '8px',
+                                                                                border: 'none',
+                                                                                background: '#4caf50',
+                                                                                color: 'white',
+                                                                                fontSize: '1.2rem',
+                                                                                fontWeight: 'bold',
+                                                                                cursor: 'pointer',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                transition: 'all 0.2s'
+                                                                            }}
+                                                                        >
+                                                                            +
+                                                                        </button>
                                                                     </div>
                                                                     
                                                                     {/* Unit Hint */}
