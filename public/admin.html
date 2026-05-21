@@ -493,6 +493,24 @@
             const [showReport, setShowReport] = useState(false);
             const [reportData, setReportData] = useState([]);
             
+            // Grill-System State
+            const [grillEvents, setGrillEvents] = useState([]);
+            const [grillItems, setGrillItems] = useState([]);
+            const [selectedGrillEventId, setSelectedGrillEventId] = useState(null);
+            const [grillModalOpen, setGrillModalOpen] = useState(false);
+            const [editingGrillEvent, setEditingGrillEvent] = useState(null);
+            const [grillItemModalOpen, setGrillItemModalOpen] = useState(false);
+            const [editingGrillItem, setEditingGrillItem] = useState(null);
+            
+            // Frühstück-System State
+            const [breakfastEvents, setBreakfastEvents] = useState([]);
+            const [breakfastItems, setBreakfastItems] = useState([]);
+            const [selectedBreakfastEventId, setSelectedBreakfastEventId] = useState(null);
+            const [breakfastModalOpen, setBreakfastModalOpen] = useState(false);
+            const [editingBreakfastEvent, setEditingBreakfastEvent] = useState(null);
+            const [breakfastItemModalOpen, setBreakfastItemModalOpen] = useState(false);
+            const [editingBreakfastItem, setEditingBreakfastItem] = useState(null);
+            
             // Check WordPress SSO first, then fall back to session
             useEffect(() => {
                 checkWordPressSSO();
@@ -790,6 +808,14 @@
                 }
             }, [selectedEventId]);
             
+            useEffect(() => {
+                if (activeTab === 'grill') {
+                    loadGrillEvents();
+                } else if (activeTab === 'breakfast') {
+                    loadBreakfastEvents();
+                }
+            }, [activeTab]);
+            
             const loadMeals = async () => {
                 if (!selectedEventId) return;
                 setMealsLoading(true);
@@ -816,6 +842,96 @@
                     }
                 } catch (err) {
                     console.error('Fehler beim Laden des Reports:', err);
+                }
+            };
+            
+            // ========== GRILL-SYSTEM ==========
+            const loadGrillEvents = async () => {
+                try {
+                    const res = await adminFetch(`${API_URL}/admin/grill-events`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setGrillEvents(data);
+                    }
+                } catch (err) {
+                    console.error('Fehler beim Laden:', err);
+                }
+            };
+            
+            const handleSaveGrillEvent = async (grillData) => {
+                try {
+                    if (editingGrillEvent) {
+                        await adminFetch(`${API_URL}/admin/grill-events/${editingGrillEvent.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(grillData)
+                        });
+                    } else {
+                        await adminFetch(`${API_URL}/admin/grill-events`, {
+                            method: 'POST',
+                            body: JSON.stringify(grillData)
+                        });
+                    }
+                    await loadGrillEvents();
+                    setGrillModalOpen(false);
+                    setEditingGrillEvent(null);
+                } catch (err) {
+                    console.error('Fehler beim Speichern:', err);
+                    throw err;
+                }
+            };
+            
+            const handleDeleteGrillEvent = async (grillEventId) => {
+                if (!confirm('Grill-Event wirklich löschen?')) return;
+                try {
+                    await adminFetch(`${API_URL}/admin/grill-events/${grillEventId}`, { method: 'DELETE' });
+                    await loadGrillEvents();
+                } catch (err) {
+                    console.error('Fehler beim Löschen:', err);
+                }
+            };
+            
+            // ========== FRÜHSTÜCK-SYSTEM ==========
+            const loadBreakfastEvents = async () => {
+                try {
+                    const res = await adminFetch(`${API_URL}/admin/breakfast-events`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setBreakfastEvents(data);
+                    }
+                } catch (err) {
+                    console.error('Fehler beim Laden:', err);
+                }
+            };
+            
+            const handleSaveBreakfastEvent = async (breakfastData) => {
+                try {
+                    if (editingBreakfastEvent) {
+                        await adminFetch(`${API_URL}/admin/breakfast-events/${editingBreakfastEvent.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(breakfastData)
+                        });
+                    } else {
+                        await adminFetch(`${API_URL}/admin/breakfast-events`, {
+                            method: 'POST',
+                            body: JSON.stringify(breakfastData)
+                        });
+                    }
+                    await loadBreakfastEvents();
+                    setBreakfastModalOpen(false);
+                    setEditingBreakfastEvent(null);
+                } catch (err) {
+                    console.error('Fehler beim Speichern:', err);
+                    throw err;
+                }
+            };
+            
+            const handleDeleteBreakfastEvent = async (breakfastEventId) => {
+                if (!confirm('Frühstück-Event wirklich löschen?')) return;
+                try {
+                    await adminFetch(`${API_URL}/admin/breakfast-events/${breakfastEventId}`, { method: 'DELETE' });
+                    await loadBreakfastEvents();
+                } catch (err) {
+                    console.error('Fehler beim Löschen:', err);
                 }
             };
             
@@ -895,6 +1011,25 @@
                     await loadReport();
                 } catch (err) {
                     console.error('Fehler beim Löschen:', err);
+                }
+            };
+            
+            const handleGenerateMeals = async () => {
+                if (!selectedEventId) return;
+                if (!confirm('Mahlzeiten automatisch generieren basierend auf Event-Daten?\n\nErstellt:\n- Anreisetag: Abendessen 19:00\n- Zwischentage: Frühstück 09:00 + Abendessen 19:00\n- Abreisetag: Frühstück 09:00')) return;
+                
+                try {
+                    const res = await adminFetch(`${API_URL}/admin/events/${selectedEventId}/meals/generate`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert(`✅ ${data.count} Mahlzeiten wurden erstellt!`);
+                        await loadMeals();
+                    } else if (data.error) {
+                        alert('❌ ' + data.error);
+                    }
+                } catch (err) {
+                    console.error('Fehler beim Generieren:', err);
+                    alert('❌ Fehler beim Generieren der Mahlzeiten');
                 }
             };
             
@@ -1064,6 +1199,12 @@
                         <button className={`tab ${activeTab === 'meals' ? 'active' : ''}`} onClick={() => setActiveTab('meals')}>
                             🍽️ Essensplanung
                         </button>
+                        <button className={`tab ${activeTab === 'grill' ? 'active' : ''}`} onClick={() => setActiveTab('grill')}>
+                            🔥 Grillen
+                        </button>
+                        <button className={`tab ${activeTab === 'breakfast' ? 'active' : ''}`} onClick={() => setActiveTab('breakfast')}>
+                            🥐 Frühstück
+                        </button>
                     </div>
                     
                     {activeTab === 'events' && (
@@ -1188,7 +1329,10 @@
                                 </div>
                                 
                                 {selectedEventId && (
-                                    <div style={{marginLeft: 'auto'}}>
+                                    <div style={{marginLeft: 'auto', display: 'flex', gap: '0.5rem'}}>
+                                        <button className="btn btn-secondary" onClick={() => handleGenerateMeals()}>
+                                            🤖 Mahlzeiten generieren
+                                        </button>
                                         <button className="btn btn-primary" onClick={() => openMealModal()}>
                                             + Neue Mahlzeit
                                         </button>
@@ -1324,6 +1468,80 @@
                         </div>
                     )}
                     
+                    {/* GRILL-TAB */}
+                    {activeTab === 'grill' && (
+                        <div>
+                            <div style={{marginBottom: '1.5rem'}}>
+                                <h2 style={{marginBottom: '1rem'}}>🔥 Grill-Events verwalten</h2>
+                                <p style={{color: 'var(--text-muted)', marginBottom: '1.5rem'}}>Hier kannst du Grill-Events erstellen und die Mengen für Fleisch, Beilagen, etc. verwalten.</p>
+                                <button className="btn btn-primary" onClick={() => { setEditingGrillEvent(null); setGrillModalOpen(true); }}>+ Neues Grill-Event</button>
+                            </div>
+                            
+                            {grillEvents.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">🔥</div>
+                                    <p>Noch keine Grill-Events erstellt</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    {grillEvents.map(ge => (
+                                        <div key={ge.id} className="card" style={{marginBottom: '1rem'}}>
+                                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                                <div>
+                                                    <h3 style={{margin: 0}}>{ge.title}</h3>
+                                                    <div style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.25rem'}}>
+                                                        📅 {new Date(ge.grill_date).toLocaleDateString('de-DE')} · 🕒 {ge.grill_time ? ge.grill_time.slice(0,5) : ''} Uhr
+                                                    </div>
+                                                </div>
+                                                <div style={{display: 'flex', gap: '0.5rem'}}>
+                                                    <button className="btn btn-sm btn-secondary" onClick={() => { setEditingGrillEvent(ge); setGrillModalOpen(true); }}>✏️</button>
+                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteGrillEvent(ge.id)}>✕</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* FRÜHSTÜCK-TAB */}
+                    {activeTab === 'breakfast' && (
+                        <div>
+                            <div style={{marginBottom: '1.5rem'}}>
+                                <h2 style={{marginBottom: '1rem'}}>🥐 Frühstück-Events verwalten</h2>
+                                <p style={{color: 'var(--text-muted)', marginBottom: '1.5rem'}}>Hier kannst du Frühstück-Events erstellen und die Mengen für Brötchen, Aufstriche, etc. verwalten.</p>
+                                <button className="btn btn-primary" onClick={() => { setEditingBreakfastEvent(null); setBreakfastModalOpen(true); }}>+ Neues Frühstück-Event</button>
+                            </div>
+                            
+                            {breakfastEvents.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">🥐</div>
+                                    <p>Noch keine Frühstück-Events erstellt</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    {breakfastEvents.map(be => (
+                                        <div key={be.id} className="card" style={{marginBottom: '1rem'}}>
+                                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                                <div>
+                                                    <h3 style={{margin: 0}}>{be.title}</h3>
+                                                    <div style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.25rem'}}>
+                                                        📅 {new Date(be.breakfast_date).toLocaleDateString('de-DE')} · 🕒 {be.breakfast_time ? be.breakfast_time.slice(0,5) : ''} Uhr
+                                                    </div>
+                                                </div>
+                                                <div style={{display: 'flex', gap: '0.5rem'}}>
+                                                    <button className="btn btn-sm btn-secondary" onClick={() => { setEditingBreakfastEvent(be); setBreakfastModalOpen(true); }}>✏️</button>
+                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteBreakfastEvent(be.id)}>✕</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     {/* Event Modal */}
                     {eventModalOpen && (
                         <EventModal 
@@ -1348,6 +1566,24 @@
                             dish={editingDish}
                             onSave={handleSaveDish}
                             onClose={() => { setDishModalOpen(false); setEditingDish(null); setEditingDishMealId(null); }}
+                        />
+                    )}
+                    
+                    {/* Grill Event Modal */}
+                    {grillModalOpen && (
+                        <GrillEventModal 
+                            grillEvent={editingGrillEvent}
+                            onSave={handleSaveGrillEvent}
+                            onClose={() => { setGrillModalOpen(false); setEditingGrillEvent(null); }}
+                        />
+                    )}
+                    
+                    {/* Breakfast Event Modal */}
+                    {breakfastModalOpen && (
+                        <BreakfastEventModal 
+                            breakfastEvent={editingBreakfastEvent}
+                            onSave={handleSaveBreakfastEvent}
+                            onClose={() => { setBreakfastModalOpen(false); setEditingBreakfastEvent(null); }}
                         />
                     )}
                 </div>
@@ -1828,6 +2064,180 @@
                                 <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
                                 <button type="submit" className="btn btn-primary" disabled={saving}>
                                     {saving ? 'Speichere...' : (dish ? 'Speichern' : 'Hinzufügen')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Grill Event Modal
+        function GrillEventModal({ grillEvent, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                title: grillEvent?.title || '',
+                grillDate: grillEvent?.grill_date || '',
+                grillTime: grillEvent?.grill_time || '18:00',
+                description: grillEvent?.description || '',
+                sortOrder: grillEvent?.sort_order || 0
+            });
+            const [saving, setSaving] = useState(false);
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    await onSave(formData);
+                } catch (err) {
+                    alert('Fehler beim Speichern');
+                } finally {
+                    setSaving(false);
+                }
+            };
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{grillEvent ? '✏️ Grill-Event bearbeiten' : '🔥 Neues Grill-Event'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Titel *</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.title}
+                                    onChange={e => updateField('title', e.target.value)}
+                                    placeholder="z.B. Grillabend Samstag"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Datum *</label>
+                                    <input 
+                                        type="date" 
+                                        value={formData.grillDate}
+                                        onChange={e => updateField('grillDate', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Uhrzeit *</label>
+                                    <input 
+                                        type="time" 
+                                        value={formData.grillTime}
+                                        onChange={e => updateField('grillTime', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Beschreibung</label>
+                                <textarea 
+                                    value={formData.description}
+                                    onChange={e => updateField('description', e.target.value)}
+                                    placeholder="Optional: Zusatzinfo zum Grill-Event"
+                                    rows="2"
+                                />
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (grillEvent ? 'Speichern' : 'Erstellen')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Breakfast Event Modal
+        function BreakfastEventModal({ breakfastEvent, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                title: breakfastEvent?.title || '',
+                breakfastDate: breakfastEvent?.breakfast_date || '',
+                breakfastTime: breakfastEvent?.breakfast_time || '09:00',
+                description: breakfastEvent?.description || '',
+                sortOrder: breakfastEvent?.sort_order || 0
+            });
+            const [saving, setSaving] = useState(false);
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    await onSave(formData);
+                } catch (err) {
+                    alert('Fehler beim Speichern');
+                } finally {
+                    setSaving(false);
+                }
+            };
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{breakfastEvent ? '✏️ Frühstück-Event bearbeiten' : '🥐 Neues Frühstück-Event'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Titel *</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.title}
+                                    onChange={e => updateField('title', e.target.value)}
+                                    placeholder="z.B. Frühstück Sonntag"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Datum *</label>
+                                    <input 
+                                        type="date" 
+                                        value={formData.breakfastDate}
+                                        onChange={e => updateField('breakfastDate', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Uhrzeit *</label>
+                                    <input 
+                                        type="time" 
+                                        value={formData.breakfastTime}
+                                        onChange={e => updateField('breakfastTime', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Beschreibung</label>
+                                <textarea 
+                                    value={formData.description}
+                                    onChange={e => updateField('description', e.target.value)}
+                                    placeholder="Optional: Zusatzinfo zum Frühstück"
+                                    rows="2"
+                                />
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (breakfastEvent ? 'Speichern' : 'Erstellen')}
                                 </button>
                             </div>
                         </form>
