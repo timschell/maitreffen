@@ -321,7 +321,170 @@ async function initDB() {
     // Migration: Kinderportion-Flag hinzufügen
     await client.query(`ALTER TABLE meal_selections ADD COLUMN IF NOT EXISTS is_child_portion BOOLEAN DEFAULT FALSE`);
     
-    // ==================== GRILL-SYSTEM ====================
+    // ==================== MIGRATION: GRILL & FRÜHSTÜCK VEREINEN ====================
+    // Füge meal_type zu meals hinzu
+    await client.query(`ALTER TABLE meals ADD COLUMN IF NOT EXISTS meal_type VARCHAR(20) DEFAULT 'meal'`);
+    
+    // Erstelle meal_items Tabelle (für Grill & Frühstück)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meal_items (
+        id SERIAL PRIMARY KEY,
+        meal_id INTEGER REFERENCES meals(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        item_type VARCHAR(100) DEFAULT NULL,
+        unit VARCHAR(20) DEFAULT 'pieces',
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Erstelle meal_item_selections Tabelle (Mengenauswahl)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meal_item_selections (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        meal_item_id INTEGER REFERENCES meal_items(id) ON DELETE CASCADE,
+        person_name VARCHAR(100) NOT NULL,
+        quantity NUMERIC(10,2) DEFAULT 0,
+        notes TEXT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(meal_item_id, person_name)
+      )
+    `);
+    
+    // Migriere grill_events zu meals (meal_type='grill')
+    const grillEventsExist = await client.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'grill_events'
+      )
+    `);
+    
+    if (grillEventsExist.rows[0].exists) {
+      // Kopiere grill_events zu meals
+      await client.query(`
+        INSERT INTO meals (event_id, name, meal_date, meal_time, description, sort_order, meal_type)
+        SELECT event_id, title, grill_date, grill_time, description, sort_order, 'grill'
+        FROM grill_events
+        WHERE NOT EXISTS (
+          SELECT 1 FROM meals m 
+          WHERE m.name = grill_events.title 
+          AND m.meal_date = grill_events.grill_date 
+          AND m.meal_type = 'grill'
+        )
+      `);
+      
+      // Migriere grill_items zu meal_items
+      await client.query(`
+        INSERT INTO meal_items (meal_id, name, item_type, unit, sort_order)
+        SELECT 
+          m.id,
+          gi.name,
+          gi.item_type,
+          gi.unit,
+          gi.sort_order
+        FROM grill_items gi
+        JOIN grill_events ge ON gi.grill_event_id = ge.id
+        JOIN meals m ON m.name = ge.title AND m.meal_date = ge.grill_date AND m.meal_type = 'grill'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM meal_items mi
+          WHERE mi.meal_id = m.id AND mi.name = gi.name
+        )
+      `);
+      
+      // Migriere grill_selections zu meal_item_selections
+      await client.query(`
+        INSERT INTO meal_item_selections (event_id, meal_item_id, person_name, quantity, notes)
+        SELECT 
+          ge.event_id,
+          mi.id,
+          gs.person_name,
+          gs.quantity,
+          gs.notes
+        FROM grill_selections gs
+        JOIN grill_items gi ON gs.grill_item_id = gi.id
+        JOIN grill_events ge ON gi.grill_event_id = ge.id
+        JOIN meals m ON m.name = ge.title AND m.meal_date = ge.grill_date AND m.meal_type = 'grill'
+        JOIN meal_items mi ON mi.meal_id = m.id AND mi.name = gi.name
+        WHERE NOT EXISTS (
+          SELECT 1 FROM meal_item_selections mis
+          WHERE mis.meal_item_id = mi.id AND mis.person_name = gs.person_name
+        )
+      `);
+      
+      // Lösche alte Grill-Tabellen
+      await client.query(`DROP TABLE IF EXISTS grill_selections CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS grill_items CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS grill_events CASCADE`);
+    }
+    
+    // Migriere breakfast_events zu meals (meal_type='breakfast')
+    const breakfastEventsExist = await client.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'breakfast_events'
+      )
+    `);
+    
+    if (breakfastEventsExist.rows[0].exists) {
+      // Kopiere breakfast_events zu meals
+      await client.query(`
+        INSERT INTO meals (event_id, name, meal_date, meal_time, description, sort_order, meal_type)
+        SELECT event_id, title, breakfast_date, breakfast_time, description, sort_order, 'breakfast'
+        FROM breakfast_events
+        WHERE NOT EXISTS (
+          SELECT 1 FROM meals m 
+          WHERE m.name = breakfast_events.title 
+          AND m.meal_date = breakfast_events.breakfast_date 
+          AND m.meal_type = 'breakfast'
+        )
+      `);
+      
+      // Migriere breakfast_items zu meal_items
+      await client.query(`
+        INSERT INTO meal_items (meal_id, name, item_type, unit, sort_order)
+        SELECT 
+          m.id,
+          bi.name,
+          bi.item_type,
+          bi.unit,
+          bi.sort_order
+        FROM breakfast_items bi
+        JOIN breakfast_events be ON bi.breakfast_event_id = be.id
+        JOIN meals m ON m.name = be.title AND m.meal_date = be.breakfast_date AND m.meal_type = 'breakfast'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM meal_items mi
+          WHERE mi.meal_id = m.id AND mi.name = bi.name
+        )
+      `);
+      
+      // Migriere breakfast_selections zu meal_item_selections
+      await client.query(`
+        INSERT INTO meal_item_selections (event_id, meal_item_id, person_name, quantity, notes)
+        SELECT 
+          be.event_id,
+          mi.id,
+          bs.person_name,
+          bs.quantity,
+          bs.notes
+        FROM breakfast_selections bs
+        JOIN breakfast_items bi ON bs.breakfast_item_id = bi.id
+        JOIN breakfast_events be ON bi.breakfast_event_id = be.id
+        JOIN meals m ON m.name = be.title AND m.meal_date = be.breakfast_date AND m.meal_type = 'breakfast'
+        JOIN meal_items mi ON mi.meal_id = m.id AND mi.name = bi.name
+        WHERE NOT EXISTS (
+          SELECT 1 FROM meal_item_selections mis
+          WHERE mis.meal_item_id = mi.id AND mis.person_name = bs.person_name
+        )
+      `);
+      
+      // Lösche alte Frühstück-Tabellen
+      await client.query(`DROP TABLE IF EXISTS breakfast_selections CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS breakfast_items CASCADE`);
+      await client.query(`DROP TABLE IF EXISTS breakfast_events CASCADE`);
+    }
+    
+    // ==================== GRILL-SYSTEM (ALT - WIRD MIGRIERT) ====================
     // Grill-Events pro Event (z.B. "Grillabend Samstag")
     await client.query(`
       CREATE TABLE IF NOT EXISTS grill_events (
@@ -1509,7 +1672,7 @@ app.post('/api/collection/bring', async (req, res) => {
 
 // ========== ADMIN: Mahlzeiten verwalten ==========
 
-// Alle Mahlzeiten eines Events laden (mit Gerichten)
+// Alle Mahlzeiten eines Events laden (mit Gerichten + Items)
 app.get('/api/admin/events/:eventId/meals', adminAuth, async (req, res) => {
   const { eventId } = req.params;
   
@@ -1526,10 +1689,18 @@ app.get('/api/admin/events/:eventId/meals', adminAuth, async (req, res) => {
       ORDER BY d.meal_id, d.sort_order
     `, [eventId]);
     
-    // Gerichte den Mahlzeiten zuordnen
+    const itemsResult = await pool.query(`
+      SELECT mi.* FROM meal_items mi
+      INNER JOIN meals m ON mi.meal_id = m.id
+      WHERE m.event_id = $1
+      ORDER BY mi.meal_id, mi.sort_order
+    `, [eventId]);
+    
+    // Gerichte und Items den Mahlzeiten zuordnen
     const meals = mealsResult.rows.map(meal => ({
       ...meal,
-      dishes: dishesResult.rows.filter(d => d.meal_id === meal.id)
+      dishes: meal.meal_type === 'meal' ? dishesResult.rows.filter(d => d.meal_id === meal.id) : [],
+      items: (meal.meal_type === 'grill' || meal.meal_type === 'breakfast') ? itemsResult.rows.filter(i => i.meal_id === meal.id) : []
     }));
     
     res.json(meals);
@@ -1541,17 +1712,20 @@ app.get('/api/admin/events/:eventId/meals', adminAuth, async (req, res) => {
 
 // Mahlzeit erstellen
 app.post('/api/admin/meals', adminAuth, async (req, res) => {
-  const { eventId, name, mealDate, mealTime, description, sortOrder } = req.body;
+  const { eventId, name, mealDate, mealTime, description, sortOrder, mealType } = req.body;
   
   if (!eventId || !name?.trim() || !mealDate || !mealTime) {
     return res.status(400).json({ error: 'eventId, name, mealDate und mealTime sind erforderlich' });
   }
   
+  const validTypes = ['meal', 'grill', 'breakfast'];
+  const type = validTypes.includes(mealType) ? mealType : 'meal';
+  
   try {
     const result = await pool.query(
-      `INSERT INTO meals (event_id, name, meal_date, meal_time, description, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [eventId, name.trim(), mealDate, mealTime, description || null, sortOrder || 0]
+      `INSERT INTO meals (event_id, name, meal_date, meal_time, description, sort_order, meal_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [eventId, name.trim(), mealDate, mealTime, description || null, sortOrder || 0, type]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1563,13 +1737,16 @@ app.post('/api/admin/meals', adminAuth, async (req, res) => {
 // Mahlzeit bearbeiten
 app.put('/api/admin/meals/:id', adminAuth, async (req, res) => {
   const { id } = req.params;
-  const { name, mealDate, mealTime, description, sortOrder } = req.body;
+  const { name, mealDate, mealTime, description, sortOrder, mealType } = req.body;
+  
+  const validTypes = ['meal', 'grill', 'breakfast'];
+  const type = validTypes.includes(mealType) ? mealType : 'meal';
   
   try {
     const result = await pool.query(
-      `UPDATE meals SET name = $1, meal_date = $2, meal_time = $3, description = $4, sort_order = $5
-       WHERE id = $6 RETURNING *`,
-      [name, mealDate, mealTime, description || null, sortOrder || 0, id]
+      `UPDATE meals SET name = $1, meal_date = $2, meal_time = $3, description = $4, sort_order = $5, meal_type = $6
+       WHERE id = $7 RETURNING *`,
+      [name, mealDate, mealTime, description || null, sortOrder || 0, type, id]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1908,6 +2085,103 @@ app.post('/api/admin/grill-events', adminAuth, async (req, res) => {
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });
+
+// ========== ADMIN: Meal Items (für Grill & Frühstück) ==========
+
+// Items für eine Mahlzeit laden
+app.get('/api/admin/meals/:mealId/items', adminAuth, async (req, res) => {
+  const { mealId } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM meal_items WHERE meal_id = $1 ORDER BY sort_order',
+      [mealId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Item zu Mahlzeit hinzufügen
+app.post('/api/admin/meals/:mealId/items', adminAuth, async (req, res) => {
+  const { mealId } = req.params;
+  const { name, itemType, unit, sortOrder } = req.body;
+  
+  if (!name?.trim()) {
+    return res.status(400).json({ error: 'name ist erforderlich' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `INSERT INTO meal_items (meal_id, name, item_type, unit, sort_order)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [mealId, name.trim(), itemType || null, unit || 'pieces', sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Item bearbeiten
+app.put('/api/admin/meal-items/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, itemType, unit, sortOrder } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE meal_items SET name = $1, item_type = $2, unit = $3, sort_order = $4
+       WHERE id = $5 RETURNING *`,
+      [name, itemType || null, unit || 'pieces', sortOrder || 0, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Item löschen
+app.delete('/api/admin/meal-items/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM meal_items WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Report für Grill/Frühstück (Mengenauswertung)
+app.get('/api/admin/meals/:mealId/items/report', adminAuth, async (req, res) => {
+  const { mealId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT 
+        mi.id as item_id,
+        mi.name as item_name,
+        mi.item_type,
+        mi.unit,
+        COALESCE(SUM(mis.quantity), 0) as total_quantity,
+        COUNT(mis.id) as selection_count,
+        array_agg(mis.person_name || ': ' || mis.quantity ORDER BY mis.person_name) FILTER (WHERE mis.id IS NOT NULL) as selections
+      FROM meal_items mi
+      LEFT JOIN meal_item_selections mis ON mis.meal_item_id = mi.id
+      WHERE mi.meal_id = $1
+      GROUP BY mi.id, mi.name, mi.item_type, mi.unit
+      ORDER BY mi.sort_order
+    `, [mealId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ========== ALT: Grill-APIs (werden entfernt) ==========
 
 // Admin: Grill-Event bearbeiten
 app.put('/api/admin/grill-events/:id', adminAuth, async (req, res) => {
