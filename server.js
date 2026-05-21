@@ -3,6 +3,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const fetch = require('node-fetch');
+const cookieParser = require('cookie-parser');
 
 // BGG API Token (Non-Commercial License)
 const BGG_API_TOKEN = process.env.BGG_API_TOKEN || '';
@@ -53,6 +54,7 @@ const pool = new Pool({
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser()); // Cookie-Parser Middleware
 app.use(express.static('public'));
 
 // Event-Erkennung Middleware (erkennt Event anhand Subdomain)
