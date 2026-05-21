@@ -256,6 +256,13 @@
         .room-badge.bath { background: #e3f2fd; color: #1976d2; }
         .room-badge.accessible { background: #fff3e0; color: #f57c00; }
         .room-badge.shared { background: #f5f5f5; color: #666; }
+        
+        .room-notes {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.3rem;
+            font-style: italic;
+        }
 
         .beds-grid {
             display: grid;
@@ -2062,6 +2069,7 @@
                                             {room.accessible && <span className="room-badge accessible">♿ Barrierefrei</span>}
                                             {!room.bath && <span className="room-badge shared">Gemeinschaftsbad</span>}
                                         </div>
+                                        {room.notes && <div className="room-notes">ℹ️ {room.notes}</div>}
                                     </div>
                                     <div className="beds-grid">
                                         {Array.from({ length: room.beds }, (_, i) => {

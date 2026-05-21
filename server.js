@@ -274,6 +274,49 @@ async function initDB() {
         UNIQUE(owner_name, bgg_id)
       )
     `);
+
+    // ==================== ESSENSPLANUNG ====================
+    
+    // Mahlzeiten pro Event (z.B. "Mittwoch Abend", "Donnerstag Mittag")
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meals (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        meal_date DATE NOT NULL,
+        meal_time TIME NOT NULL,
+        description TEXT DEFAULT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Gerichte pro Mahlzeit (z.B. "Chili con Carne", "Chili sin Carne")
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS dishes (
+        id SERIAL PRIMARY KEY,
+        meal_id INTEGER REFERENCES meals(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        description TEXT DEFAULT NULL,
+        diet_type VARCHAR(50) DEFAULT NULL,
+        allergies VARCHAR(200) DEFAULT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Gerichte-Auswahl pro Person
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meal_selections (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        dish_id INTEGER REFERENCES dishes(id) ON DELETE CASCADE,
+        person_name VARCHAR(100) NOT NULL,
+        notes TEXT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(dish_id, person_name)
+      )
+    `);
     
     console.log('✅ Datenbank-Tabellen bereit');
 
@@ -337,6 +380,28 @@ async function initDB() {
         }
       }
     }
+    
+    // ==================== ZIMMER-DETAILS MIGRATION (März 2026) ====================
+    // Aktualisiere Zimmer-Notizen basierend auf Info vom Freizeitheim
+    const roomUpdates = [
+      { name: 'Zimmer 1', notes: null },
+      { name: 'Zimmer 2', notes: '+2 Zusatzmatratzen möglich' },
+      { name: 'Zimmer 3', notes: null },
+      { name: 'Zimmer 4', notes: '1 Bett + 1 Etagenbett, Waschbecken im Zimmer, +2 Zusatzmatratzen möglich' },
+      { name: 'Zimmer 5', notes: 'Waschbecken im Zimmer' },
+      { name: 'Zimmer 6', notes: 'Waschbecken im Zimmer' },
+      { name: 'Zimmer 7', notes: '1 Bett + 1 Etagenbett, Waschbecken im Zimmer' },
+      { name: 'Zimmer 8', notes: 'Waschbecken im Zimmer' },
+      { name: 'Zimmer 9', notes: '1 Bett + 1 Etagenbett, Waschbecken im Zimmer, +1 Zusatzmatratze möglich' },
+    ];
+    
+    for (const room of roomUpdates) {
+      await client.query(
+        'UPDATE event_rooms SET notes = $1 WHERE room_name = $2',
+        [room.notes, room.name]
+      );
+    }
+    console.log('✅ Zimmer-Details aktualisiert (Etagenbetten, Waschbecken, Zusatzmatratzen)');
   } catch (err) {
     console.error('❌ Fehler beim Initialisieren der Datenbank:', err.message);
   } finally {
@@ -1387,6 +1452,279 @@ app.post('/api/collection/bring', async (req, res) => {
   } catch (err) {
     console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== ESSENSPLANUNG API ====================
+
+// ========== ADMIN: Mahlzeiten verwalten ==========
+
+// Alle Mahlzeiten eines Events laden (mit Gerichten)
+app.get('/api/admin/events/:eventId/meals', adminAuth, async (req, res) => {
+  const { eventId } = req.params;
+  
+  try {
+    const mealsResult = await pool.query(
+      'SELECT * FROM meals WHERE event_id = $1 ORDER BY meal_date, meal_time, sort_order',
+      [eventId]
+    );
+    
+    const dishesResult = await pool.query(`
+      SELECT d.* FROM dishes d
+      INNER JOIN meals m ON d.meal_id = m.id
+      WHERE m.event_id = $1
+      ORDER BY d.meal_id, d.sort_order
+    `, [eventId]);
+    
+    // Gerichte den Mahlzeiten zuordnen
+    const meals = mealsResult.rows.map(meal => ({
+      ...meal,
+      dishes: dishesResult.rows.filter(d => d.meal_id === meal.id)
+    }));
+    
+    res.json(meals);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Mahlzeit erstellen
+app.post('/api/admin/meals', adminAuth, async (req, res) => {
+  const { eventId, name, mealDate, mealTime, description, sortOrder } = req.body;
+  
+  if (!eventId || !name?.trim() || !mealDate || !mealTime) {
+    return res.status(400).json({ error: 'eventId, name, mealDate und mealTime sind erforderlich' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `INSERT INTO meals (event_id, name, meal_date, meal_time, description, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [eventId, name.trim(), mealDate, mealTime, description || null, sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Mahlzeit bearbeiten
+app.put('/api/admin/meals/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, mealDate, mealTime, description, sortOrder } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE meals SET name = $1, meal_date = $2, meal_time = $3, description = $4, sort_order = $5
+       WHERE id = $6 RETURNING *`,
+      [name, mealDate, mealTime, description || null, sortOrder || 0, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Mahlzeit löschen
+app.delete('/api/admin/meals/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    await pool.query('DELETE FROM meals WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ========== ADMIN: Gerichte verwalten ==========
+
+// Gericht zu Mahlzeit hinzufügen
+app.post('/api/admin/meals/:mealId/dishes', adminAuth, async (req, res) => {
+  const { mealId } = req.params;
+  const { name, description, dietType, allergies, sortOrder } = req.body;
+  
+  if (!name?.trim()) {
+    return res.status(400).json({ error: 'name ist erforderlich' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `INSERT INTO dishes (meal_id, name, description, diet_type, allergies, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [mealId, name.trim(), description || null, dietType || null, allergies || null, sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Gericht bearbeiten
+app.put('/api/admin/dishes/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, description, dietType, allergies, sortOrder } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE dishes SET name = $1, description = $2, diet_type = $3, allergies = $4, sort_order = $5
+       WHERE id = $6 RETURNING *`,
+      [name, description || null, dietType || null, allergies || null, sortOrder || 0, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Gericht löschen
+app.delete('/api/admin/dishes/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    await pool.query('DELETE FROM dishes WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ========== ADMIN: Einkaufsliste / Report ==========
+
+// Einkaufsliste für Event generieren
+app.get('/api/admin/events/:eventId/meals/report', adminAuth, async (req, res) => {
+  const { eventId } = req.params;
+  
+  try {
+    // Alle Mahlzeiten mit Gerichten und Auswahlen laden
+    const result = await pool.query(`
+      SELECT 
+        m.id as meal_id,
+        m.name as meal_name,
+        m.meal_date,
+        m.meal_time,
+        d.id as dish_id,
+        d.name as dish_name,
+        d.diet_type,
+        COUNT(ms.id) as selection_count,
+        array_agg(ms.person_name ORDER BY ms.person_name) as selected_by
+      FROM meals m
+      LEFT JOIN dishes d ON d.meal_id = m.id
+      LEFT JOIN meal_selections ms ON ms.dish_id = d.id
+      WHERE m.event_id = $1
+      GROUP BY m.id, m.name, m.meal_date, m.meal_time, d.id, d.name, d.diet_type
+      ORDER BY m.meal_date, m.meal_time, d.sort_order
+    `, [eventId]);
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ========== USER: Mahlzeiten ansehen ==========
+
+// Alle Mahlzeiten für aktuelles Event (mit Gerichten)
+app.get('/api/meals', async (req, res) => {
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  try {
+    const mealsResult = await pool.query(
+      'SELECT * FROM meals WHERE event_id = $1 ORDER BY meal_date, meal_time, sort_order',
+      [req.eventId]
+    );
+    
+    const dishesResult = await pool.query(`
+      SELECT d.* FROM dishes d
+      INNER JOIN meals m ON d.meal_id = m.id
+      WHERE m.event_id = $1
+      ORDER BY d.meal_id, d.sort_order
+    `, [req.eventId]);
+    
+    // Gerichte den Mahlzeiten zuordnen
+    const meals = mealsResult.rows.map(meal => ({
+      ...meal,
+      dishes: dishesResult.rows.filter(d => d.meal_id === meal.id)
+    }));
+    
+    res.json(meals);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ========== USER: Gerichte-Auswahl ==========
+
+// Auswahl einer Person laden
+app.get('/api/meals/selections/:personName', async (req, res) => {
+  const { personName } = req.params;
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  try {
+    const result = await pool.query(
+      'SELECT * FROM meal_selections WHERE event_id = $1 AND LOWER(person_name) = LOWER($2)',
+      [req.eventId, personName]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Auswahl speichern (für eine Person)
+app.post('/api/meals/selections', async (req, res) => {
+  const { personName, selections } = req.body; // selections = [{ dishId, notes }]
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  if (!personName?.trim() || !Array.isArray(selections)) {
+    return res.status(400).json({ error: 'personName und selections sind erforderlich' });
+  }
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Alte Auswahlen löschen
+    await client.query(
+      'DELETE FROM meal_selections WHERE event_id = $1 AND LOWER(person_name) = LOWER($2)',
+      [req.eventId, personName.trim()]
+    );
+    
+    // Neue Auswahlen einfügen
+    for (const selection of selections) {
+      await client.query(
+        `INSERT INTO meal_selections (event_id, dish_id, person_name, notes)
+         VALUES ($1, $2, $3, $4)`,
+        [req.eventId, selection.dishId, personName.trim(), selection.notes || null]
+      );
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
   }
 });
 
