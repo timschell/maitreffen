@@ -1097,13 +1097,16 @@
                 }
             };
             
-            const openTemplateModal = (mealId, mealType) => {
+            const openTemplateModal = async (mealId, mealType) => {
                 setTemplateModalMealId(mealId);
                 setTemplateModalMealType(mealType);
-                setTemplateModalOpen(true);
+                
+                // Templates laden falls noch nicht vorhanden
                 if (!itemTemplates.breakfast.length && !itemTemplates.grill.length) {
-                    loadItemTemplates();
+                    await loadItemTemplates();
                 }
+                
+                setTemplateModalOpen(true);
             };
             
             const handleAddFromTemplates = async (selectedTemplates) => {
@@ -2499,9 +2502,21 @@
         
         // Template Modal Component
         function TemplateModal({ mealType, itemTemplates, onSave, onClose }) {
-            const templates = mealType === 'breakfast' ? itemTemplates.breakfast : itemTemplates.grill;
+            const templates = mealType === 'breakfast' ? (itemTemplates?.breakfast || []) : (itemTemplates?.grill || []);
             const [selectedIds, setSelectedIds] = useState([]);
             const [saving, setSaving] = useState(false);
+            
+            // Loading-State wenn Templates noch nicht geladen
+            if (!templates || templates.length === 0) {
+                return (
+                    <div className="modal-overlay" onClick={onClose}>
+                        <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth: '600px', textAlign: 'center', padding: '2rem'}}>
+                            <h2>🔄 Lade Vorlagen...</h2>
+                            <p style={{color: 'var(--text-muted)'}}>Einen Moment bitte...</p>
+                        </div>
+                    </div>
+                );
+            }
             
             const toggleTemplate = (index) => {
                 setSelectedIds(prev => 
