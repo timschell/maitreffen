@@ -1477,6 +1477,9 @@
             const [meals, setMeals] = useState([]);
             const [mealsLoading, setMealsLoading] = useState(false);
             const [myMealSelections, setMyMealSelections] = useState({});
+            const [mealModalOpen, setMealModalOpen] = useState(false);
+            const [mealModalPersonName, setMealModalPersonName] = useState('');
+            const [mealModalSelections, setMealModalSelections] = useState({});
             // WordPress SSO
             const [wpUser, setWpUser] = useState(null);
             const [wpLoading, setWpLoading] = useState(true);
@@ -1671,6 +1674,47 @@
                     alert('❌ Fehler beim Speichern');
                 }
             };
+            
+            const saveMealSelectionsFromModal = async () => {
+                try {
+                    const selections = Object.keys(mealModalSelections)
+                        .filter(dishId => mealModalSelections[dishId])
+                        .map(dishId => ({ dishId: parseInt(dishId) }));
+                    
+                    const res = await fetch(`${API_URL}/meals/selections`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            personName: mealModalPersonName,
+                            selections
+                        })
+                    });
+                    
+                    if (res.ok) {
+                        setMealModalOpen(false);
+                        setMealModalPersonName('');
+                        setMealModalSelections({});
+                    } else {
+                        alert('❌ Fehler beim Speichern');
+                    }
+                } catch (err) {
+                    console.error('Fehler:', err);
+                    alert('❌ Fehler beim Speichern');
+                }
+            };
+            
+            const skipMealSelection = () => {
+                setMealModalOpen(false);
+                setMealModalPersonName('');
+                setMealModalSelections({});
+            };
+            
+            const toggleMealModalDish = (dishId) => {
+                setMealModalSelections(prev => ({
+                    ...prev,
+                    [dishId]: !prev[dishId]
+                }));
+            };
 
             const handleBedClick = (bedId) => {
                 setSelectedBed(bedId);
@@ -1741,7 +1785,16 @@
                     }
                     
                     await loadBookings();
-                    closeModal();
+                    
+                    // Öffne Essens-Modal statt direkt zu schließen
+                    if (meals.length > 0) {
+                        setMealModalPersonName(inputName.trim());
+                        setMealModalSelections({});
+                        setMealModalOpen(true);
+                        setModalOpen(false);
+                    } else {
+                        closeModal();
+                    }
                 } catch { setError('Buchung konnte nicht gespeichert werden.'); }
                 finally { setSaving(false); }
             };
@@ -1758,7 +1811,16 @@
                     });
                     if (!res.ok) throw new Error();
                     await loadBookings();
-                    closeModal();
+                    
+                    // Öffne Essens-Modal statt direkt zu schließen
+                    if (meals.length > 0) {
+                        setMealModalPersonName(inputName.trim());
+                        setMealModalSelections({});
+                        setMealModalOpen(true);
+                        setModalOpen(false);
+                    } else {
+                        closeModal();
+                    }
                 } catch { setError('Buchung konnte nicht gespeichert werden.'); }
                 finally { setSaving(false); }
             };
@@ -2952,6 +3014,109 @@
                                         disabled={saving || !fulfillName.trim()}
                                     >
                                         {saving ? '...' : '✅ Ich bringe es mit!'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Essens-Modal nach Buchung */}
+                    {mealModalOpen && (
+                        <div className="modal-overlay">
+                            <div className="modal" style={{maxWidth: '600px'}}>
+                                <div className="modal-handle"></div>
+                                <h2>🍽️ Essensauswahl für {mealModalPersonName}</h2>
+                                <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem'}}>
+                                    Wähle jetzt deine Gerichte aus oder überspringe diesen Schritt.
+                                </p>
+                                
+                                {meals.length === 0 ? (
+                                    <div style={{textAlign: 'center', padding: '2rem', color: '#666'}}>
+                                        Noch keine Mahlzeiten verfügbar
+                                    </div>
+                                ) : (
+                                    <div style={{maxHeight: '60vh', overflowY: 'auto'}}>
+                                        {meals.map(meal => (
+                                            <div key={meal.id} style={{
+                                                background: 'white',
+                                                borderRadius: '12px',
+                                                padding: '1rem',
+                                                marginBottom: '1rem',
+                                                border: '1px solid #e0e0e0'
+                                            }}>
+                                                <div style={{marginBottom: '0.75rem'}}>
+                                                    <div style={{fontWeight: 700, fontSize: '1.05rem', color: '#333'}}>{meal.name}</div>
+                                                    <div style={{fontSize: '0.85rem', color: '#666', marginTop: '0.25rem'}}>
+                                                        📅 {new Date(meal.meal_date).toLocaleDateString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit'})} ·
+                                                        🕒 {meal.meal_time.slice(0,5)} Uhr
+                                                        {meal.description && ` · ${meal.description}`}
+                                                    </div>
+                                                </div>
+                                                
+                                                {meal.dishes && meal.dishes.length > 0 ? (
+                                                    <div>
+                                                        {meal.dishes.map(dish => {
+                                                            const isSelected = mealModalSelections[dish.id];
+                                                            return (
+                                                                <div 
+                                                                    key={dish.id} 
+                                                                    style={{
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        padding: '0.5rem',
+                                                                        marginBottom: '0.5rem',
+                                                                        background: isSelected ? '#e8f5e9' : '#fafafa',
+                                                                        borderRadius: '8px',
+                                                                        border: `2px solid ${isSelected ? '#4caf50' : 'transparent'}`,
+                                                                        cursor: 'pointer',
+                                                                        transition: 'all 0.2s'
+                                                                    }}
+                                                                    onClick={() => toggleMealModalDish(dish.id)}
+                                                                >
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        checked={isSelected || false}
+                                                                        onChange={() => toggleMealModalDish(dish.id)}
+                                                                        onClick={e => e.stopPropagation()}
+                                                                        style={{width: '20px', height: '20px', marginRight: '0.75rem', cursor: 'pointer'}}
+                                                                    />
+                                                                    <div style={{flex: 1}}>
+                                                                        <div style={{fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                                                            {dish.diet_type === 'Fleisch' && '🥩'}
+                                                                            {dish.diet_type === 'Vegetarisch' && '🧀'}
+                                                                            {dish.diet_type === 'Vegan' && '🌱'}
+                                                                            {dish.name}
+                                                                        </div>
+                                                                        {dish.description && (
+                                                                            <div style={{fontSize: '0.8rem', color: '#666', marginTop: '0.25rem'}}>{dish.description}</div>
+                                                                        )}
+                                                                        {(dish.diet_type || dish.allergies) && (
+                                                                            <div style={{display: 'flex', gap: '0.5rem', marginTop: '0.25rem'}}>
+                                                                                {dish.diet_type && <span style={{fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: '#f0f0f0', borderRadius: '4px', color: '#666'}}>{dish.diet_type}</span>}
+                                                                                {dish.allergies && <span style={{fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: '#f0f0f0', borderRadius: '4px', color: '#666'}}>⚠️ {dish.allergies}</span>}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
+                                                        Noch keine Gerichte verfügbar
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                <div className="modal-buttons" style={{marginTop: '1rem'}}>
+                                    <button className="btn btn-secondary" onClick={skipMealSelection}>
+                                        ⏭️ Später auswählen
+                                    </button>
+                                    <button className="btn btn-primary" onClick={saveMealSelectionsFromModal}>
+                                        💾 Auswahl speichern
                                     </button>
                                 </div>
                             </div>
