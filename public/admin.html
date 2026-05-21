@@ -431,21 +431,77 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
+    // Helper: API-Call mit Auth-Header (WordPress Token)
+    const authFetch = async (url, options = {}) => {
+      const wpToken = sessionStorage.getItem('wpToken');
+      return fetch(url, {
+        ...options,
+        credentials: 'include', // Wichtig: Cookies mitsenden
+        headers: {
+          ...options.headers,
+          ...(wpToken && { 'x-wp-token': wpToken })
+        }
+      });
+    };
+
     function App() {
       const [activeTab, setActiveTab] = useState('events');
       const [events, setEvents] = useState([]);
       const [templates, setTemplates] = useState([]);
-      const [loading, setLoading] = useState(false);
+      const [loading, setLoading] = useState(true);
       const [alert, setAlert] = useState(null);
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [wpUser, setWpUser] = useState(null);
 
       useEffect(() => {
-        loadEvents();
-        loadTemplates();
+        checkWordPressAuth();
       }, []);
+
+      const checkWordPressAuth = async () => {
+        try {
+          const res = await fetch('/api/auth/me', {
+            credentials: 'include' // WordPress-Cookies mitsenden
+          });
+          const data = await res.json();
+          
+          if (data.logged_in && data.token) {
+            // WordPress-Login erfolgreich
+            sessionStorage.setItem('wpToken', data.token);
+            setWpUser(data);
+            setIsAuthenticated(true);
+            loadEvents();
+            loadTemplates();
+          } else {
+            // Nicht eingeloggt - Redirect zu WordPress
+            setIsAuthenticated(false);
+          }
+        } catch (err) {
+          console.error('Auth-Fehler:', err);
+          setIsAuthenticated(false);
+        }
+        setLoading(false);
+      };
+
+      const handleWordPressLogin = async () => {
+        // Redirect zu WordPress Login
+        const res = await fetch('/api/auth/login-url?return=' + encodeURIComponent(window.location.href));
+        const data = await res.json();
+        window.location.href = data.url;
+      };
+
+      const handleLogout = () => {
+        sessionStorage.removeItem('wpToken');
+        setIsAuthenticated(false);
+        setWpUser(null);
+        setEvents([]);
+        setTemplates([]);
+        // Redirect zu WordPress Logout
+        window.location.href = 'https://brettspielfamilie.de/wp-login.php?action=logout';
+      };
 
       const loadEvents = async () => {
         try {
-          const res = await fetch('/api/admin/events');
+          const res = await authFetch('/api/admin/events');
           const data = await res.json();
           setEvents(data);
         } catch (err) {
@@ -455,7 +511,7 @@
 
       const loadTemplates = async () => {
         try {
-          const res = await fetch('/api/admin/item-templates');
+          const res = await authFetch('/api/admin/item-templates');
           const data = await res.json();
           setTemplates(data);
         } catch (err) {
@@ -468,11 +524,46 @@
         setTimeout(() => setAlert(null), 4000);
       };
 
+      if (loading) {
+        return (
+          <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+          }}>
+            <div className="loading" style={{ color: 'white' }}>
+              <div className="spinner" style={{ borderTopColor: 'white' }}></div>
+              <p>Prüfe WordPress-Login...</p>
+            </div>
+          </div>
+        );
+      }
+
+      if (!isAuthenticated) {
+        return <WordPressLoginScreen onLogin={handleWordPressLogin} />;
+      }
+
       return (
         <div className="container">
           <div className="header">
-            <h1>🎯 Maitreffen Admin</h1>
-            <p>Event & Template Management</p>
+            <div>
+              <h1>🎯 Maitreffen Admin</h1>
+              <p>Event & Template Management</p>
+              {wpUser && wpUser.display_name && (
+                <p style={{ fontSize: '0.9rem', marginTop: '8px', opacity: 0.9 }}>
+                  Eingeloggt als: {wpUser.display_name}
+                </p>
+              )}
+            </div>
+            <button 
+              className="btn btn-secondary btn-small"
+              onClick={handleLogout}
+              style={{ position: 'absolute', top: '30px', right: '30px' }}
+            >
+              🚪 Logout
+            </button>
           </div>
 
           {alert && (
@@ -520,6 +611,66 @@
       );
     }
 
+    // ==================== WORDPRESS LOGIN SCREEN ====================
+    function WordPressLoginScreen({ onLogin }) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '40px',
+            width: '100%',
+            maxWidth: '400px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            textAlign: 'center'
+          }}>
+            <h1 style={{ fontSize: '1.8rem', marginBottom: '8px' }}>
+              🎯 Maitreffen Admin
+            </h1>
+            <p style={{ color: '#6c757d', marginBottom: '30px' }}>
+              Bitte mit WordPress einloggen
+            </p>
+
+            <div style={{
+              background: '#f8f9fa',
+              borderRadius: '8px',
+              padding: '20px',
+              marginBottom: '24px'
+            }}>
+              <p style={{ fontSize: '0.9rem', color: '#495057', marginBottom: '8px' }}>
+                🔒 WordPress Single Sign-On
+              </p>
+              <p style={{ fontSize: '0.85rem', color: '#6c757d' }}>
+                Du wirst zu brettspielfamilie.de weitergeleitet
+              </p>
+            </div>
+
+            <button 
+              onClick={onLogin}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '14px' }}
+            >
+              🔓 Mit WordPress einloggen
+            </button>
+
+            <p style={{ 
+              marginTop: '20px', 
+              fontSize: '0.85rem', 
+              color: '#6c757d' 
+            }}>
+              Nach dem Login kommst du automatisch zurück
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     // ==================== EVENTS TAB ====================
     function EventsTab({ events, templates, onEventsChange, onAlert }) {
       const [selectedEvent, setSelectedEvent] = useState(null);
@@ -529,7 +680,7 @@
       const loadMeals = async (eventId) => {
         setLoadingMeals(true);
         try {
-          const res = await fetch(`/api/admin/events/${eventId}/meals`);
+          const res = await authFetch(`/api/admin/events/${eventId}/meals`);
           const data = await res.json();
           setMeals(data);
         } catch (err) {
@@ -545,7 +696,7 @@
 
       const applyTemplate = async (mealId, templateId) => {
         try {
-          const res = await fetch(`/api/admin/meals/${mealId}/apply-template/${templateId}`, {
+          const res = await authFetch(`/api/admin/meals/${mealId}/apply-template/${templateId}`, {
             method: 'POST'
           });
           const data = await res.json();
@@ -727,7 +878,7 @@
         if (!confirm('Template wirklich löschen?')) return;
         
         try {
-          await fetch(`/api/admin/item-templates/${templateId}`, {
+          await authFetch(`/api/admin/item-templates/${templateId}`, {
             method: 'DELETE'
           });
           onAlert('Template gelöscht!');
@@ -745,7 +896,7 @@
           
           const method = templateData.id ? 'PUT' : 'POST';
           
-          const res = await fetch(url, {
+          const res = await authFetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
