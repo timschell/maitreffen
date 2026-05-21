@@ -490,6 +490,12 @@
             const [dishModalOpen, setDishModalOpen] = useState(false);
             const [editingDish, setEditingDish] = useState(null);
             const [editingDishMealId, setEditingDishMealId] = useState(null);
+            
+            // Items (für Grill & Frühstück)
+            const [itemModalOpen, setItemModalOpen] = useState(false);
+            const [editingItem, setEditingItem] = useState(null);
+            const [editingItemMealId, setEditingItemMealId] = useState(null);
+            
             const [showReport, setShowReport] = useState(false);
             const [reportData, setReportData] = useState([]);
             
@@ -1033,6 +1039,47 @@
                 }
             };
             
+            // ========== ITEMS (Grill & Frühstück) ==========
+            
+            const openItemModal = (mealId, item = null) => {
+                setEditingItemMealId(mealId);
+                setEditingItem(item);
+                setItemModalOpen(true);
+            };
+            
+            const handleSaveItem = async (itemData) => {
+                try {
+                    if (editingItem) {
+                        await adminFetch(`${API_URL}/admin/meal-items/${editingItem.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(itemData)
+                        });
+                    } else {
+                        await adminFetch(`${API_URL}/admin/meals/${editingItemMealId}/items`, {
+                            method: 'POST',
+                            body: JSON.stringify(itemData)
+                        });
+                    }
+                    await loadMeals();
+                    setItemModalOpen(false);
+                    setEditingItem(null);
+                    setEditingItemMealId(null);
+                } catch (err) {
+                    console.error('Fehler beim Speichern:', err);
+                    throw err;
+                }
+            };
+            
+            const handleDeleteItem = async (itemId) => {
+                if (!confirm('Item wirklich löschen?')) return;
+                try {
+                    await adminFetch(`${API_URL}/admin/meal-items/${itemId}`, { method: 'DELETE' });
+                    await loadMeals();
+                } catch (err) {
+                    console.error('Fehler beim Löschen:', err);
+                }
+            };
+            
             // Loading Screen
             if (authLoading) {
                 return (
@@ -1365,47 +1412,87 @@
                                                 </div>
                                                 <div style={{display: 'flex', gap: '0.5rem'}}>
                                                     <button className="btn btn-sm btn-secondary" onClick={() => openMealModal(meal)}>✏️</button>
-                                                    <button className="btn btn-sm btn-secondary" onClick={() => openDishModal(meal.id)}>+ Gericht</button>
+                                                    {meal.meal_type === 'meal' ? (
+                                                        <button className="btn btn-sm btn-secondary" onClick={() => openDishModal(meal.id)}>+ Gericht</button>
+                                                    ) : (
+                                                        <button className="btn btn-sm btn-secondary" onClick={() => openItemModal(meal.id)}>+ Item</button>
+                                                    )}
                                                     <button className="btn btn-sm btn-danger" onClick={() => handleDeleteMeal(meal.id)}>✕</button>
                                                 </div>
                                             </div>
                                             
-                                            {meal.dishes && meal.dishes.length > 0 ? (
-                                                <table className="users-table" style={{marginTop: '1rem'}}>
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Gericht</th>
-                                                            <th>Typ</th>
-                                                            <th>Allergien</th>
-                                                            <th>Aktionen</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {meal.dishes.map(dish => (
-                                                            <tr key={dish.id}>
-                                                                <td>
-                                                                    <strong>{dish.name}</strong>
-                                                                    {dish.description && <div style={{fontSize: '0.85rem', color: 'var(--text-muted)'}}>{dish.description}</div>}
-                                                                </td>
-                                                                <td>
-                                                                    {dish.diet_type === 'Fleisch' && '🥩'}
-                                                                    {dish.diet_type === 'Vegetarisch' && '🧀'}
-                                                                    {dish.diet_type === 'Vegan' && '🌱'}
-                                                                    {' '}{dish.diet_type || '-'}
-                                                                </td>
-                                                                <td>{dish.allergies || '-'}</td>
-                                                                <td>
-                                                                    <button className="btn btn-sm btn-secondary" onClick={() => openDishModal(meal.id, dish)}>✏️</button>
-                                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteDish(dish.id)} style={{marginLeft: '0.25rem'}}>✕</button>
-                                                                </td>
+                                            {/* Gerichte für normale Mahlzeiten */}
+                                            {meal.meal_type === 'meal' && (
+                                                meal.dishes && meal.dishes.length > 0 ? (
+                                                    <table className="users-table" style={{marginTop: '1rem'}}>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Gericht</th>
+                                                                <th>Typ</th>
+                                                                <th>Allergien</th>
+                                                                <th>Aktionen</th>
                                                             </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            ) : (
-                                                <div style={{padding: '1rem', background: 'var(--bg)', borderRadius: '8px', textAlign: 'center', color: 'var(--text-muted)'}}>
-                                                    Noch keine Gerichte hinzugefügt
-                                                </div>
+                                                        </thead>
+                                                        <tbody>
+                                                            {meal.dishes.map(dish => (
+                                                                <tr key={dish.id}>
+                                                                    <td>
+                                                                        <strong>{dish.name}</strong>
+                                                                        {dish.description && <div style={{fontSize: '0.85rem', color: 'var(--text-muted)'}}>{dish.description}</div>}
+                                                                    </td>
+                                                                    <td>
+                                                                        {dish.diet_type === 'Fleisch' && '🥩'}
+                                                                        {dish.diet_type === 'Vegetarisch' && '🧀'}
+                                                                        {dish.diet_type === 'Vegan' && '🌱'}
+                                                                        {' '}{dish.diet_type || '-'}
+                                                                    </td>
+                                                                    <td>{dish.allergies || '-'}</td>
+                                                                    <td>
+                                                                        <button className="btn btn-sm btn-secondary" onClick={() => openDishModal(meal.id, dish)}>✏️</button>
+                                                                        <button className="btn btn-sm btn-danger" onClick={() => handleDeleteDish(dish.id)} style={{marginLeft: '0.25rem'}}>✕</button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                ) : (
+                                                    <div style={{padding: '1rem', background: 'var(--bg)', borderRadius: '8px', textAlign: 'center', color: 'var(--text-muted)'}}>
+                                                        Noch keine Gerichte hinzugefügt
+                                                    </div>
+                                                )
+                                            )}
+                                            
+                                            {/* Items für Grill & Frühstück */}
+                                            {(meal.meal_type === 'grill' || meal.meal_type === 'breakfast') && (
+                                                meal.items && meal.items.length > 0 ? (
+                                                    <table className="users-table" style={{marginTop: '1rem'}}>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Item</th>
+                                                                <th>Typ</th>
+                                                                <th>Einheit</th>
+                                                                <th>Aktionen</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {meal.items.map(item => (
+                                                                <tr key={item.id}>
+                                                                    <td><strong>{item.name}</strong></td>
+                                                                    <td>{item.item_type || '-'}</td>
+                                                                    <td>{item.unit || 'pieces'}</td>
+                                                                    <td>
+                                                                        <button className="btn btn-sm btn-secondary" onClick={() => openItemModal(meal.id, item)}>✏️</button>
+                                                                        <button className="btn btn-sm btn-danger" onClick={() => handleDeleteItem(item.id)} style={{marginLeft: '0.25rem'}}>✕</button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                ) : (
+                                                    <div style={{padding: '1rem', background: 'var(--bg)', borderRadius: '8px', textAlign: 'center', color: 'var(--text-muted)'}}>
+                                                        Noch keine Items hinzugefügt
+                                                    </div>
+                                                )
                                             )}
                                         </div>
                                     ))}
@@ -1578,6 +1665,15 @@
                             breakfastEvent={editingBreakfastEvent}
                             onSave={handleSaveBreakfastEvent}
                             onClose={() => { setBreakfastModalOpen(false); setEditingBreakfastEvent(null); }}
+                        />
+                    )}
+                    
+                    {/* Item Modal */}
+                    {itemModalOpen && (
+                        <ItemModal 
+                            item={editingItem}
+                            onSave={handleSaveItem}
+                            onClose={() => { setItemModalOpen(false); setEditingItem(null); setEditingItemMealId(null); }}
                         />
                     )}
                 </div>
@@ -2246,6 +2342,96 @@
                                 <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
                                 <button type="submit" className="btn btn-primary" disabled={saving}>
                                     {saving ? 'Speichere...' : (breakfastEvent ? 'Speichern' : 'Erstellen')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Item Modal Component (für Grill & Frühstück)
+        function ItemModal({ item, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                name: item?.name || '',
+                itemType: item?.item_type || '',
+                unit: item?.unit || 'pieces',
+                sortOrder: item?.sort_order || 0
+            });
+            const [saving, setSaving] = useState(false);
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    await onSave(formData);
+                } catch (err) {
+                    alert('Fehler beim Speichern');
+                } finally {
+                    setSaving(false);
+                }
+            };
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{item ? '✏️ Item bearbeiten' : '🍖 Neues Item'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Name des Items *</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.name}
+                                    onChange={e => updateField('name', e.target.value)}
+                                    placeholder="z.B. Würstchen, Brötchen, Käse"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Typ / Kategorie</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.itemType}
+                                        onChange={e => updateField('itemType', e.target.value)}
+                                        placeholder="z.B. Fleisch, Beilage, Aufstrich"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Einheit</label>
+                                    <select
+                                        value={formData.unit}
+                                        onChange={e => updateField('unit', e.target.value)}
+                                    >
+                                        <option value="pieces">Stück</option>
+                                        <option value="kg">Kilogramm</option>
+                                        <option value="g">Gramm</option>
+                                        <option value="l">Liter</option>
+                                        <option value="ml">Milliliter</option>
+                                        <option value="boolean">Ja/Nein</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Sortierung</label>
+                                <input 
+                                    type="number" 
+                                    value={formData.sortOrder}
+                                    onChange={e => updateField('sortOrder', parseInt(e.target.value) || 0)}
+                                />
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (item ? 'Speichern' : 'Hinzufügen')}
                                 </button>
                             </div>
                         </form>
