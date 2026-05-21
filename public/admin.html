@@ -1092,8 +1092,12 @@
                 try {
                     const data = await adminFetch(`${API_URL}/admin/item-templates`);
                     setItemTemplates(data);
+                    return true; // Erfolgreich geladen
                 } catch (err) {
                     console.error('Fehler beim Laden der Vorlagen:', err);
+                    // Setze leere Arrays um Endlos-Loading zu vermeiden
+                    setItemTemplates({ breakfast: [], grill: [] });
+                    return false; // Fehler beim Laden
                 }
             };
             
@@ -1103,7 +1107,11 @@
                 
                 // Templates laden falls noch nicht vorhanden
                 if (!itemTemplates.breakfast.length && !itemTemplates.grill.length) {
-                    await loadItemTemplates();
+                    const success = await loadItemTemplates();
+                    if (!success) {
+                        alert('❌ Fehler beim Laden der Vorlagen. Bitte versuche es erneut.');
+                        return; // Modal nicht öffnen bei Fehler
+                    }
                 }
                 
                 setTemplateModalOpen(true);
@@ -2511,8 +2519,11 @@
                 return (
                     <div className="modal-overlay" onClick={onClose}>
                         <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth: '600px', textAlign: 'center', padding: '2rem'}}>
-                            <h2>🔄 Lade Vorlagen...</h2>
-                            <p style={{color: 'var(--text-muted)'}}>Einen Moment bitte...</p>
+                            <h2>⚠️ Keine Vorlagen verfügbar</h2>
+                            <p style={{color: 'var(--text-muted)', marginBottom: '1rem'}}>
+                                Die Vorlagen konnten nicht geladen werden oder sind noch nicht im System hinterlegt.
+                            </p>
+                            <button className="btn btn-secondary" onClick={onClose}>Schließen</button>
                         </div>
                     </div>
                 );
