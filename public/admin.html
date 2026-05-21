@@ -1090,7 +1090,8 @@
             
             const loadItemTemplates = async () => {
                 try {
-                    const data = await adminFetch(`${API_URL}/admin/item-templates`);
+                    const res = await adminFetch(`${API_URL}/admin/item-templates`);
+                    const data = await res.json();
                     setItemTemplates(data);
                     return true; // Erfolgreich geladen
                 } catch (err) {
