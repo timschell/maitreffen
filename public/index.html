@@ -1480,6 +1480,7 @@
             const [mealModalOpen, setMealModalOpen] = useState(false);
             const [mealModalPersonName, setMealModalPersonName] = useState('');
             const [mealModalSelections, setMealModalSelections] = useState({});
+            const [mealModalItemSelections, setMealModalItemSelections] = useState({}); // { itemId: { quantity: 5, notes: "..." } }
             const [pendingMealPersons, setPendingMealPersons] = useState([]);
             const [totalMealPersons, setTotalMealPersons] = useState(0);
             // Essensauswahl im Buchungs-Modal
@@ -1683,37 +1684,68 @@
             
             const saveMealSelectionsFromModal = async () => {
                 try {
-                    const selections = Object.keys(mealModalSelections)
+                    // Gerichte-Selections
+                    const dishSelections = Object.keys(mealModalSelections)
                         .filter(dishId => mealModalSelections[dishId])
                         .map(dishId => ({ dishId: parseInt(dishId) }));
                     
-                    const res = await fetch(`${API_URL}/meals/selections`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            personName: mealModalPersonName,
-                            selections
-                        })
-                    });
+                    // Item-Selections (mit Mengen + Kommentare)
+                    const itemSelections = Object.keys(mealModalItemSelections)
+                        .filter(itemId => mealModalItemSelections[itemId].quantity > 0)
+                        .map(itemId => ({
+                            itemId: parseInt(itemId),
+                            quantity: mealModalItemSelections[itemId].quantity,
+                            notes: mealModalItemSelections[itemId].notes || null
+                        }));
                     
-                    if (res.ok) {
-                        // Prüfe ob noch weitere Personen warten
-                        if (pendingMealPersons.length > 0) {
-                            const nextPerson = pendingMealPersons[0];
-                            setPendingMealPersons(pendingMealPersons.slice(1));
-                            setMealModalPersonName(nextPerson);
-                            setMealModalSelections({});
-                            // Modal bleibt offen für nächste Person
-                        } else {
-                            // Alle durch - Modal schließen
-                            setMealModalOpen(false);
-                            setMealModalPersonName('');
-                            setMealModalSelections({});
-                            setPendingMealPersons([]);
-                            setTotalMealPersons(0);
+                    // Speichere Gerichte
+                    if (dishSelections.length > 0) {
+                        const dishRes = await fetch(`${API_URL}/meals/selections`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                personName: mealModalPersonName,
+                                selections: dishSelections
+                            })
+                        });
+                        if (!dishRes.ok) {
+                            alert('❌ Fehler beim Speichern der Gerichte');
+                            return;
                         }
+                    }
+                    
+                    // Speichere Items
+                    if (itemSelections.length > 0) {
+                        const itemRes = await fetch(`${API_URL}/meals/item-selections`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                personName: mealModalPersonName,
+                                itemSelections: itemSelections
+                            })
+                        });
+                        if (!itemRes.ok) {
+                            alert('❌ Fehler beim Speichern der Items');
+                            return;
+                        }
+                    }
+                    
+                    // Prüfe ob noch weitere Personen warten
+                    if (pendingMealPersons.length > 0) {
+                        const nextPerson = pendingMealPersons[0];
+                        setPendingMealPersons(pendingMealPersons.slice(1));
+                        setMealModalPersonName(nextPerson);
+                        setMealModalSelections({});
+                        setMealModalItemSelections({});
+                        // Modal bleibt offen für nächste Person
                     } else {
-                        alert('❌ Fehler beim Speichern');
+                        // Alle durch - Modal schließen
+                        setMealModalOpen(false);
+                        setMealModalPersonName('');
+                        setMealModalSelections({});
+                        setMealModalItemSelections({});
+                        setPendingMealPersons([]);
+                        setTotalMealPersons(0);
                     }
                 } catch (err) {
                     console.error('Fehler:', err);
@@ -1728,12 +1760,14 @@
                     setPendingMealPersons(pendingMealPersons.slice(1));
                     setMealModalPersonName(nextPerson);
                     setMealModalSelections({});
+                    setMealModalItemSelections({});
                     // Modal bleibt offen für nächste Person
                 } else {
                     // Alle durch - Modal schließen
                     setMealModalOpen(false);
                     setMealModalPersonName('');
                     setMealModalSelections({});
+                    setMealModalItemSelections({});
                     setPendingMealPersons([]);
                     setTotalMealPersons(0);
                 }
@@ -1743,6 +1777,27 @@
                 setMealModalSelections(prev => ({
                     ...prev,
                     [dishId]: !prev[dishId]
+                }));
+            };
+            
+            // Item-Selections Handler
+            const updateMealModalItemQuantity = (itemId, quantity) => {
+                setMealModalItemSelections(prev => ({
+                    ...prev,
+                    [itemId]: {
+                        quantity: Math.max(0, parseFloat(quantity) || 0),
+                        notes: prev[itemId]?.notes || ''
+                    }
+                }));
+            };
+            
+            const updateMealModalItemNotes = (itemId, notes) => {
+                setMealModalItemSelections(prev => ({
+                    ...prev,
+                    [itemId]: {
+                        quantity: prev[itemId]?.quantity || 0,
+                        notes: notes
+                    }
                 }));
             };
             
@@ -3218,7 +3273,8 @@
                                                     </div>
                                                 </div>
                                                 
-                                                {meal.dishes && meal.dishes.length > 0 ? (
+                                                {/* Gerichte für normale Mahlzeiten */}
+                                                {meal.meal_type === 'meal' && meal.dishes && meal.dishes.length > 0 && (
                                                     <div>
                                                         {meal.dishes.map(dish => {
                                                             const isSelected = mealModalSelections[dish.id];
@@ -3266,9 +3322,92 @@
                                                             );
                                                         })}
                                                     </div>
-                                                ) : (
+                                                )}
+                                                
+                                                {/* Items für Grill & Frühstück */}
+                                                {(meal.meal_type === 'grill' || meal.meal_type === 'breakfast') && meal.items && meal.items.length > 0 && (
+                                                    <div>
+                                                        {meal.items.map(item => {
+                                                            const selection = mealModalItemSelections[item.id] || { quantity: 0, notes: '' };
+                                                            const hasSelection = selection.quantity > 0;
+                                                            
+                                                            return (
+                                                                <div 
+                                                                    key={item.id} 
+                                                                    style={{
+                                                                        padding: '0.75rem',
+                                                                        marginBottom: '0.75rem',
+                                                                        background: hasSelection ? '#e8f5e9' : '#fafafa',
+                                                                        borderRadius: '8px',
+                                                                        border: `2px solid ${hasSelection ? '#4caf50' : '#e0e0e0'}`,
+                                                                        transition: 'all 0.2s'
+                                                                    }}
+                                                                >
+                                                                    <div style={{display: 'flex', alignItems: 'center', marginBottom: '0.5rem'}}>
+                                                                        <div style={{flex: 1}}>
+                                                                            <div style={{fontWeight: 600, fontSize: '0.95rem'}}>
+                                                                                {item.name}
+                                                                            </div>
+                                                                            {item.item_type && (
+                                                                                <span style={{fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: '#f0f0f0', borderRadius: '4px', color: '#666', marginTop: '0.25rem', display: 'inline-block'}}>{item.item_type}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                                                            <input
+                                                                                type="number"
+                                                                                value={selection.quantity || ''}
+                                                                                onChange={e => updateMealModalItemQuantity(item.id, e.target.value)}
+                                                                                onClick={e => e.stopPropagation()}
+                                                                                placeholder="0"
+                                                                                style={{
+                                                                                    width: '70px',
+                                                                                    padding: '0.4rem',
+                                                                                    border: '1px solid #ccc',
+                                                                                    borderRadius: '6px',
+                                                                                    fontSize: '0.9rem',
+                                                                                    textAlign: 'center'
+                                                                                }}
+                                                                            />
+                                                                            <span style={{fontSize: '0.85rem', color: '#666', minWidth: '40px'}}>
+                                                                                {item.unit === 'pieces' ? 'Stück' : item.unit}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    {/* Kommentar-Feld */}
+                                                                    <div style={{marginTop: '0.5rem'}}>
+                                                                        <textarea
+                                                                            value={selection.notes || ''}
+                                                                            onChange={e => updateMealModalItemNotes(item.id, e.target.value)}
+                                                                            onClick={e => e.stopPropagation()}
+                                                                            placeholder="💬 Spezialwünsche (z.B. 'grüne Einhorn-Würstchen')..."
+                                                                            style={{
+                                                                                width: '100%',
+                                                                                padding: '0.5rem',
+                                                                                border: '1px solid #ddd',
+                                                                                borderRadius: '6px',
+                                                                                fontSize: '0.85rem',
+                                                                                resize: 'vertical',
+                                                                                minHeight: '60px',
+                                                                                fontFamily: 'inherit'
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Keine Items/Gerichte verfügbar */}
+                                                {meal.meal_type === 'meal' && (!meal.dishes || meal.dishes.length === 0) && (
                                                     <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
                                                         Noch keine Gerichte verfügbar
+                                                    </div>
+                                                )}
+                                                {(meal.meal_type === 'grill' || meal.meal_type === 'breakfast') && (!meal.items || meal.items.length === 0) && (
+                                                    <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
+                                                        Noch keine Items verfügbar
                                                     </div>
                                                 )}
                                             </div>

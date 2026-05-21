@@ -496,6 +496,12 @@
             const [editingItem, setEditingItem] = useState(null);
             const [editingItemMealId, setEditingItemMealId] = useState(null);
             
+            // Item-Vorlagen
+            const [templateModalOpen, setTemplateModalOpen] = useState(false);
+            const [templateModalMealId, setTemplateModalMealId] = useState(null);
+            const [templateModalMealType, setTemplateModalMealType] = useState(null);
+            const [itemTemplates, setItemTemplates] = useState({ breakfast: [], grill: [] });
+            
             const [showReport, setShowReport] = useState(false);
             const [reportData, setReportData] = useState([]);
             
@@ -1080,6 +1086,44 @@
                 }
             };
             
+            // ========== ITEM-VORLAGEN ==========
+            
+            const loadItemTemplates = async () => {
+                try {
+                    const data = await adminFetch(`${API_URL}/admin/item-templates`);
+                    setItemTemplates(data);
+                } catch (err) {
+                    console.error('Fehler beim Laden der Vorlagen:', err);
+                }
+            };
+            
+            const openTemplateModal = (mealId, mealType) => {
+                setTemplateModalMealId(mealId);
+                setTemplateModalMealType(mealType);
+                setTemplateModalOpen(true);
+                if (!itemTemplates.breakfast.length && !itemTemplates.grill.length) {
+                    loadItemTemplates();
+                }
+            };
+            
+            const handleAddFromTemplates = async (selectedTemplates) => {
+                try {
+                    for (const template of selectedTemplates) {
+                        await adminFetch(`${API_URL}/admin/meals/${templateModalMealId}/items`, {
+                            method: 'POST',
+                            body: JSON.stringify(template)
+                        });
+                    }
+                    await loadMeals();
+                    setTemplateModalOpen(false);
+                    setTemplateModalMealId(null);
+                    setTemplateModalMealType(null);
+                } catch (err) {
+                    console.error('Fehler beim Hinzufügen:', err);
+                    throw err;
+                }
+            };
+            
             // Loading Screen
             if (authLoading) {
                 return (
@@ -1415,7 +1459,10 @@
                                                     {meal.meal_type === 'meal' ? (
                                                         <button className="btn btn-sm btn-secondary" onClick={() => openDishModal(meal.id)}>+ Gericht</button>
                                                     ) : (
-                                                        <button className="btn btn-sm btn-secondary" onClick={() => openItemModal(meal.id)}>+ Item</button>
+                                                        <>
+                                                            <button className="btn btn-sm btn-secondary" onClick={() => openItemModal(meal.id)}>+ Item</button>
+                                                            <button className="btn btn-sm btn-secondary" onClick={() => openTemplateModal(meal.id, meal.meal_type)}>📚 Vorlagen</button>
+                                                        </>
                                                     )}
                                                     <button className="btn btn-sm btn-danger" onClick={() => handleDeleteMeal(meal.id)}>✕</button>
                                                 </div>
@@ -1674,6 +1721,15 @@
                             item={editingItem}
                             onSave={handleSaveItem}
                             onClose={() => { setItemModalOpen(false); setEditingItem(null); setEditingItemMealId(null); }}
+                        />
+                    )}
+                    
+                    {/* Template Modal */}
+                    {templateModalOpen && (
+                        <TemplateModal 
+                            mealType={templateModalMealType}
+                            onSave={handleAddFromTemplates}
+                            onClose={() => { setTemplateModalOpen(false); setTemplateModalMealId(null); setTemplateModalMealType(null); }}
                         />
                     )}
                 </div>
@@ -2433,6 +2489,105 @@
                                 <button type="submit" className="btn btn-primary" disabled={saving}>
                                     {saving ? 'Speichere...' : (item ? 'Speichern' : 'Hinzufügen')}
                                 </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Template Modal Component
+        function TemplateModal({ mealType, onSave, onClose }) {
+            const templates = mealType === 'breakfast' ? itemTemplates.breakfast : itemTemplates.grill;
+            const [selectedIds, setSelectedIds] = useState([]);
+            const [saving, setSaving] = useState(false);
+            
+            const toggleTemplate = (index) => {
+                setSelectedIds(prev => 
+                    prev.includes(index) 
+                        ? prev.filter(id => id !== index)
+                        : [...prev, index]
+                );
+            };
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (selectedIds.length === 0) {
+                    alert('Bitte wähle mindestens ein Item aus');
+                    return;
+                }
+                
+                setSaving(true);
+                try {
+                    const selectedTemplates = selectedIds.map(id => templates[id]);
+                    await onSave(selectedTemplates);
+                } catch (err) {
+                    alert('Fehler beim Hinzufügen');
+                } finally {
+                    setSaving(false);
+                }
+            };
+            
+            // Gruppiere nach Typ
+            const groupedTemplates = templates.reduce((acc, template, index) => {
+                const type = template.itemType || 'Sonstiges';
+                if (!acc[type]) acc[type] = [];
+                acc[type].push({ ...template, originalIndex: index });
+                return acc;
+            }, {});
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth: '600px'}}>
+                        <h2>📚 {mealType === 'breakfast' ? 'Frühstück' : 'Grill'}-Vorlagen</h2>
+                        <p style={{color: 'var(--text-muted)', marginBottom: '1rem'}}>Wähle Items aus, die hinzugefügt werden sollen:</p>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div style={{maxHeight: '400px', overflowY: 'auto', marginBottom: '1rem'}}>
+                                {Object.entries(groupedTemplates).map(([type, items]) => (
+                                    <div key={type} style={{marginBottom: '1.5rem'}}>
+                                        <h4 style={{marginBottom: '0.5rem', color: 'var(--primary)'}}>{type}</h4>
+                                        {items.map(template => (
+                                            <label 
+                                                key={template.originalIndex}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    padding: '0.5rem',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    background: selectedIds.includes(template.originalIndex) ? 'var(--primary-light)' : 'transparent',
+                                                    marginBottom: '0.25rem'
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.includes(template.originalIndex)}
+                                                    onChange={() => toggleTemplate(template.originalIndex)}
+                                                    style={{marginRight: '0.75rem'}}
+                                                />
+                                                <span style={{flex: 1}}>
+                                                    <strong>{template.name}</strong>
+                                                    <span style={{color: 'var(--text-muted)', fontSize: '0.9rem', marginLeft: '0.5rem'}}>
+                                                        ({template.unit === 'pieces' ? 'Stück' : template.unit})
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div style={{borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '1rem'}}>
+                                <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem'}}>
+                                    ✅ {selectedIds.length} Items ausgewählt
+                                </p>
+                                <div className="modal-buttons">
+                                    <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                    <button type="submit" className="btn btn-primary" disabled={saving || selectedIds.length === 0}>
+                                        {saving ? 'Füge hinzu...' : `${selectedIds.length} Items hinzufügen`}
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>

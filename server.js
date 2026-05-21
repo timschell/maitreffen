@@ -2052,6 +2052,83 @@ app.delete('/api/meals/selections/:personName', async (req, res) => {
   }
 });
 
+// ========== MEAL ITEM SELECTIONS (Grill & Frühstück mit Mengen) ==========
+
+// User: Item-Auswahl speichern
+app.post('/api/meals/item-selections', async (req, res) => {
+  const { personName, itemSelections } = req.body; // itemSelections = [{ itemId, quantity, notes }]
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  if (!personName?.trim() || !Array.isArray(itemSelections)) {
+    return res.status(400).json({ error: 'personName und itemSelections sind erforderlich' });
+  }
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Hole alle meal_item_ids für dieses Event
+    const itemIdsResult = await client.query(
+      `SELECT mi.id FROM meal_items mi
+       JOIN meals m ON mi.meal_id = m.id
+       WHERE m.event_id = $1`,
+      [req.eventId]
+    );
+    const validItemIds = new Set(itemIdsResult.rows.map(row => row.id));
+    
+    // Lösche alte Auswahlen für diesen User bei diesem Event
+    await client.query(
+      `DELETE FROM meal_item_selections 
+       WHERE event_id = $1 AND LOWER(person_name) = LOWER($2)`,
+      [req.eventId, personName.trim()]
+    );
+    
+    // Neue Auswahlen einfügen (nur wenn quantity > 0 und itemId valide)
+    for (const selection of itemSelections) {
+      if (selection.quantity > 0 && validItemIds.has(selection.itemId)) {
+        await client.query(
+          `INSERT INTO meal_item_selections (event_id, meal_item_id, person_name, quantity, notes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [req.eventId, selection.itemId, personName.trim(), selection.quantity, selection.notes || null]
+        );
+      }
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// User: Item-Auswahl für Person laden
+app.get('/api/meals/item-selections/:personName', async (req, res) => {
+  const { personName } = req.params;
+  
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `SELECT mis.* FROM meal_item_selections mis
+       WHERE mis.event_id = $1 AND LOWER(mis.person_name) = LOWER($2)`,
+      [req.eventId, personName.trim()]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
 // ==================== GRILL-SYSTEM APIS ====================
 
 // Admin: Alle Grill-Events für ein Event
@@ -2155,6 +2232,58 @@ app.delete('/api/admin/meal-items/:id', adminAuth, async (req, res) => {
     console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
+});
+
+// ========== ITEM-VORLAGEN ==========
+
+// Item-Vorlagen abrufen (hardcodiert, später DB-basiert)
+app.get('/api/admin/item-templates', adminAuth, async (req, res) => {
+  const templates = {
+    breakfast: [
+      { name: 'Brötchen', itemType: 'Backwaren', unit: 'pieces', sortOrder: 1 },
+      { name: 'Toast', itemType: 'Backwaren', unit: 'pieces', sortOrder: 2 },
+      { name: 'Butter', itemType: 'Aufstrich', unit: 'g', sortOrder: 10 },
+      { name: 'Marmelade', itemType: 'Aufstrich', unit: 'g', sortOrder: 11 },
+      { name: 'Honig', itemType: 'Aufstrich', unit: 'g', sortOrder: 12 },
+      { name: 'Nutella', itemType: 'Aufstrich', unit: 'g', sortOrder: 13 },
+      { name: 'Käse (Scheiben)', itemType: 'Belag', unit: 'g', sortOrder: 20 },
+      { name: 'Wurst (Aufschnitt)', itemType: 'Belag', unit: 'g', sortOrder: 21 },
+      { name: 'Gurken', itemType: 'Gemüse', unit: 'pieces', sortOrder: 30 },
+      { name: 'Tomaten', itemType: 'Gemüse', unit: 'pieces', sortOrder: 31 },
+      { name: 'Paprika', itemType: 'Gemüse', unit: 'pieces', sortOrder: 32 },
+      { name: 'Eier', itemType: 'Sonstiges', unit: 'pieces', sortOrder: 40 },
+      { name: 'Müsli', itemType: 'Sonstiges', unit: 'g', sortOrder: 41 },
+      { name: 'Joghurt', itemType: 'Sonstiges', unit: 'g', sortOrder: 42 },
+      { name: 'Milch', itemType: 'Getränke', unit: 'l', sortOrder: 50 },
+      { name: 'Kaffee', itemType: 'Getränke', unit: 'l', sortOrder: 51 },
+      { name: 'Tee', itemType: 'Getränke', unit: 'l', sortOrder: 52 },
+      { name: 'Orangensaft', itemType: 'Getränke', unit: 'l', sortOrder: 53 },
+    ],
+    grill: [
+      { name: 'Würstchen', itemType: 'Fleisch', unit: 'pieces', sortOrder: 1 },
+      { name: 'Bratwurst', itemType: 'Fleisch', unit: 'pieces', sortOrder: 2 },
+      { name: 'Steaks', itemType: 'Fleisch', unit: 'pieces', sortOrder: 3 },
+      { name: 'Hähnchen', itemType: 'Fleisch', unit: 'pieces', sortOrder: 4 },
+      { name: 'Grillkäse', itemType: 'Vegetarisch', unit: 'pieces', sortOrder: 10 },
+      { name: 'Gemüsespieße', itemType: 'Vegetarisch', unit: 'pieces', sortOrder: 11 },
+      { name: 'Folienkartoffeln', itemType: 'Beilage', unit: 'pieces', sortOrder: 20 },
+      { name: 'Baguette', itemType: 'Beilage', unit: 'pieces', sortOrder: 21 },
+      { name: 'Salat (gemischt)', itemType: 'Beilage', unit: 'kg', sortOrder: 22 },
+      { name: 'Gurkensalat', itemType: 'Beilage', unit: 'kg', sortOrder: 23 },
+      { name: 'Tomatensalat', itemType: 'Beilage', unit: 'kg', sortOrder: 24 },
+      { name: 'Ketchup', itemType: 'Sauce', unit: 'ml', sortOrder: 30 },
+      { name: 'Senf', itemType: 'Sauce', unit: 'ml', sortOrder: 31 },
+      { name: 'Mayo', itemType: 'Sauce', unit: 'ml', sortOrder: 32 },
+      { name: 'Grillsauce', itemType: 'Sauce', unit: 'ml', sortOrder: 33 },
+      { name: 'Bier', itemType: 'Getränke', unit: 'l', sortOrder: 40 },
+      { name: 'Limonade', itemType: 'Getränke', unit: 'l', sortOrder: 41 },
+      { name: 'Wasser', itemType: 'Getränke', unit: 'l', sortOrder: 42 },
+      { name: 'Grillkohle', itemType: 'Sonstiges', unit: 'kg', sortOrder: 50 },
+      { name: 'Grillanzünder', itemType: 'Sonstiges', unit: 'pieces', sortOrder: 51 },
+    ]
+  };
+  
+  res.json(templates);
 });
 
 // Report für Grill/Frühstück (Mengenauswertung)
