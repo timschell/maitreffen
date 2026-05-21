@@ -333,10 +333,14 @@ async function initDB() {
         name VARCHAR(200) NOT NULL,
         item_type VARCHAR(100) DEFAULT NULL,
         unit VARCHAR(20) DEFAULT 'pieces',
+        emoji VARCHAR(10) DEFAULT NULL,
         sort_order INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Migration: emoji-Feld hinzufügen falls nicht vorhanden
+    await client.query(`ALTER TABLE meal_items ADD COLUMN IF NOT EXISTS emoji VARCHAR(10) DEFAULT NULL`);
     
     // Erstelle meal_item_selections Tabelle (Mengenauswahl)
     await client.query(`
@@ -2244,7 +2248,7 @@ app.get('/api/admin/meals/:mealId/items', adminAuth, async (req, res) => {
 // Item zu Mahlzeit hinzufügen
 app.post('/api/admin/meals/:mealId/items', adminAuth, async (req, res) => {
   const { mealId } = req.params;
-  const { name, itemType, unit, sortOrder } = req.body;
+  const { name, itemType, unit, emoji, sortOrder } = req.body;
   
   if (!name?.trim()) {
     return res.status(400).json({ error: 'name ist erforderlich' });
@@ -2252,9 +2256,9 @@ app.post('/api/admin/meals/:mealId/items', adminAuth, async (req, res) => {
   
   try {
     const result = await pool.query(
-      `INSERT INTO meal_items (meal_id, name, item_type, unit, sort_order)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [mealId, name.trim(), itemType || null, unit || 'pieces', sortOrder || 0]
+      `INSERT INTO meal_items (meal_id, name, item_type, unit, emoji, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [mealId, name.trim(), itemType || null, unit || 'pieces', emoji || null, sortOrder || 0]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -2266,13 +2270,13 @@ app.post('/api/admin/meals/:mealId/items', adminAuth, async (req, res) => {
 // Item bearbeiten
 app.put('/api/admin/meal-items/:id', adminAuth, async (req, res) => {
   const { id } = req.params;
-  const { name, itemType, unit, sortOrder } = req.body;
+  const { name, itemType, unit, emoji, sortOrder } = req.body;
   
   try {
     const result = await pool.query(
-      `UPDATE meal_items SET name = $1, item_type = $2, unit = $3, sort_order = $4
-       WHERE id = $5 RETURNING *`,
-      [name, itemType || null, unit || 'pieces', sortOrder || 0, id]
+      `UPDATE meal_items SET name = $1, item_type = $2, unit = $3, emoji = $4, sort_order = $5
+       WHERE id = $6 RETURNING *`,
+      [name, itemType || null, unit || 'pieces', emoji || null, sortOrder || 0, id]
     );
     res.json(result.rows[0]);
   } catch (err) {

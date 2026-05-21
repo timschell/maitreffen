@@ -1383,8 +1383,14 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
         
-        // Emoji-Mapping für Food Items
-        const getItemEmoji = (itemName) => {
+        // Emoji-Mapping für Food Items (mit DB-Fallback)
+        const getItemEmoji = (itemName, customEmoji) => {
+            // 1. Wenn Custom-Emoji in DB gespeichert ist, benutze das
+            if (customEmoji && customEmoji.trim()) {
+                return customEmoji;
+            }
+            
+            // 2. Sonst Fallback zum Mapping
             const emojis = {
                 'Brötchen': '🥖', 'Toast': '🍞', 'Croissant': '🥐', 'Baguette': '🥖',
                 'Butter': '🧈', 'Marmelade': '🍓', 'Honig': '🍯', 'Nutella': '🍫',
@@ -3563,7 +3569,7 @@
                                                         {meal.items.map(item => {
                                                             const selection = mealModalItemSelections[item.id] || { quantity: 0, notes: '' };
                                                             const hasSelection = selection.quantity > 0;
-                                                            const emoji = getItemEmoji(item.name);
+                                                            const emoji = getItemEmoji(item.name, item.emoji);
                                                             
                                                             return (
                                                                 <div 
@@ -3589,25 +3595,40 @@
                                                                         boxShadow: hasSelection ? '0 4px 12px rgba(76, 175, 80, 0.2)' : '0 2px 8px rgba(0,0,0,0.05)'
                                                                     }}
                                                                 >
-                                                                    {/* Quantity Badge */}
+                                                                    {/* Quantity Badge - Click to decrease */}
                                                                     {hasSelection && (
-                                                                        <div style={{
-                                                                            position: 'absolute',
-                                                                            top: '-8px',
-                                                                            right: '-8px',
-                                                                            background: '#4caf50',
-                                                                            color: 'white',
-                                                                            borderRadius: '50%',
-                                                                            width: '32px',
-                                                                            height: '32px',
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            justifyContent: 'center',
-                                                                            fontWeight: 'bold',
-                                                                            fontSize: '0.9rem',
-                                                                            boxShadow: '0 2px 8px rgba(76, 175, 80, 0.4)',
-                                                                            border: '3px solid white'
-                                                                        }}>
+                                                                        <div 
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const newQty = Math.max(0, (selection.quantity || 0) - 1);
+                                                                                updateMealModalItemQuantity(item.id, newQty.toString());
+                                                                            }}
+                                                                            style={{
+                                                                                position: 'absolute',
+                                                                                top: '-8px',
+                                                                                right: '-8px',
+                                                                                background: '#4caf50',
+                                                                                color: 'white',
+                                                                                borderRadius: '50%',
+                                                                                width: '32px',
+                                                                                height: '32px',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                fontWeight: 'bold',
+                                                                                fontSize: '0.9rem',
+                                                                                boxShadow: '0 2px 8px rgba(76, 175, 80, 0.4)',
+                                                                                border: '3px solid white',
+                                                                                cursor: 'pointer',
+                                                                                transition: 'transform 0.1s'
+                                                                            }}
+                                                                            onMouseDown={(e) => {
+                                                                                e.currentTarget.style.transform = 'scale(0.9)';
+                                                                            }}
+                                                                            onMouseUp={(e) => {
+                                                                                e.currentTarget.style.transform = 'scale(1)';
+                                                                            }}
+                                                                        >
                                                                             {selection.quantity}
                                                                         </div>
                                                                     )}
