@@ -1536,7 +1536,10 @@
                                                         <tbody>
                                                             {meal.items.map(item => (
                                                                 <tr key={item.id}>
-                                                                    <td><strong>{item.name}</strong></td>
+                                                                    <td>
+                                                                        {item.emoji && <span style={{fontSize: '1.5rem', marginRight: '0.5rem'}}>{item.emoji}</span>}
+                                                                        <strong>{item.name}</strong>
+                                                                    </td>
                                                                     <td>{item.item_type || '-'}</td>
                                                                     <td>{item.unit || 'pieces'}</td>
                                                                     <td>
@@ -2425,6 +2428,7 @@
                 name: item?.name || '',
                 itemType: item?.item_type || '',
                 unit: item?.unit || 'pieces',
+                emoji: item?.emoji || '',
                 sortOrder: item?.sort_order || 0
             });
             const [saving, setSaving] = useState(false);
@@ -2460,6 +2464,21 @@
                                     placeholder="z.B. Würstchen, Brötchen, Käse"
                                     required
                                 />
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Emoji / Symbol</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.emoji}
+                                    onChange={e => updateField('emoji', e.target.value)}
+                                    placeholder="z.B. 🌭 🥖 🧀"
+                                    maxLength="2"
+                                    style={{fontSize: '2rem', textAlign: 'center', padding: '1rem'}}
+                                />
+                                <small style={{color: '#666', fontSize: '0.75rem', display: 'block', marginTop: '0.25rem'}}>
+                                    Tipp: Nutze die Emoji-Tastatur deines Geräts (⌘+Ctrl+Leertaste auf Mac, Win+. auf Windows)
+                                </small>
                             </div>
                             
                             <div className="form-row">
