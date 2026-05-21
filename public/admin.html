@@ -453,6 +453,30 @@
         const { useState, useEffect } = React;
         
         const API_URL = '/api';
+        
+        // Deutsche Einheiten-Mappings
+        const UNIT_LABELS = {
+            'pieces': 'Stück',
+            'kg': 'Kilogramm',
+            'g': 'Gramm',
+            'l': 'Liter',
+            'ml': 'Milliliter',
+            'boolean': 'Ja/Nein'
+        };
+        
+        // Deutsche Typ-Kategorien (Vorschläge)
+        const TYPE_CATEGORIES = [
+            'Fleisch',
+            'Beilage',
+            'Aufstrich',
+            'Backwaren',
+            'Gemüse',
+            'Saucen',
+            'Getränke',
+            'Obst',
+            'Süßes',
+            'Sonstiges'
+        ];
         const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
         const WP_TOKEN_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/admin-token';
         const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
@@ -465,6 +489,11 @@
             const [authError, setAuthError] = useState('');
             const [authLoading, setAuthLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('events');
+            
+            // Templates State
+            const [templates, setTemplates] = useState([]);
+            const [templateFormOpen, setTemplateFormOpen] = useState(false);
+            const [editingTemplate, setEditingTemplate] = useState(null);
             
             // Events
             const [events, setEvents] = useState([]);
@@ -825,6 +854,8 @@
                     loadGrillEvents();
                 } else if (activeTab === 'breakfast') {
                     loadBreakfastEvents();
+                } else if (activeTab === 'templates') {
+                    loadTemplates();
                 }
             }, [activeTab]);
             
@@ -1118,7 +1149,58 @@
                 setTemplateModalOpen(true);
             };
             
-            const handleAddFromTemplates = async (selectedTemplates) => {
+            // ========== TEMPLATE-VERWALTUNG ==========
+            
+            const loadTemplates = async () => {
+                try {
+                    const res = await adminFetch(`${API_URL}/admin/item-templates`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Kombiniere breakfast und grill Templates
+                        const allTemplates = [
+                            ...(data.breakfast || []).map(t => ({...t, category: 'breakfast'})),
+                            ...(data.grill || []).map(t => ({...t, category: 'grill'}))
+                        ];
+                        setTemplates(allTemplates);
+                    }
+                } catch (err) {
+                    console.error('Fehler beim Laden der Templates:', err);
+                }
+            };
+            
+            const handleSaveTemplate = async (templateData) => {
+                try {
+                    if (editingTemplate) {
+                        await adminFetch(`${API_URL}/admin/item-templates/${editingTemplate.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(templateData)
+                        });
+                    } else {
+                        await adminFetch(`${API_URL}/admin/item-templates`, {
+                            method: 'POST',
+                            body: JSON.stringify(templateData)
+                        });
+                    }
+                    await loadTemplates();
+                    setTemplateFormOpen(false);
+                    setEditingTemplate(null);
+                } catch (err) {
+                    console.error('Fehler beim Speichern:', err);
+                    throw err;
+                }
+            };
+            
+            const handleDeleteTemplate = async (templateId) => {
+                if (!confirm('Vorlage wirklich löschen?')) return;
+                try {
+                    await adminFetch(`${API_URL}/admin/item-templates/${templateId}`, { method: 'DELETE' });
+                    await loadTemplates();
+                } catch (err) {
+                    console.error('Fehler beim Löschen:', err);
+                }
+            };
+            
+            const handleAddFromTemplates = async (selectedTemplates) {
                 try {
                     for (const template of selectedTemplates) {
                         await adminFetch(`${API_URL}/admin/meals/${templateModalMealId}/items`, {
@@ -1301,6 +1383,9 @@
                         </button>
                         <button className={`tab ${activeTab === 'meals' ? 'active' : ''}`} onClick={() => setActiveTab('meals')}>
                             🍽️ Essensplanung
+                        </button>
+                        <button className={`tab ${activeTab === 'templates' ? 'active' : ''}`} onClick={() => setActiveTab('templates')}>
+                            📚 Vorlagen
                         </button>
                     </div>
                     
@@ -1648,6 +1733,66 @@
                         </div>
                     )}
                     
+                    {/* VORLAGEN-TAB */}
+                    {activeTab === 'templates' && (
+                        <div>
+                            <div style={{marginBottom: '1.5rem'}}>
+                                <h2 style={{marginBottom: '1rem'}}>📚 Item-Vorlagen verwalten</h2>
+                                <p style={{color: 'var(--text-muted)', marginBottom: '1.5rem'}}>Erstelle wiederverwendbare Vorlagen für Grill- und Frühstück-Items.</p>
+                                <button className="btn btn-primary" onClick={() => { setEditingTemplate(null); setTemplateFormOpen(true); }}>+ Neue Vorlage</button>
+                            </div>
+                            
+                            {templates.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">📚</div>
+                                    <p>Noch keine Vorlagen erstellt</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    {/* Nach Kategorie gruppieren */}
+                                    {['breakfast', 'grill'].map(cat => {
+                                        const catTemplates = templates.filter(t => t.category === cat);
+                                        if (catTemplates.length === 0) return null;
+                                        
+                                        return (
+                                            <div key={cat} style={{marginBottom: '2rem'}}>
+                                                <h3 style={{marginBottom: '1rem'}}>
+                                                    {cat === 'breakfast' ? '🥐 Frühstück-Vorlagen' : '🔥 Grill-Vorlagen'}
+                                                </h3>
+                                                <table className="users-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Item</th>
+                                                            <th>Typ</th>
+                                                            <th>Einheit</th>
+                                                            <th>Aktionen</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {catTemplates.map(tpl => (
+                                                            <tr key={tpl.id}>
+                                                                <td>
+                                                                    {tpl.emoji && <span style={{fontSize: '1.5rem', marginRight: '0.5rem'}}>{tpl.emoji}</span>}
+                                                                    <strong>{tpl.name}</strong>
+                                                                </td>
+                                                                <td>{tpl.itemType || '-'}</td>
+                                                                <td>{UNIT_LABELS[tpl.unit] || tpl.unit}</td>
+                                                                <td>
+                                                                    <button className="btn btn-sm btn-secondary" onClick={() => { setEditingTemplate(tpl); setTemplateFormOpen(true); }}>✏️</button>
+                                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteTemplate(tpl.id)} style={{marginLeft: '0.25rem'}}>✕</button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     {/* FRÜHSTÜCK-TAB */}
                     {activeTab === 'breakfast' && (
                         <div>
@@ -1746,6 +1891,15 @@
                             itemTemplates={itemTemplates}
                             onSave={handleAddFromTemplates}
                             onClose={() => { setTemplateModalOpen(false); setTemplateModalMealId(null); setTemplateModalMealType(null); }}
+                        />
+                    )}
+                    
+                    {/* Template Form Modal */}
+                    {templateFormOpen && (
+                        <TemplateFormModal 
+                            template={editingTemplate}
+                            onSave={handleSaveTemplate}
+                            onClose={() => { setTemplateFormOpen(false); setEditingTemplate(null); }}
                         />
                     )}
                 </div>
@@ -2431,6 +2585,7 @@
                 emoji: item?.emoji || '',
                 sortOrder: item?.sort_order || 0
             });
+            const [showTypeDropdown, setShowTypeDropdown] = useState(false);
             const [saving, setSaving] = useState(false);
             
             const updateField = (field, value) => {
@@ -2484,12 +2639,48 @@
                             <div className="form-row">
                                 <div className="form-group">
                                     <label>Typ / Kategorie</label>
-                                    <input 
-                                        type="text" 
-                                        value={formData.itemType}
-                                        onChange={e => updateField('itemType', e.target.value)}
-                                        placeholder="z.B. Fleisch, Beilage, Aufstrich"
-                                    />
+                                    <div style={{position: 'relative'}}>
+                                        <input 
+                                            type="text" 
+                                            value={formData.itemType}
+                                            onChange={e => updateField('itemType', e.target.value)}
+                                            onFocus={() => setShowTypeDropdown(true)}
+                                            onBlur={() => setTimeout(() => setShowTypeDropdown(false), 200)}
+                                            placeholder="z.B. Fleisch, Beilage, Aufstrich"
+                                        />
+                                        {showTypeDropdown && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '100%',
+                                                left: 0,
+                                                right: 0,
+                                                background: 'white',
+                                                border: '2px solid var(--border)',
+                                                borderRadius: '8px',
+                                                marginTop: '0.25rem',
+                                                maxHeight: '200px',
+                                                overflowY: 'auto',
+                                                zIndex: 1000,
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                            }}>
+                                                {TYPE_CATEGORIES.map(cat => (
+                                                    <div 
+                                                        key={cat}
+                                                        onMouseDown={() => updateField('itemType', cat)}
+                                                        style={{
+                                                            padding: '0.5rem 0.75rem',
+                                                            cursor: 'pointer',
+                                                            borderBottom: '1px solid #f0f0f0'
+                                                        }}
+                                                        onMouseEnter={e => e.target.style.background = 'var(--primary-light)'}
+                                                        onMouseLeave={e => e.target.style.background = 'white'}
+                                                    >
+                                                        {cat}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="form-group">
                                     <label>Einheit</label>
@@ -2497,12 +2688,9 @@
                                         value={formData.unit}
                                         onChange={e => updateField('unit', e.target.value)}
                                     >
-                                        <option value="pieces">Stück</option>
-                                        <option value="kg">Kilogramm</option>
-                                        <option value="g">Gramm</option>
-                                        <option value="l">Liter</option>
-                                        <option value="ml">Milliliter</option>
-                                        <option value="boolean">Ja/Nein</option>
+                                        {Object.entries(UNIT_LABELS).map(([value, label]) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
@@ -2614,9 +2802,10 @@
                                                     style={{marginRight: '0.75rem'}}
                                                 />
                                                 <span style={{flex: 1}}>
+                                                    {template.emoji && <span style={{fontSize: '1.2rem', marginRight: '0.5rem'}}>{template.emoji}</span>}
                                                     <strong>{template.name}</strong>
                                                     <span style={{color: 'var(--text-muted)', fontSize: '0.9rem', marginLeft: '0.5rem'}}>
-                                                        ({template.unit === 'pieces' ? 'Stück' : template.unit})
+                                                        ({UNIT_LABELS[template.unit] || template.unit})
                                                     </span>
                                                 </span>
                                             </label>
@@ -2635,6 +2824,159 @@
                                         {saving ? 'Füge hinzu...' : `${selectedIds.length} Items hinzufügen`}
                                     </button>
                                 </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Template Form Modal (für Vorlage erstellen/bearbeiten)
+        function TemplateFormModal({ template, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                name: template?.name || '',
+                itemType: template?.itemType || '',
+                unit: template?.unit || 'pieces',
+                emoji: template?.emoji || '',
+                category: template?.category || 'grill',
+                sortOrder: template?.sortOrder || 0
+            });
+            const [saving, setSaving] = useState(false);
+            const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    await onSave(formData);
+                } catch (err) {
+                    alert('Fehler beim Speichern');
+                } finally {
+                    setSaving(false);
+                }
+            };
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{template ? '✏️ Vorlage bearbeiten' : '📚 Neue Vorlage'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Kategorie *</label>
+                                <select
+                                    value={formData.category}
+                                    onChange={e => updateField('category', e.target.value)}
+                                    required
+                                >
+                                    <option value="grill">🔥 Grill</option>
+                                    <option value="breakfast">🥐 Frühstück</option>
+                                </select>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Name des Items *</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.name}
+                                    onChange={e => updateField('name', e.target.value)}
+                                    placeholder="z.B. Würstchen, Brötchen, Käse"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Emoji / Symbol</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.emoji}
+                                    onChange={e => updateField('emoji', e.target.value)}
+                                    placeholder="z.B. 🌭 🥖 🧀"
+                                    maxLength="2"
+                                    style={{fontSize: '2rem', textAlign: 'center', padding: '1rem'}}
+                                />
+                                <small style={{color: '#666', fontSize: '0.75rem', display: 'block', marginTop: '0.25rem'}}>
+                                    Tipp: Nutze die Emoji-Tastatur deines Geräts (⌘+Ctrl+Leertaste auf Mac, Win+. auf Windows)
+                                </small>
+                            </div>
+                            
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Typ / Kategorie</label>
+                                    <div style={{position: 'relative'}}>
+                                        <input 
+                                            type="text" 
+                                            value={formData.itemType}
+                                            onChange={e => updateField('itemType', e.target.value)}
+                                            onFocus={() => setShowTypeDropdown(true)}
+                                            onBlur={() => setTimeout(() => setShowTypeDropdown(false), 200)}
+                                            placeholder="z.B. Fleisch, Beilage, Aufstrich"
+                                        />
+                                        {showTypeDropdown && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '100%',
+                                                left: 0,
+                                                right: 0,
+                                                background: 'white',
+                                                border: '2px solid var(--border)',
+                                                borderRadius: '8px',
+                                                marginTop: '0.25rem',
+                                                maxHeight: '200px',
+                                                overflowY: 'auto',
+                                                zIndex: 1000,
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                            }}>
+                                                {TYPE_CATEGORIES.map(cat => (
+                                                    <div 
+                                                        key={cat}
+                                                        onMouseDown={() => updateField('itemType', cat)}
+                                                        style={{
+                                                            padding: '0.5rem 0.75rem',
+                                                            cursor: 'pointer',
+                                                            borderBottom: '1px solid #f0f0f0'
+                                                        }}
+                                                        onMouseEnter={e => e.target.style.background = 'var(--primary-light)'}
+                                                        onMouseLeave={e => e.target.style.background = 'white'}
+                                                    >
+                                                        {cat}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label>Einheit</label>
+                                    <select
+                                        value={formData.unit}
+                                        onChange={e => updateField('unit', e.target.value)}
+                                    >
+                                        {Object.entries(UNIT_LABELS).map(([value, label]) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Sortierung</label>
+                                <input 
+                                    type="number" 
+                                    value={formData.sortOrder}
+                                    onChange={e => updateField('sortOrder', parseInt(e.target.value) || 0)}
+                                />
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (template ? 'Speichern' : 'Erstellen')}
+                                </button>
                             </div>
                         </form>
                     </div>
