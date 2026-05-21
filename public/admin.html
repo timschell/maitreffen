@@ -481,6 +481,18 @@
             // Users
             const [users, setUsers] = useState([]);
             
+            // Meals & Dishes
+            const [selectedEventId, setSelectedEventId] = useState(null);
+            const [meals, setMeals] = useState([]);
+            const [mealsLoading, setMealsLoading] = useState(false);
+            const [mealModalOpen, setMealModalOpen] = useState(false);
+            const [editingMeal, setEditingMeal] = useState(null);
+            const [dishModalOpen, setDishModalOpen] = useState(false);
+            const [editingDish, setEditingDish] = useState(null);
+            const [editingDishMealId, setEditingDishMealId] = useState(null);
+            const [showReport, setShowReport] = useState(false);
+            const [reportData, setReportData] = useState([]);
+            
             // Check WordPress SSO first, then fall back to session
             useEffect(() => {
                 checkWordPressSSO();
@@ -768,6 +780,118 @@
                 }
             };
             
+            // ==================== MEALS & DISHES HANDLERS ====================
+            
+            // Mahlzeiten laden wenn Event auswählt wird
+            useEffect(() => {
+                if (selectedEventId) {
+                    loadMeals();
+                    loadReport();
+                }
+            }, [selectedEventId]);
+            
+            const loadMeals = async () => {
+                if (!selectedEventId) return;
+                setMealsLoading(true);
+                try {
+                    const data = await adminFetch(`${API_URL}/admin/events/${selectedEventId}/meals`);
+                    setMeals(data);
+                } catch (err) {
+                    console.error('Fehler beim Laden der Mahlzeiten:', err);
+                } finally {
+                    setMealsLoading(false);
+                }
+            };
+            
+            const loadReport = async () => {
+                if (!selectedEventId) return;
+                try {
+                    const data = await adminFetch(`${API_URL}/admin/events/${selectedEventId}/meals/report`);
+                    setReportData(data);
+                } catch (err) {
+                    console.error('Fehler beim Laden des Reports:', err);
+                }
+            };
+            
+            const openMealModal = (meal = null) => {
+                setEditingMeal(meal);
+                setMealModalOpen(true);
+            };
+            
+            const handleSaveMeal = async (mealData) => {
+                try {
+                    if (editingMeal) {
+                        await adminFetch(`${API_URL}/admin/meals/${editingMeal.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(mealData)
+                        });
+                    } else {
+                        await adminFetch(`${API_URL}/admin/meals`, {
+                            method: 'POST',
+                            body: JSON.stringify({ ...mealData, eventId: selectedEventId })
+                        });
+                    }
+                    await loadMeals();
+                    setMealModalOpen(false);
+                    setEditingMeal(null);
+                } catch (err) {
+                    console.error('Fehler beim Speichern:', err);
+                    throw err;
+                }
+            };
+            
+            const handleDeleteMeal = async (mealId) => {
+                if (!confirm('Mahlzeit wirklich löschen? Alle Gerichte werden auch gelöscht.')) return;
+                try {
+                    await adminFetch(`${API_URL}/admin/meals/${mealId}`, { method: 'DELETE' });
+                    await loadMeals();
+                    await loadReport();
+                } catch (err) {
+                    console.error('Fehler beim Löschen:', err);
+                }
+            };
+            
+            const openDishModal = (mealId, dish = null) => {
+                setEditingDishMealId(mealId);
+                setEditingDish(dish);
+                setDishModalOpen(true);
+            };
+            
+            const handleSaveDish = async (dishData) => {
+                try {
+                    if (editingDish) {
+                        await adminFetch(`${API_URL}/admin/dishes/${editingDish.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(dishData)
+                        });
+                    } else {
+                        await adminFetch(`${API_URL}/admin/meals/${editingDishMealId}/dishes`, {
+                            method: 'POST',
+                            body: JSON.stringify(dishData)
+                        });
+                    }
+                    await loadMeals();
+                    await loadReport();
+                    setDishModalOpen(false);
+                    setEditingDish(null);
+                    setEditingDishMealId(null);
+                } catch (err) {
+                    console.error('Fehler beim Speichern:', err);
+                    throw err;
+                }
+            };
+            
+            const handleDeleteDish = async (dishId) => {
+                if (!confirm('Gericht wirklich löschen?')) return;
+                try {
+                    await adminFetch(`${API_URL}/admin/dishes/${dishId}`, { method: 'DELETE' });
+                    await loadMeals();
+                    await loadReport();
+                } catch (err) {
+                    console.error('Fehler beim Löschen:', err);
+                }
+            };
+            
             // Loading Screen
             if (authLoading) {
                 return (
@@ -931,6 +1055,9 @@
                         <button className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
                             👥 Nutzer
                         </button>
+                        <button className={`tab ${activeTab === 'meals' ? 'active' : ''}`} onClick={() => setActiveTab('meals')}>
+                            🍽️ Essensplanung
+                        </button>
                     </div>
                     
                     {activeTab === 'events' && (
@@ -1037,12 +1164,184 @@
                         </div>
                     )}
                     
+                    {activeTab === 'meals' && (
+                        <div>
+                            <div style={{marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap'}}>
+                                <div>
+                                    <label style={{display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: '600'}}>Event auswählen</label>
+                                    <select 
+                                        value={selectedEventId || ''} 
+                                        onChange={e => setSelectedEventId(parseInt(e.target.value))}
+                                        style={{padding: '0.5rem', borderRadius: '8px', border: '2px solid var(--border)'}}
+                                    >
+                                        <option value="">-- Event wählen --</option>
+                                        {events.map(ev => (
+                                            <option key={ev.id} value={ev.id}>{ev.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                
+                                {selectedEventId && (
+                                    <div style={{marginLeft: 'auto'}}>
+                                        <button className="btn btn-primary" onClick={() => openMealModal()}>
+                                            + Neue Mahlzeit
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {!selectedEventId ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">🍽️</div>
+                                    <p>Bitte wähle zuerst ein Event aus</p>
+                                </div>
+                            ) : mealsLoading ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">⏳</div>
+                                    <p>Lade Mahlzeiten...</p>
+                                </div>
+                            ) : meals.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">🍽️</div>
+                                    <p>Noch keine Mahlzeiten erstellt</p>
+                                    <button className="btn btn-primary" onClick={() => openMealModal()}>+ Erste Mahlzeit erstellen</button>
+                                </div>
+                            ) : (
+                                <div>
+                                    {meals.map(meal => (
+                                        <div key={meal.id} className="card" style={{marginBottom: '1.5rem'}}>
+                                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem'}}>
+                                                <div>
+                                                    <h3 style={{margin: 0, marginBottom: '0.25rem'}}>{meal.name}</h3>
+                                                    <div style={{fontSize: '0.9rem', color: 'var(--text-muted)'}}>
+                                                        📅 {new Date(meal.meal_date).toLocaleDateString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit'})} · 
+                                                        🕒 {meal.meal_time.slice(0,5)} Uhr
+                                                        {meal.description && ` · ${meal.description}`}
+                                                    </div>
+                                                </div>
+                                                <div style={{display: 'flex', gap: '0.5rem'}}>
+                                                    <button className="btn btn-sm btn-secondary" onClick={() => openMealModal(meal)}>✏️</button>
+                                                    <button className="btn btn-sm btn-secondary" onClick={() => openDishModal(meal.id)}>+ Gericht</button>
+                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteMeal(meal.id)}>✕</button>
+                                                </div>
+                                            </div>
+                                            
+                                            {meal.dishes && meal.dishes.length > 0 ? (
+                                                <table className="users-table" style={{marginTop: '1rem'}}>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Gericht</th>
+                                                            <th>Typ</th>
+                                                            <th>Allergien</th>
+                                                            <th>Aktionen</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {meal.dishes.map(dish => (
+                                                            <tr key={dish.id}>
+                                                                <td>
+                                                                    <strong>{dish.name}</strong>
+                                                                    {dish.description && <div style={{fontSize: '0.85rem', color: 'var(--text-muted)'}}>{dish.description}</div>}
+                                                                </td>
+                                                                <td>
+                                                                    {dish.diet_type === 'Fleisch' && '🥩'}
+                                                                    {dish.diet_type === 'Vegetarisch' && '🧀'}
+                                                                    {dish.diet_type === 'Vegan' && '🌱'}
+                                                                    {' '}{dish.diet_type || '-'}
+                                                                </td>
+                                                                <td>{dish.allergies || '-'}</td>
+                                                                <td>
+                                                                    <button className="btn btn-sm btn-secondary" onClick={() => openDishModal(meal.id, dish)}>✏️</button>
+                                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteDish(dish.id)} style={{marginLeft: '0.25rem'}}>✕</button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            ) : (
+                                                <div style={{padding: '1rem', background: 'var(--bg)', borderRadius: '8px', textAlign: 'center', color: 'var(--text-muted)'}}>
+                                                    Noch keine Gerichte hinzugefügt
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    
+                                    <div style={{marginTop: '2rem', padding: '1rem', background: 'var(--primary-light)', borderRadius: '12px'}}>
+                                        <h3 style={{marginBottom: '1rem'}}>📋 Einkaufsliste / Report</h3>
+                                        <button className="btn btn-primary" onClick={() => setShowReport(!showReport)}>
+                                            {showReport ? 'Report ausblenden' : 'Report anzeigen'}
+                                        </button>
+                                        
+                                        {showReport && (
+                                            <div style={{marginTop: '1rem'}}>
+                                                {reportData.length === 0 ? (
+                                                    <p>Noch keine Auswahlen vorhanden</p>
+                                                ) : (
+                                                    <table className="users-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Mahlzeit</th>
+                                                                <th>Gericht</th>
+                                                                <th>Typ</th>
+                                                                <th>Anzahl</th>
+                                                                <th>Personen</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {reportData.map((row, i) => (
+                                                                <tr key={i}>
+                                                                    <td>
+                                                                        <strong>{row.meal_name}</strong><br/>
+                                                                        <small>{new Date(row.meal_date).toLocaleDateString('de-DE')} {row.meal_time.slice(0,5)}</small>
+                                                                    </td>
+                                                                    <td><strong>{row.dish_name}</strong></td>
+                                                                    <td>
+                                                                        {row.diet_type === 'Fleisch' && '🥩'}
+                                                                        {row.diet_type === 'Vegetarisch' && '🧀'}
+                                                                        {row.diet_type === 'Vegan' && '🌱'}
+                                                                        {' '}{row.diet_type || '-'}
+                                                                    </td>
+                                                                    <td><strong style={{fontSize: '1.1rem'}}>{row.selection_count}</strong></td>
+                                                                    <td>
+                                                                        <small>{row.selected_by && row.selected_by.filter(n => n).join(', ')}</small>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     {/* Event Modal */}
                     {eventModalOpen && (
                         <EventModal 
                             event={editingEvent}
                             onSave={handleSaveEvent}
                             onClose={() => { setEventModalOpen(false); setEditingEvent(null); }}
+                        />
+                    )}
+                    
+                    {/* Meal Modal */}
+                    {mealModalOpen && (
+                        <MealModal 
+                            meal={editingMeal}
+                            onSave={handleSaveMeal}
+                            onClose={() => { setMealModalOpen(false); setEditingMeal(null); }}
+                        />
+                    )}
+                    
+                    {/* Dish Modal */}
+                    {dishModalOpen && (
+                        <DishModal 
+                            dish={editingDish}
+                            onSave={handleSaveDish}
+                            onClose={() => { setDishModalOpen(false); setEditingDish(null); setEditingDishMealId(null); }}
                         />
                     )}
                 </div>
@@ -1328,6 +1627,201 @@
                                 <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
                                 <button type="submit" className="btn btn-primary" disabled={saving}>
                                     {saving ? 'Speichere...' : (room ? 'Speichern' : 'Erstellen')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Meal Modal Component
+        function MealModal({ meal, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                name: meal?.name || '',
+                mealDate: meal?.meal_date || '',
+                mealTime: meal?.meal_time?.slice(0,5) || '18:00',
+                description: meal?.description || '',
+                sortOrder: meal?.sort_order || 0
+            });
+            const [saving, setSaving] = useState(false);
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    await onSave(formData);
+                } catch (err) {
+                    alert('Fehler beim Speichern');
+                } finally {
+                    setSaving(false);
+                }
+            };
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{meal ? '✏️ Mahlzeit bearbeiten' : '🍽️ Neue Mahlzeit'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Name der Mahlzeit *</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.name}
+                                    onChange={e => updateField('name', e.target.value)}
+                                    placeholder="z.B. Mittwoch Abend"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Datum *</label>
+                                    <input 
+                                        type="date" 
+                                        value={formData.mealDate}
+                                        onChange={e => updateField('mealDate', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Uhrzeit *</label>
+                                    <input 
+                                        type="time" 
+                                        value={formData.mealTime}
+                                        onChange={e => updateField('mealTime', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Beschreibung</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.description}
+                                    onChange={e => updateField('description', e.target.value)}
+                                    placeholder="z.B. Anreise-Abendessen"
+                                />
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Sortierung</label>
+                                <input 
+                                    type="number" 
+                                    value={formData.sortOrder}
+                                    onChange={e => updateField('sortOrder', parseInt(e.target.value) || 0)}
+                                />
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (meal ? 'Speichern' : 'Erstellen')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Dish Modal Component
+        function DishModal({ dish, onSave, onClose }) {
+            const [formData, setFormData] = useState({
+                name: dish?.name || '',
+                description: dish?.description || '',
+                dietType: dish?.diet_type || '',
+                allergies: dish?.allergies || '',
+                sortOrder: dish?.sort_order || 0
+            });
+            const [saving, setSaving] = useState(false);
+            
+            const updateField = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    await onSave(formData);
+                } catch (err) {
+                    alert('Fehler beim Speichern');
+                } finally {
+                    setSaving(false);
+                }
+            };
+            
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <h2>{dish ? '✏️ Gericht bearbeiten' : '🍲 Neues Gericht'}</h2>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Name des Gerichts *</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.name}
+                                    onChange={e => updateField('name', e.target.value)}
+                                    placeholder="z.B. Chili con Carne"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Beschreibung</label>
+                                <textarea 
+                                    value={formData.description}
+                                    onChange={e => updateField('description', e.target.value)}
+                                    placeholder="z.B. Mit Hackfleisch und Kidneybohnen"
+                                    rows="2"
+                                />
+                            </div>
+                            
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Ernährungstyp</label>
+                                    <select 
+                                        value={formData.dietType}
+                                        onChange={e => updateField('dietType', e.target.value)}
+                                    >
+                                        <option value="">-- Bitte wählen --</option>
+                                        <option value="Fleisch">🥩 Fleisch</option>
+                                        <option value="Vegetarisch">🧀 Vegetarisch</option>
+                                        <option value="Vegan">🌱 Vegan</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label>Sortierung</label>
+                                    <input 
+                                        type="number" 
+                                        value={formData.sortOrder}
+                                        onChange={e => updateField('sortOrder', parseInt(e.target.value) || 0)}
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Allergien / Hinweise</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.allergies}
+                                    onChange={e => updateField('allergies', e.target.value)}
+                                    placeholder="z.B. Enthält Nüsse, Gluten"
+                                />
+                            </div>
+                            
+                            <div className="modal-buttons">
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>
+                                    {saving ? 'Speichere...' : (dish ? 'Speichern' : 'Hinzufügen')}
                                 </button>
                             </div>
                         </form>
