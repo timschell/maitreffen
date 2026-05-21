@@ -337,26 +337,9 @@ async function initDB() {
       const eventId = eventResult.rows[0].id;
       console.log(`✅ Event angelegt (ID: ${eventId})`);
       
-      // Zimmer anlegen
-      const rooms = [
-        { room_name: 'Zimmer 1', floor: 'EG', beds_count: 3, has_private_bath: true, is_accessible: false, sort_order: 1 },
-        { room_name: 'Zimmer 2', floor: 'EG', beds_count: 2, has_private_bath: true, is_accessible: true, sort_order: 2 },
-        { room_name: 'Zimmer 3', floor: 'EG', beds_count: 2, has_private_bath: true, is_accessible: false, sort_order: 3 },
-        { room_name: 'Zimmer 4', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 4 },
-        { room_name: 'Zimmer 5', floor: 'OG', beds_count: 4, has_private_bath: false, is_accessible: false, sort_order: 5 },
-        { room_name: 'Zimmer 6', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 6 },
-        { room_name: 'Zimmer 7', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 7 },
-        { room_name: 'Zimmer 8', floor: 'OG', beds_count: 2, has_private_bath: false, is_accessible: false, sort_order: 8 },
-        { room_name: 'Zimmer 9', floor: 'OG', beds_count: 3, has_private_bath: false, is_accessible: false, sort_order: 9 },
-      ];
-      
-      for (const room of rooms) {
-        await client.query(`
-          INSERT INTO event_rooms (event_id, room_name, floor, beds_count, has_private_bath, is_accessible, sort_order)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `, [eventId, room.room_name, room.floor, room.beds_count, room.has_private_bath, room.is_accessible, room.sort_order]);
-      }
-      console.log(`✅ 9 Zimmer angelegt (25 Betten)`);
+      // KEINE automatischen Zimmer mehr - Admin muss sie manuell anlegen!
+      // Grund: Jedes Event hat unterschiedliche Locations mit unterschiedlichen Zimmern
+      console.log(`✅ Event angelegt - Zimmer bitte im Admin-Panel anlegen`);
       
       // Bestehende Daten mit Event verknüpfen
       const bookingsLinked = await client.query('UPDATE bookings SET event_id = $1 WHERE event_id IS NULL', [eventId]);
@@ -381,27 +364,7 @@ async function initDB() {
       }
     }
     
-    // ==================== ZIMMER-DETAILS MIGRATION (März 2026) ====================
-    // Aktualisiere Zimmer-Notizen basierend auf Info vom Freizeitheim
-    const roomUpdates = [
-      { name: 'Zimmer 1', notes: null },
-      { name: 'Zimmer 2', notes: '+2 Zusatzmatratzen möglich' },
-      { name: 'Zimmer 3', notes: null },
-      { name: 'Zimmer 4', notes: '1 Bett + 1 Etagenbett, Waschbecken im Zimmer, +2 Zusatzmatratzen möglich' },
-      { name: 'Zimmer 5', notes: 'Waschbecken im Zimmer' },
-      { name: 'Zimmer 6', notes: 'Waschbecken im Zimmer' },
-      { name: 'Zimmer 7', notes: '1 Bett + 1 Etagenbett, Waschbecken im Zimmer' },
-      { name: 'Zimmer 8', notes: 'Waschbecken im Zimmer' },
-      { name: 'Zimmer 9', notes: '1 Bett + 1 Etagenbett, Waschbecken im Zimmer, +1 Zusatzmatratze möglich' },
-    ];
-    
-    for (const room of roomUpdates) {
-      await client.query(
-        'UPDATE event_rooms SET notes = $1 WHERE room_name = $2',
-        [room.notes, room.name]
-      );
-    }
-    console.log('✅ Zimmer-Details aktualisiert (Etagenbetten, Waschbecken, Zusatzmatratzen)');
+    // Zimmer-Migrations entfernt - jedes Event hat eigene Zimmer
   } catch (err) {
     console.error('❌ Fehler beim Initialisieren der Datenbank:', err.message);
   } finally {

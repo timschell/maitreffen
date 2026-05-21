@@ -1480,6 +1480,8 @@
             const [mealModalOpen, setMealModalOpen] = useState(false);
             const [mealModalPersonName, setMealModalPersonName] = useState('');
             const [mealModalSelections, setMealModalSelections] = useState({});
+            const [pendingMealPersons, setPendingMealPersons] = useState([]);
+            const [totalMealPersons, setTotalMealPersons] = useState(0);
             // WordPress SSO
             const [wpUser, setWpUser] = useState(null);
             const [wpLoading, setWpLoading] = useState(true);
@@ -1691,9 +1693,21 @@
                     });
                     
                     if (res.ok) {
-                        setMealModalOpen(false);
-                        setMealModalPersonName('');
-                        setMealModalSelections({});
+                        // Prüfe ob noch weitere Personen warten
+                        if (pendingMealPersons.length > 0) {
+                            const nextPerson = pendingMealPersons[0];
+                            setPendingMealPersons(pendingMealPersons.slice(1));
+                            setMealModalPersonName(nextPerson);
+                            setMealModalSelections({});
+                            // Modal bleibt offen für nächste Person
+                        } else {
+                            // Alle durch - Modal schließen
+                            setMealModalOpen(false);
+                            setMealModalPersonName('');
+                            setMealModalSelections({});
+                            setPendingMealPersons([]);
+                            setTotalMealPersons(0);
+                        }
                     } else {
                         alert('❌ Fehler beim Speichern');
                     }
@@ -1704,9 +1718,21 @@
             };
             
             const skipMealSelection = () => {
-                setMealModalOpen(false);
-                setMealModalPersonName('');
-                setMealModalSelections({});
+                // Prüfe ob noch weitere Personen warten
+                if (pendingMealPersons.length > 0) {
+                    const nextPerson = pendingMealPersons[0];
+                    setPendingMealPersons(pendingMealPersons.slice(1));
+                    setMealModalPersonName(nextPerson);
+                    setMealModalSelections({});
+                    // Modal bleibt offen für nächste Person
+                } else {
+                    // Alle durch - Modal schließen
+                    setMealModalOpen(false);
+                    setMealModalPersonName('');
+                    setMealModalSelections({});
+                    setPendingMealPersons([]);
+                    setTotalMealPersons(0);
+                }
             };
             
             const toggleMealModalDish = (dishId) => {
@@ -1786,9 +1812,12 @@
                     
                     await loadBookings();
                     
-                    // Öffne Essens-Modal statt direkt zu schließen
+                    // Öffne Essens-Modal für alle gebuchten Personen (Hauptperson + Companions)
                     if (meals.length > 0) {
-                        setMealModalPersonName(inputName.trim());
+                        const allPersons = [inputName.trim(), ...validCompanions.map(c => c.name.trim())];
+                        setTotalMealPersons(allPersons.length);
+                        setPendingMealPersons(allPersons.slice(1)); // Alle außer erste
+                        setMealModalPersonName(allPersons[0]); // Erste Person
                         setMealModalSelections({});
                         setMealModalOpen(true);
                         setModalOpen(false);
@@ -1814,6 +1843,7 @@
                     
                     // Öffne Essens-Modal statt direkt zu schließen
                     if (meals.length > 0) {
+                        setTotalMealPersons(1);
                         setMealModalPersonName(inputName.trim());
                         setMealModalSelections({});
                         setMealModalOpen(true);
@@ -3026,6 +3056,11 @@
                             <div className="modal" style={{maxWidth: '600px'}}>
                                 <div className="modal-handle"></div>
                                 <h2>🍽️ Essensauswahl für {mealModalPersonName}</h2>
+                                {totalMealPersons > 1 && (
+                                    <div style={{fontSize: '0.85rem', color: 'var(--accent)', marginBottom: '0.5rem', fontWeight: '600'}}>
+                                        Person {totalMealPersons - pendingMealPersons.length} von {totalMealPersons}
+                                    </div>
+                                )}
                                 <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem'}}>
                                     Wähle jetzt deine Gerichte aus oder überspringe diesen Schritt.
                                 </p>
