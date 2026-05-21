@@ -517,10 +517,15 @@
       const loadTemplates = async () => {
         try {
           const res = await authFetch('/api/admin/item-templates');
-          const data = await res.json();
-          setTemplates(data);
+          if (res.ok) {
+            const data = await res.json();
+            setTemplates(Array.isArray(data) ? data : []);
+          } else {
+            setTemplates([]);
+          }
         } catch (err) {
           console.error('Fehler beim Laden:', err);
+          setTemplates([]);
         }
       };
 
@@ -761,7 +766,9 @@
     function MealCard({ meal, templates, onApplyTemplate, onAlert }) {
       const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
       
-      const applicableTemplates = templates.filter(t => 
+      // Sicherstellen dass templates ein Array ist
+      const templatesList = Array.isArray(templates) ? templates : [];
+      const applicableTemplates = templatesList.filter(t => 
         t.template_type === meal.meal_type
       );
 
