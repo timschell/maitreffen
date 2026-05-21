@@ -1199,12 +1199,6 @@
                         <button className={`tab ${activeTab === 'meals' ? 'active' : ''}`} onClick={() => setActiveTab('meals')}>
                             🍽️ Essensplanung
                         </button>
-                        <button className={`tab ${activeTab === 'grill' ? 'active' : ''}`} onClick={() => setActiveTab('grill')}>
-                            🔥 Grillen
-                        </button>
-                        <button className={`tab ${activeTab === 'breakfast' ? 'active' : ''}`} onClick={() => setActiveTab('breakfast')}>
-                            🥐 Frühstück
-                        </button>
                     </div>
                     
                     {activeTab === 'events' && (
@@ -1884,6 +1878,7 @@
                 mealDate: meal?.meal_date || '',
                 mealTime: meal?.meal_time?.slice(0,5) || '18:00',
                 description: meal?.description || '',
+                mealType: meal?.meal_type || 'meal',
                 sortOrder: meal?.sort_order || 0
             });
             const [saving, setSaving] = useState(false);
@@ -1910,6 +1905,19 @@
                         <h2>{meal ? '✏️ Mahlzeit bearbeiten' : '🍽️ Neue Mahlzeit'}</h2>
                         
                         <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Art der Mahlzeit *</label>
+                                <select
+                                    value={formData.mealType}
+                                    onChange={e => updateField('mealType', e.target.value)}
+                                    required
+                                >
+                                    <option value="meal">🍲 Normale Mahlzeit (mit Gerichten)</option>
+                                    <option value="grill">🔥 Grill-Event (mit Mengenangaben)</option>
+                                    <option value="breakfast">🥐 Frühstück-Buffet (mit Mengenangaben)</option>
+                                </select>
+                            </div>
+                            
                             <div className="form-group">
                                 <label>Name der Mahlzeit *</label>
                                 <input 
