@@ -1591,6 +1591,75 @@ app.delete('/api/admin/meals/:id', adminAuth, async (req, res) => {
   }
 });
 
+// Mahlzeiten automatisch generieren basierend auf Event-Daten
+app.post('/api/admin/events/:eventId/meals/generate', adminAuth, async (req, res) => {
+  const { eventId } = req.params;
+  
+  try {
+    // Event-Daten laden
+    const eventResult = await pool.query('SELECT * FROM events WHERE id = $1', [eventId]);
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event nicht gefunden' });
+    }
+    
+    const event = eventResult.rows[0];
+    const startDate = new Date(event.start_date);
+    const endDate = new Date(event.end_date);
+    
+    // Prüfe ob bereits Mahlzeiten existieren
+    const existingMeals = await pool.query('SELECT COUNT(*) as count FROM meals WHERE event_id = $1', [eventId]);
+    if (parseInt(existingMeals.rows[0].count) > 0) {
+      return res.status(400).json({ error: 'Mahlzeiten existieren bereits für dieses Event' });
+    }
+    
+    const mealsToCreate = [];
+    let sortOrder = 0;
+    
+    // Alle Tage durchgehen
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      const dateStr = date.toISOString().split('T')[0];
+      const isFirstDay = date.getTime() === startDate.getTime();
+      const isLastDay = date.getTime() === endDate.getTime();
+      
+      // Frühstück (außer am ersten Tag)
+      if (!isFirstDay) {
+        mealsToCreate.push({
+          name: 'Frühstück',
+          date: dateStr,
+          time: '09:00',
+          description: null,
+          sortOrder: sortOrder++
+        });
+      }
+      
+      // Abendessen (außer am letzten Tag)
+      if (!isLastDay) {
+        mealsToCreate.push({
+          name: 'Abendessen',
+          date: dateStr,
+          time: '19:00',
+          description: null,
+          sortOrder: sortOrder++
+        });
+      }
+    }
+    
+    // Mahlzeiten in DB einfügen
+    for (const meal of mealsToCreate) {
+      await pool.query(
+        `INSERT INTO meals (event_id, name, meal_date, meal_time, description, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [eventId, meal.name, meal.date, meal.time, meal.description, meal.sortOrder]
+      );
+    }
+    
+    res.json({ success: true, count: mealsToCreate.length });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
 // ========== ADMIN: Gerichte verwalten ==========
 
 // Gericht zu Mahlzeit hinzufügen
