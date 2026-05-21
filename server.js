@@ -1983,7 +1983,7 @@ app.get('/api/admin/events/:eventId/meals/report', adminAuth, async (req, res) =
 
 // ========== USER: Mahlzeiten ansehen ==========
 
-// Alle Mahlzeiten für aktuelles Event (mit Gerichten)
+// Alle Mahlzeiten für aktuelles Event (mit Gerichten + Items)
 app.get('/api/meals', async (req, res) => {
   if (!req.eventId) {
     return res.status(404).json({ error: 'Kein Event gefunden' });
@@ -2002,10 +2002,18 @@ app.get('/api/meals', async (req, res) => {
       ORDER BY d.meal_id, d.sort_order
     `, [req.eventId]);
     
-    // Gerichte den Mahlzeiten zuordnen
+    const itemsResult = await pool.query(`
+      SELECT mi.* FROM meal_items mi
+      INNER JOIN meals m ON mi.meal_id = m.id
+      WHERE m.event_id = $1
+      ORDER BY mi.meal_id, mi.sort_order
+    `, [req.eventId]);
+    
+    // Gerichte und Items den Mahlzeiten zuordnen
     const meals = mealsResult.rows.map(meal => ({
       ...meal,
-      dishes: dishesResult.rows.filter(d => d.meal_id === meal.id)
+      dishes: meal.meal_type === 'meal' ? dishesResult.rows.filter(d => d.meal_id === meal.id) : [],
+      items: (meal.meal_type === 'grill' || meal.meal_type === 'breakfast') ? itemsResult.rows.filter(i => i.meal_id === meal.id) : []
     }));
     
     res.json(meals);
