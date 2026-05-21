@@ -342,6 +342,113 @@ async function initDB() {
     // Migration: emoji-Feld hinzufügen falls nicht vorhanden
     await client.query(`ALTER TABLE meal_items ADD COLUMN IF NOT EXISTS emoji VARCHAR(10) DEFAULT NULL`);
     
+    // ==================== ITEM TEMPLATES (WIEDERVERWENDBARE LAYOUTS) ====================
+    
+    // Templates für Grill/Frühstück Items
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS item_templates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        description TEXT DEFAULT NULL,
+        template_type VARCHAR(20) NOT NULL CHECK (template_type IN ('grill', 'breakfast')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Items innerhalb eines Templates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS item_template_items (
+        id SERIAL PRIMARY KEY,
+        template_id INTEGER REFERENCES item_templates(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        item_type VARCHAR(100) DEFAULT NULL,
+        unit VARCHAR(20) DEFAULT 'pieces',
+        emoji VARCHAR(10) DEFAULT NULL,
+        sort_order INTEGER DEFAULT 0
+      )
+    `);
+    
+    // Standard-Templates erstellen (nur beim ersten Start)
+    const templateCheck = await client.query('SELECT COUNT(*) as count FROM item_templates');
+    if (parseInt(templateCheck.rows[0].count) === 0) {
+      console.log('🎉 Erstelle Standard-Templates...');
+      
+      // Grill-Standard Template
+      const grillTemplate = await client.query(
+        `INSERT INTO item_templates (name, description, template_type)
+         VALUES ($1, $2, $3) RETURNING *`,
+        ['Grill-Standard', 'Standard-Layout für Grill-Events', 'grill']
+      );
+      const grillId = grillTemplate.rows[0].id;
+      
+      const grillItems = [
+        { name: 'Würstchen', item_type: 'meat', unit: 'pieces', emoji: '🌭', sort_order: 1 },
+        { name: 'Bratwurst', item_type: 'meat', unit: 'pieces', emoji: '🌭', sort_order: 2 },
+        { name: 'Steaks', item_type: 'meat', unit: 'pieces', emoji: '🥩', sort_order: 3 },
+        { name: 'Hähnchen', item_type: 'meat', unit: 'pieces', emoji: '🍗', sort_order: 4 },
+        { name: 'Grillkäse', item_type: 'vegetarian', unit: 'pieces', emoji: '🧀', sort_order: 5 },
+        { name: 'Gemüsespieße', item_type: 'vegetarian', unit: 'pieces', emoji: '🍢', sort_order: 6 },
+        { name: 'Folienkartoffeln', item_type: 'sides', unit: 'pieces', emoji: '🥔', sort_order: 7 },
+        { name: 'Baguette', item_type: 'sides', unit: 'pieces', emoji: '🥖', sort_order: 8 },
+        { name: 'Salat (gemischt)', item_type: 'sides', unit: 'kg', emoji: '🥗', sort_order: 9 },
+        { name: 'Ketchup', item_type: 'sauce', unit: 'ml', emoji: '🥫', sort_order: 10 },
+        { name: 'Senf', item_type: 'sauce', unit: 'ml', emoji: '🥫', sort_order: 11 },
+        { name: 'Mayo', item_type: 'sauce', unit: 'ml', emoji: '🥫', sort_order: 12 },
+        { name: 'Bier', item_type: 'drinks', unit: 'l', emoji: '🍺', sort_order: 13 },
+        { name: 'Limonade', item_type: 'drinks', unit: 'l', emoji: '🥤', sort_order: 14 },
+        { name: 'Wasser', item_type: 'drinks', unit: 'l', emoji: '💧', sort_order: 15 },
+        { name: 'Grillkohle', item_type: 'other', unit: 'kg', emoji: '🪵', sort_order: 16 },
+        { name: 'Grillanzünder', item_type: 'other', unit: 'pieces', emoji: '🔥', sort_order: 17 }
+      ];
+      
+      for (const item of grillItems) {
+        await client.query(
+          `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [grillId, item.name, item.item_type, item.unit, item.emoji, item.sort_order]
+        );
+      }
+      
+      // Frühstück-Standard Template
+      const breakfastTemplate = await client.query(
+        `INSERT INTO item_templates (name, description, template_type)
+         VALUES ($1, $2, $3) RETURNING *`,
+        ['Frühstück-Standard', 'Standard-Layout für Frühstück', 'breakfast']
+      );
+      const breakfastId = breakfastTemplate.rows[0].id;
+      
+      const breakfastItems = [
+        { name: 'Brötchen', item_type: 'bread', unit: 'pieces', emoji: '🥖', sort_order: 1 },
+        { name: 'Toast', item_type: 'bread', unit: 'pieces', emoji: '🍞', sort_order: 2 },
+        { name: 'Croissant', item_type: 'bread', unit: 'pieces', emoji: '🥐', sort_order: 3 },
+        { name: 'Butter', item_type: 'spread', unit: 'g', emoji: '🧈', sort_order: 4 },
+        { name: 'Marmelade', item_type: 'spread', unit: 'g', emoji: '🍓', sort_order: 5 },
+        { name: 'Honig', item_type: 'spread', unit: 'g', emoji: '🍯', sort_order: 6 },
+        { name: 'Nutella', item_type: 'spread', unit: 'g', emoji: '🍫', sort_order: 7 },
+        { name: 'Käse (Scheiben)', item_type: 'topping', unit: 'g', emoji: '🧀', sort_order: 8 },
+        { name: 'Wurst (Aufschnitt)', item_type: 'topping', unit: 'g', emoji: '🥓', sort_order: 9 },
+        { name: 'Gurken', item_type: 'vegetables', unit: 'pieces', emoji: '🥒', sort_order: 10 },
+        { name: 'Tomaten', item_type: 'vegetables', unit: 'pieces', emoji: '🍅', sort_order: 11 },
+        { name: 'Eier', item_type: 'other', unit: 'pieces', emoji: '🥚', sort_order: 12 },
+        { name: 'Müsli', item_type: 'other', unit: 'g', emoji: '🥣', sort_order: 13 },
+        { name: 'Joghurt', item_type: 'dairy', unit: 'g', emoji: '🥛', sort_order: 14 },
+        { name: 'Milch', item_type: 'drinks', unit: 'l', emoji: '🥛', sort_order: 15 },
+        { name: 'Kaffee', item_type: 'drinks', unit: 'l', emoji: '☕', sort_order: 16 },
+        { name: 'Tee', item_type: 'drinks', unit: 'l', emoji: '🍵', sort_order: 17 },
+        { name: 'Orangensaft', item_type: 'drinks', unit: 'l', emoji: '🧃', sort_order: 18 }
+      ];
+      
+      for (const item of breakfastItems) {
+        await client.query(
+          `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [breakfastId, item.name, item.item_type, item.unit, item.emoji, item.sort_order]
+        );
+      }
+      
+      console.log('✅ Standard-Templates erstellt!');
+    }
+    
     // Erstelle meal_item_selections Tabelle (Mengenauswahl)
     await client.query(`
       CREATE TABLE IF NOT EXISTS meal_item_selections (
@@ -2192,7 +2299,243 @@ app.get('/api/meals/item-selections/:personName', async (req, res) => {
   }
 });
 
-// ==================== GRILL-SYSTEM APIS ====================
+// ==================== ITEM TEMPLATES API ====================
+
+// Mahlzeiten für ein Event laden (für Admin-UI)
+app.get('/api/admin/events/:eventId/meals', adminAuth, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    // Mahlzeiten laden
+    const mealsResult = await pool.query(
+      'SELECT * FROM meals WHERE event_id = $1 ORDER BY date, id',
+      [eventId]
+    );
+    
+    // Für jede Mahlzeit Items und Dishes laden
+    const meals = [];
+    for (const meal of mealsResult.rows) {
+      const itemsResult = await pool.query(
+        'SELECT * FROM meal_items WHERE meal_id = $1 ORDER BY sort_order',
+        [meal.id]
+      );
+      
+      const dishesResult = await pool.query(
+        'SELECT * FROM meal_dishes WHERE meal_id = $1 ORDER BY id',
+        [meal.id]
+      );
+      
+      meals.push({
+        ...meal,
+        items: itemsResult.rows,
+        dishes: dishesResult.rows
+      });
+    }
+    
+    res.json(meals);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Alle Templates laden
+app.get('/api/admin/item-templates', adminAuth, async (req, res) => {
+  try {
+    const templatesResult = await pool.query(
+      'SELECT * FROM item_templates ORDER BY template_type, name'
+    );
+    
+    // Für jedes Template die Items laden
+    const templates = [];
+    for (const template of templatesResult.rows) {
+      const itemsResult = await pool.query(
+        'SELECT * FROM item_template_items WHERE template_id = $1 ORDER BY sort_order',
+        [template.id]
+      );
+      templates.push({
+        ...template,
+        items: itemsResult.rows
+      });
+    }
+    
+    res.json(templates);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Template erstellen
+app.post('/api/admin/item-templates', adminAuth, async (req, res) => {
+  const { name, description, templateType, items } = req.body;
+  
+  if (!name?.trim() || !templateType || !['grill', 'breakfast'].includes(templateType)) {
+    return res.status(400).json({ error: 'name und templateType sind erforderlich' });
+  }
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Template erstellen
+    const templateResult = await client.query(
+      `INSERT INTO item_templates (name, description, template_type)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [name.trim(), description || null, templateType]
+    );
+    const templateId = templateResult.rows[0].id;
+    
+    // Items hinzufügen
+    const itemsToReturn = [];
+    if (items && Array.isArray(items)) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const itemResult = await client.query(
+          `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+          [templateId, item.name, item.itemType || null, item.unit || 'pieces', item.emoji || null, item.sortOrder || i]
+        );
+        itemsToReturn.push(itemResult.rows[0]);
+      }
+    }
+    
+    await client.query('COMMIT');
+    res.json({ ...templateResult.rows[0], items: itemsToReturn });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// Template bearbeiten
+app.put('/api/admin/item-templates/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, description, templateType, items } = req.body;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Template updaten
+    const templateResult = await client.query(
+      `UPDATE item_templates SET name = $1, description = $2, template_type = $3
+       WHERE id = $4 RETURNING *`,
+      [name, description || null, templateType, id]
+    );
+    
+    if (templateResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Template nicht gefunden' });
+    }
+    
+    // Alte Items löschen
+    await client.query('DELETE FROM item_template_items WHERE template_id = $1', [id]);
+    
+    // Neue Items hinzufügen
+    const itemsToReturn = [];
+    if (items && Array.isArray(items)) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const itemResult = await client.query(
+          `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+          [id, item.name, item.itemType || null, item.unit || 'pieces', item.emoji || null, item.sortOrder || i]
+        );
+        itemsToReturn.push(itemResult.rows[0]);
+      }
+    }
+    
+    await client.query('COMMIT');
+    res.json({ ...templateResult.rows[0], items: itemsToReturn });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// Template löschen
+app.delete('/api/admin/item-templates/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM item_templates WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Template auf Mahlzeit anwenden
+app.post('/api/admin/meals/:mealId/apply-template/:templateId', adminAuth, async (req, res) => {
+  const { mealId, templateId } = req.params;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Prüfe ob Mahlzeit existiert und den richtigen Typ hat
+    const mealResult = await client.query(
+      'SELECT * FROM meals WHERE id = $1',
+      [mealId]
+    );
+    
+    if (mealResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Mahlzeit nicht gefunden' });
+    }
+    
+    const meal = mealResult.rows[0];
+    if (meal.meal_type !== 'grill' && meal.meal_type !== 'breakfast') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Mahlzeit muss Typ "grill" oder "breakfast" haben' });
+    }
+    
+    // Template laden
+    const templateResult = await client.query(
+      'SELECT * FROM item_templates WHERE id = $1',
+      [templateId]
+    );
+    
+    if (templateResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Template nicht gefunden' });
+    }
+    
+    // Template-Items laden
+    const templateItemsResult = await client.query(
+      'SELECT * FROM item_template_items WHERE template_id = $1 ORDER BY sort_order',
+      [templateId]
+    );
+    
+    // Items zur Mahlzeit hinzufügen
+    const createdItems = [];
+    for (const templateItem of templateItemsResult.rows) {
+      const itemResult = await client.query(
+        `INSERT INTO meal_items (meal_id, name, item_type, unit, emoji, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [mealId, templateItem.name, templateItem.item_type, templateItem.unit, templateItem.emoji, templateItem.sort_order]
+      );
+      createdItems.push(itemResult.rows[0]);
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true, itemsCreated: createdItems.length, items: createdItems });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// ==================== ALT: GRILL-SYSTEM APIS ====================
 
 // Admin: Alle Grill-Events für ein Event
 app.get('/api/admin/events/:eventId/grill-events', adminAuth, async (req, res) => {
