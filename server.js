@@ -784,7 +784,14 @@ const adminAuth = async (req, res, next) => {
     return next();
   }
   
-  // Option 2: WordPress SSO Token validieren
+  // Option 2: Session-Cookie (nach WordPress-Login)
+  const sessionToken = req.cookies?.maitreffen_wp_token;
+  if (sessionToken) {
+    // Token ist gültig (kommt von unserem eigenen Callback)
+    return next();
+  }
+  
+  // Option 3: WordPress SSO Token validieren
   const wpToken = req.headers['x-wp-token'];
   if (wpToken) {
     try {
@@ -858,6 +865,17 @@ app.get('/api/auth/me', async (req, res) => {
     });
     
     const data = await wpRes.json();
+    
+    // Wenn WordPress-Login erfolgreich, setze Session-Cookie für diese Domain
+    if (data.logged_in && data.token) {
+      res.cookie('maitreffen_wp_token', data.token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24 Stunden
+      });
+    }
+    
     res.json(data);
   } catch (err) {
     console.error('WordPress SSO Fehler:', err.message);
@@ -868,8 +886,49 @@ app.get('/api/auth/me', async (req, res) => {
 // Login-Redirect URL
 app.get('/api/auth/login-url', (req, res) => {
   const returnUrl = req.query.return || req.headers.referer || '/';
-  const loginUrl = `https://brettspielfamilie.de/wp-login.php?redirect_to=${encodeURIComponent(returnUrl)}`;
+  // Redirect zu WordPress mit Callback
+  const callbackUrl = `https://herbsttreffen.brettspielfamilie.de/api/auth/callback?return=${encodeURIComponent(returnUrl)}`;
+  const loginUrl = `https://brettspielfamilie.de/wp-login.php?redirect_to=${encodeURIComponent(callbackUrl)}`;
   res.json({ url: loginUrl });
+});
+
+// WordPress Login Callback - Setzt Session nach erfolgreichem Login
+app.get('/api/auth/callback', async (req, res) => {
+  const returnUrl = req.query.return || '/admin.html';
+  const cookies = req.headers.cookie || '';
+  
+  try {
+    // Prüfe WordPress-Login
+    const wpRes = await fetch(WP_SSO_URL, {
+      headers: { 'Cookie': cookies }
+    });
+    const data = await wpRes.json();
+    
+    if (data.logged_in && data.token) {
+      // Setze Session-Cookie für diese Domain
+      res.cookie('maitreffen_wp_token', data.token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+      res.cookie('maitreffen_wp_user', JSON.stringify({
+        id: data.id,
+        name: data.display_name,
+        email: data.email
+      }), {
+        httpOnly: false, // JS muss das lesen können
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+    }
+  } catch (err) {
+    console.error('Callback Fehler:', err.message);
+  }
+  
+  // Redirect zurück zur Admin-Seite
+  res.redirect(returnUrl);
 });
 
 // Alle Events auflisten

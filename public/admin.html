@@ -431,16 +431,19 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // Helper: API-Call mit Auth-Header (WordPress Token)
+    // Helper: Cookie lesen
+    const getCookie = (name) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    };
+
+    // Helper: API-Call (Cookies werden automatisch mitgeschickt)
     const authFetch = async (url, options = {}) => {
-      const wpToken = sessionStorage.getItem('wpToken');
       return fetch(url, {
         ...options,
-        credentials: 'include', // Wichtig: Cookies mitsenden
-        headers: {
-          ...options.headers,
-          ...(wpToken && { 'x-wp-token': wpToken })
-        }
+        credentials: 'include' // Wichtig: Cookies mitsenden
       });
     };
 
@@ -454,29 +457,35 @@
       const [wpUser, setWpUser] = useState(null);
 
       useEffect(() => {
-        checkWordPressAuth();
+        checkAuth();
       }, []);
 
-      const checkWordPressAuth = async () => {
-        try {
-          const res = await fetch('/api/auth/me', {
-            credentials: 'include' // WordPress-Cookies mitsenden
-          });
-          const data = await res.json();
-          
-          if (data.logged_in && data.token) {
-            // WordPress-Login erfolgreich
-            sessionStorage.setItem('wpToken', data.token);
-            setWpUser(data);
-            setIsAuthenticated(true);
-            loadEvents();
-            loadTemplates();
-          } else {
-            // Nicht eingeloggt - Redirect zu WordPress
+      const checkAuth = async () => {
+        // Prüfe ob Session-Cookie existiert
+        const hasCookie = getCookie('maitreffen_wp_token');
+        const userCookie = getCookie('maitreffen_wp_user');
+        
+        if (hasCookie) {
+          // Cookie vorhanden - versuche API-Call
+          try {
+            const res = await authFetch('/api/admin/events');
+            if (res.ok) {
+              setIsAuthenticated(true);
+              if (userCookie) {
+                try {
+                  setWpUser(JSON.parse(decodeURIComponent(userCookie)));
+                } catch (e) {}
+              }
+              loadEvents();
+              loadTemplates();
+            } else {
+              setIsAuthenticated(false);
+            }
+          } catch (err) {
+            console.error('Auth-Fehler:', err);
             setIsAuthenticated(false);
           }
-        } catch (err) {
-          console.error('Auth-Fehler:', err);
+        } else {
           setIsAuthenticated(false);
         }
         setLoading(false);
@@ -490,7 +499,9 @@
       };
 
       const handleLogout = () => {
-        sessionStorage.removeItem('wpToken');
+        // Lösche Cookies
+        document.cookie = 'maitreffen_wp_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'maitreffen_wp_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         setIsAuthenticated(false);
         setWpUser(null);
         setEvents([]);
