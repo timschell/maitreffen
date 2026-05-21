@@ -318,6 +318,93 @@ async function initDB() {
       )
     `);
     
+    // Migration: Kinderportion-Flag hinzufügen
+    await client.query(`ALTER TABLE meal_selections ADD COLUMN IF NOT EXISTS is_child_portion BOOLEAN DEFAULT FALSE`);
+    
+    // ==================== GRILL-SYSTEM ====================
+    // Grill-Events pro Event (z.B. "Grillabend Samstag")
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS grill_events (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        grill_date DATE NOT NULL,
+        grill_time TIME NOT NULL,
+        description TEXT DEFAULT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Grill-Items pro Grill-Event (z.B. "Bratwurst", "Knoblauchbaguette")
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS grill_items (
+        id SERIAL PRIMARY KEY,
+        grill_event_id INTEGER REFERENCES grill_events(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        item_type VARCHAR(50) DEFAULT 'meat',
+        unit VARCHAR(20) DEFAULT 'pieces',
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Grill-Auswahl pro Person
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS grill_selections (
+        id SERIAL PRIMARY KEY,
+        grill_event_id INTEGER REFERENCES grill_events(id) ON DELETE CASCADE,
+        grill_item_id INTEGER REFERENCES grill_items(id) ON DELETE CASCADE,
+        person_name VARCHAR(100) NOT NULL,
+        quantity INTEGER DEFAULT 0,
+        notes TEXT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(grill_event_id, grill_item_id, person_name)
+      )
+    `);
+    
+    // ==================== FRÜHSTÜCK-SYSTEM ====================
+    // Frühstück-Events pro Event (z.B. "Frühstück Samstag")
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS breakfast_events (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        breakfast_date DATE NOT NULL,
+        breakfast_time TIME NOT NULL,
+        description TEXT DEFAULT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Frühstück-Items pro Frühstück-Event (z.B. "Brötchen", "Joghurt")
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS breakfast_items (
+        id SERIAL PRIMARY KEY,
+        breakfast_event_id INTEGER REFERENCES breakfast_events(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        item_type VARCHAR(50) DEFAULT 'bread',
+        unit VARCHAR(20) DEFAULT 'pieces',
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Frühstück-Auswahl pro Person
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS breakfast_selections (
+        id SERIAL PRIMARY KEY,
+        breakfast_event_id INTEGER REFERENCES breakfast_events(id) ON DELETE CASCADE,
+        breakfast_item_id INTEGER REFERENCES breakfast_items(id) ON DELETE CASCADE,
+        person_name VARCHAR(100) NOT NULL,
+        quantity INTEGER DEFAULT 0,
+        notes TEXT DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(breakfast_event_id, breakfast_item_id, person_name)
+      )
+    `);
+    
     console.log('✅ Datenbank-Tabellen bereit');
 
     // ==================== AUTO-MIGRATION: Maitreffen 2026 ====================
@@ -1576,8 +1663,10 @@ app.get('/api/admin/events/:eventId/meals/report', adminAuth, async (req, res) =
         d.id as dish_id,
         d.name as dish_name,
         d.diet_type,
-        COUNT(ms.id) as selection_count,
-        array_agg(ms.person_name ORDER BY ms.person_name) as selected_by
+        COUNT(ms.id) FILTER (WHERE ms.is_child_portion = false OR ms.is_child_portion IS NULL) as adult_count,
+        COUNT(ms.id) FILTER (WHERE ms.is_child_portion = true) as child_count,
+        array_agg(ms.person_name ORDER BY ms.person_name) FILTER (WHERE ms.is_child_portion = false OR ms.is_child_portion IS NULL) as adults,
+        array_agg(ms.person_name ORDER BY ms.person_name) FILTER (WHERE ms.is_child_portion = true) as children
       FROM meals m
       LEFT JOIN dishes d ON d.meal_id = m.id
       LEFT JOIN meal_selections ms ON ms.dish_id = d.id
@@ -1651,7 +1740,7 @@ app.get('/api/meals/selections/:personName', async (req, res) => {
 
 // Auswahl speichern (für eine Person)
 app.post('/api/meals/selections', async (req, res) => {
-  const { personName, selections } = req.body; // selections = [{ dishId, notes }]
+  const { personName, selections } = req.body; // selections = [{ dishId, notes, isChildPortion }]
   
   if (!req.eventId) {
     return res.status(404).json({ error: 'Kein Event gefunden' });
@@ -1674,9 +1763,9 @@ app.post('/api/meals/selections', async (req, res) => {
     // Neue Auswahlen einfügen
     for (const selection of selections) {
       await client.query(
-        `INSERT INTO meal_selections (event_id, dish_id, person_name, notes)
-         VALUES ($1, $2, $3, $4)`,
-        [req.eventId, selection.dishId, personName.trim(), selection.notes || null]
+        `INSERT INTO meal_selections (event_id, dish_id, person_name, notes, is_child_portion)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [req.eventId, selection.dishId, personName.trim(), selection.notes || null, selection.isChildPortion || false]
       );
     }
     
@@ -1707,6 +1796,512 @@ app.delete('/api/meals/selections/:personName', async (req, res) => {
     await pool.query(
       'DELETE FROM meal_selections WHERE event_id = $1 AND LOWER(person_name) = LOWER($2)',
       [req.eventId, personName.trim()]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== GRILL-SYSTEM APIS ====================
+
+// Admin: Alle Grill-Events für ein Event
+app.get('/api/admin/events/:eventId/grill-events', adminAuth, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM grill_events WHERE event_id = $1 ORDER BY grill_date, grill_time',
+      [eventId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Grill-Event anlegen
+app.post('/api/admin/grill-events', adminAuth, async (req, res) => {
+  const { eventId, title, grillDate, grillTime, description, sortOrder } = req.body;
+  if (!eventId || !title || !grillDate || !grillTime) {
+    return res.status(400).json({ error: 'eventId, title, grillDate und grillTime sind erforderlich' });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO grill_events (event_id, title, grill_date, grill_time, description, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [eventId, title, grillDate, grillTime, description || null, sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Grill-Event bearbeiten
+app.put('/api/admin/grill-events/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { title, grillDate, grillTime, description, sortOrder } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE grill_events SET title = $1, grill_date = $2, grill_time = $3, description = $4, sort_order = $5
+       WHERE id = $6 RETURNING *`,
+      [title, grillDate, grillTime, description || null, sortOrder || 0, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Grill-Event löschen
+app.delete('/api/admin/grill-events/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM grill_events WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Alle Items für ein Grill-Event
+app.get('/api/admin/grill-events/:grillEventId/items', adminAuth, async (req, res) => {
+  const { grillEventId } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM grill_items WHERE grill_event_id = $1 ORDER BY sort_order, name',
+      [grillEventId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Item hinzufügen
+app.post('/api/admin/grill-events/:grillEventId/items', adminAuth, async (req, res) => {
+  const { grillEventId } = req.params;
+  const { name, itemType, unit, sortOrder } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'name ist erforderlich' });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO grill_items (grill_event_id, name, item_type, unit, sort_order)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [grillEventId, name, itemType || 'meat', unit || 'pieces', sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Item bearbeiten
+app.put('/api/admin/grill-items/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, itemType, unit, sortOrder } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE grill_items SET name = $1, item_type = $2, unit = $3, sort_order = $4
+       WHERE id = $5 RETURNING *`,
+      [name, itemType, unit, sortOrder || 0, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Item löschen
+app.delete('/api/admin/grill-items/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM grill_items WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Report/Einkaufsliste
+app.get('/api/admin/grill-events/:grillEventId/report', adminAuth, async (req, res) => {
+  const { grillEventId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT 
+        gi.id, gi.name, gi.item_type, gi.unit,
+        COALESCE(SUM(gs.quantity), 0) as total_quantity,
+        json_agg(json_build_object('personName', gs.person_name, 'quantity', gs.quantity, 'notes', gs.notes) 
+                 ORDER BY gs.person_name) FILTER (WHERE gs.person_name IS NOT NULL) as selections
+      FROM grill_items gi
+      LEFT JOIN grill_selections gs ON gi.id = gs.grill_item_id
+      WHERE gi.grill_event_id = $1
+      GROUP BY gi.id, gi.name, gi.item_type, gi.unit
+      ORDER BY gi.sort_order, gi.name
+    `, [grillEventId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// User: Alle Grill-Events
+app.get('/api/grill-events', async (req, res) => {
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  try {
+    const events = await pool.query(
+      'SELECT * FROM grill_events WHERE event_id = $1 ORDER BY grill_date, grill_time',
+      [req.eventId]
+    );
+    
+    // Für jedes Grill-Event die Items laden
+    for (const event of events.rows) {
+      const items = await pool.query(
+        'SELECT * FROM grill_items WHERE grill_event_id = $1 ORDER BY sort_order, name',
+        [event.id]
+      );
+      event.items = items.rows;
+    }
+    
+    res.json(events.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// User: Auswahl für eine Person abrufen
+app.get('/api/grill-selections/:personName', async (req, res) => {
+  const { personName } = req.params;
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  try {
+    const result = await pool.query(`
+      SELECT gs.*, ge.id as grill_event_id
+      FROM grill_selections gs
+      JOIN grill_events ge ON gs.grill_event_id = ge.id
+      WHERE ge.event_id = $1 AND LOWER(gs.person_name) = LOWER($2)
+    `, [req.eventId, personName]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// User: Auswahl speichern
+app.post('/api/grill-selections', async (req, res) => {
+  const { personName, grillEventId, selections } = req.body; // selections = [{ itemId, quantity, notes }]
+  if (!personName?.trim() || !grillEventId || !Array.isArray(selections)) {
+    return res.status(400).json({ error: 'personName, grillEventId und selections sind erforderlich' });
+  }
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Alte Auswahlen für dieses Grill-Event löschen
+    await client.query(
+      'DELETE FROM grill_selections WHERE grill_event_id = $1 AND LOWER(person_name) = LOWER($2)',
+      [grillEventId, personName.trim()]
+    );
+    
+    // Neue Auswahlen einfügen (nur wenn quantity > 0)
+    for (const selection of selections) {
+      if (selection.quantity > 0) {
+        await client.query(
+          `INSERT INTO grill_selections (grill_event_id, grill_item_id, person_name, quantity, notes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [grillEventId, selection.itemId, personName.trim(), selection.quantity, selection.notes || null]
+        );
+      }
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// User: Auswahl löschen
+app.delete('/api/grill-selections/:personName/:grillEventId', async (req, res) => {
+  const { personName, grillEventId } = req.params;
+  try {
+    await pool.query(
+      'DELETE FROM grill_selections WHERE grill_event_id = $1 AND LOWER(person_name) = LOWER($2)',
+      [grillEventId, personName]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== FRÜHSTÜCK-SYSTEM APIS ====================
+
+// Admin: Alle Frühstück-Events für ein Event
+app.get('/api/admin/events/:eventId/breakfast-events', adminAuth, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM breakfast_events WHERE event_id = $1 ORDER BY breakfast_date, breakfast_time',
+      [eventId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Frühstück-Event anlegen
+app.post('/api/admin/breakfast-events', adminAuth, async (req, res) => {
+  const { eventId, title, breakfastDate, breakfastTime, description, sortOrder } = req.body;
+  if (!eventId || !title || !breakfastDate || !breakfastTime) {
+    return res.status(400).json({ error: 'eventId, title, breakfastDate und breakfastTime sind erforderlich' });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO breakfast_events (event_id, title, breakfast_date, breakfast_time, description, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [eventId, title, breakfastDate, breakfastTime, description || null, sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Frühstück-Event bearbeiten
+app.put('/api/admin/breakfast-events/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { title, breakfastDate, breakfastTime, description, sortOrder } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE breakfast_events SET title = $1, breakfast_date = $2, breakfast_time = $3, description = $4, sort_order = $5
+       WHERE id = $6 RETURNING *`,
+      [title, breakfastDate, breakfastTime, description || null, sortOrder || 0, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Frühstück-Event löschen
+app.delete('/api/admin/breakfast-events/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM breakfast_events WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Alle Items für ein Frühstück-Event
+app.get('/api/admin/breakfast-events/:breakfastEventId/items', adminAuth, async (req, res) => {
+  const { breakfastEventId } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM breakfast_items WHERE breakfast_event_id = $1 ORDER BY sort_order, name',
+      [breakfastEventId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Item hinzufügen
+app.post('/api/admin/breakfast-events/:breakfastEventId/items', adminAuth, async (req, res) => {
+  const { breakfastEventId } = req.params;
+  const { name, itemType, unit, sortOrder } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'name ist erforderlich' });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO breakfast_items (breakfast_event_id, name, item_type, unit, sort_order)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [breakfastEventId, name, itemType || 'bread', unit || 'pieces', sortOrder || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Item bearbeiten
+app.put('/api/admin/breakfast-items/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, itemType, unit, sortOrder } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE breakfast_items SET name = $1, item_type = $2, unit = $3, sort_order = $4
+       WHERE id = $5 RETURNING *`,
+      [name, itemType, unit, sortOrder || 0, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Item löschen
+app.delete('/api/admin/breakfast-items/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM breakfast_items WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Admin: Report/Einkaufsliste
+app.get('/api/admin/breakfast-events/:breakfastEventId/report', adminAuth, async (req, res) => {
+  const { breakfastEventId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT 
+        bi.id, bi.name, bi.item_type, bi.unit,
+        COALESCE(SUM(bs.quantity), 0) as total_quantity,
+        json_agg(json_build_object('personName', bs.person_name, 'quantity', bs.quantity, 'notes', bs.notes) 
+                 ORDER BY bs.person_name) FILTER (WHERE bs.person_name IS NOT NULL) as selections
+      FROM breakfast_items bi
+      LEFT JOIN breakfast_selections bs ON bi.id = bs.breakfast_item_id
+      WHERE bi.breakfast_event_id = $1
+      GROUP BY bi.id, bi.name, bi.item_type, bi.unit
+      ORDER BY bi.sort_order, bi.name
+    `, [breakfastEventId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// User: Alle Frühstück-Events
+app.get('/api/breakfast-events', async (req, res) => {
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  try {
+    const events = await pool.query(
+      'SELECT * FROM breakfast_events WHERE event_id = $1 ORDER BY breakfast_date, breakfast_time',
+      [req.eventId]
+    );
+    
+    // Für jedes Frühstück-Event die Items laden
+    for (const event of events.rows) {
+      const items = await pool.query(
+        'SELECT * FROM breakfast_items WHERE breakfast_event_id = $1 ORDER BY sort_order, name',
+        [event.id]
+      );
+      event.items = items.rows;
+    }
+    
+    res.json(events.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// User: Auswahl für eine Person abrufen
+app.get('/api/breakfast-selections/:personName', async (req, res) => {
+  const { personName } = req.params;
+  if (!req.eventId) {
+    return res.status(404).json({ error: 'Kein Event gefunden' });
+  }
+  try {
+    const result = await pool.query(`
+      SELECT bs.*, be.id as breakfast_event_id
+      FROM breakfast_selections bs
+      JOIN breakfast_events be ON bs.breakfast_event_id = be.id
+      WHERE be.event_id = $1 AND LOWER(bs.person_name) = LOWER($2)
+    `, [req.eventId, personName]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// User: Auswahl speichern
+app.post('/api/breakfast-selections', async (req, res) => {
+  const { personName, breakfastEventId, selections } = req.body; // selections = [{ itemId, quantity, notes }]
+  if (!personName?.trim() || !breakfastEventId || !Array.isArray(selections)) {
+    return res.status(400).json({ error: 'personName, breakfastEventId und selections sind erforderlich' });
+  }
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Alte Auswahlen für dieses Frühstück-Event löschen
+    await client.query(
+      'DELETE FROM breakfast_selections WHERE breakfast_event_id = $1 AND LOWER(person_name) = LOWER($2)',
+      [breakfastEventId, personName.trim()]
+    );
+    
+    // Neue Auswahlen einfügen (nur wenn quantity > 0)
+    for (const selection of selections) {
+      if (selection.quantity > 0) {
+        await client.query(
+          `INSERT INTO breakfast_selections (breakfast_event_id, breakfast_item_id, person_name, quantity, notes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [breakfastEventId, selection.itemId, personName.trim(), selection.quantity, selection.notes || null]
+        );
+      }
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+// User: Auswahl löschen
+app.delete('/api/breakfast-selections/:personName/:breakfastEventId', async (req, res) => {
+  const { personName, breakfastEventId } = req.params;
+  try {
+    await pool.query(
+      'DELETE FROM breakfast_selections WHERE breakfast_event_id = $1 AND LOWER(person_name) = LOWER($2)',
+      [breakfastEventId, personName]
     );
     res.json({ success: true });
   } catch (err) {
