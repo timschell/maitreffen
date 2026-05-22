@@ -2635,6 +2635,106 @@ app.delete('/api/admin/item-templates/:id', adminAuth, async (req, res) => {
   }
 });
 
+// Templates zurücksetzen (auf deutsche Standardvorlagen)
+app.post('/api/admin/item-templates/reset', adminAuth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Lösche ALLE Templates
+    await client.query('DELETE FROM item_templates');
+    
+    // Grill-Standard Template (NEU)
+    const grillTemplate = await client.query(
+      `INSERT INTO item_templates (name, description, template_type)
+       VALUES ($1, $2, $3) RETURNING *`,
+      ['Grill-Standard', 'Standard-Layout für Grill-Events', 'grill']
+    );
+    const grillId = grillTemplate.rows[0].id;
+    
+    const grillItems = [
+      { name: 'Nürnberger Würstchen', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 1 },
+      { name: 'Thüringer Würstchen Grob', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 2 },
+      { name: 'Thüringer Würstchen Fein', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 3 },
+      { name: 'Schweinenackensteak', item_type: 'Fleisch', unit: 'pieces', emoji: '🥩', sort_order: 4 },
+      { name: 'Hähnchenbrust', item_type: 'Fleisch', unit: 'pieces', emoji: '🍗', sort_order: 5 },
+      { name: 'Grillfackel', item_type: 'Fleisch', unit: 'pieces', emoji: '🔥', sort_order: 6 },
+      { name: 'Hähnchenflügel', item_type: 'Fleisch', unit: 'pieces', emoji: '🍗', sort_order: 7 },
+      { name: 'Hähnchenkeule', item_type: 'Fleisch', unit: 'pieces', emoji: '🍗', sort_order: 8 },
+      { name: 'Grillkäse', item_type: 'Vegetarisch', unit: 'pieces', emoji: '🧀', sort_order: 9 },
+      { name: 'Würstchen vegan', item_type: 'Vegan', unit: 'pieces', emoji: '🌭', sort_order: 10 },
+      { name: 'Grillgemüse', item_type: 'Gemüse', unit: 'kg', emoji: '🌽', sort_order: 11 },
+      { name: 'Nudelsalat', item_type: 'Beilage', unit: 'boolean', emoji: '🍝', sort_order: 12 },
+      { name: 'Kartoffelsalat', item_type: 'Beilage', unit: 'boolean', emoji: '🥔', sort_order: 13 },
+      { name: 'Baguette Knoblauch', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 14 },
+      { name: 'Baguette Kräuter', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 15 },
+      { name: 'Ketchup', item_type: 'Saucen', unit: 'ml', emoji: '🥫', sort_order: 16 },
+      { name: 'Senf', item_type: 'Saucen', unit: 'ml', emoji: '🥫', sort_order: 17 },
+      { name: 'Grillkohle', item_type: 'Sonstiges', unit: 'kg', emoji: '🪵', sort_order: 18 },
+      { name: 'Grillanzünder', item_type: 'Sonstiges', unit: 'pieces', emoji: '🔥', sort_order: 19 }
+    ];
+    
+    for (const item of grillItems) {
+      await client.query(
+        `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [grillId, item.name, item.item_type, item.unit, item.emoji, item.sort_order]
+      );
+    }
+    
+    // Frühstück-Standard Template (NEU)
+    const breakfastTemplate = await client.query(
+      `INSERT INTO item_templates (name, description, template_type)
+       VALUES ($1, $2, $3) RETURNING *`,
+      ['Frühstück-Standard', 'Standard-Layout für Frühstück', 'breakfast']
+    );
+    const breakfastId = breakfastTemplate.rows[0].id;
+    
+    const breakfastItems = [
+      { name: 'Brötchen', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 1 },
+      { name: 'Brötchen Mehrkorn', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 2 },
+      { name: 'Wurst Normal', item_type: 'Wurst & Käse', unit: 'g', emoji: '🥓', sort_order: 3 },
+      { name: 'Wurst Vegan', item_type: 'Wurst & Käse', unit: 'g', emoji: '🥓', sort_order: 4 },
+      { name: 'Käse Normal', item_type: 'Wurst & Käse', unit: 'g', emoji: '🧀', sort_order: 5 },
+      { name: 'Käse Vegan', item_type: 'Wurst & Käse', unit: 'g', emoji: '🧀', sort_order: 6 },
+      { name: 'Müsli', item_type: 'Sonstiges', unit: 'g', emoji: '🥣', sort_order: 7 },
+      { name: 'Yoghurt', item_type: 'Sonstiges', unit: 'g', emoji: '🥛', sort_order: 8 },
+      { name: 'Milch', item_type: 'Getränke', unit: 'l', emoji: '🥛', sort_order: 9 },
+      { name: 'Haferdrink', item_type: 'Getränke', unit: 'l', emoji: '🥛', sort_order: 10 },
+      { name: 'Nutella', item_type: 'Aufstriche', unit: 'g', emoji: '🍫', sort_order: 11 },
+      { name: 'Hummus', item_type: 'Aufstriche', unit: 'g', emoji: '🫘', sort_order: 12 },
+      { name: 'Vegiaufstrich', item_type: 'Aufstriche', unit: 'g', emoji: '🥬', sort_order: 13 },
+      { name: 'Rührei ala Tim ohne Speck', item_type: 'Sonstiges', unit: 'boolean', emoji: '🍳', sort_order: 14 },
+      { name: 'Rührei ala Tim mit Speck', item_type: 'Sonstiges', unit: 'boolean', emoji: '🍳', sort_order: 15 },
+      { name: 'Marmelade Erdbeere', item_type: 'Aufstriche', unit: 'g', emoji: '🍓', sort_order: 16 },
+      { name: 'Marmelade Aprikose', item_type: 'Aufstriche', unit: 'g', emoji: '🍑', sort_order: 17 },
+      { name: 'Marmelade Pfirsich', item_type: 'Aufstriche', unit: 'g', emoji: '🍑', sort_order: 18 },
+      { name: 'Marmelade Himbeere', item_type: 'Aufstriche', unit: 'g', emoji: '🫐', sort_order: 19 },
+      { name: 'Kaffee', item_type: 'Getränke', unit: 'l', emoji: '☕', sort_order: 20 },
+      { name: 'Tee', item_type: 'Getränke', unit: 'l', emoji: '🍵', sort_order: 21 },
+      { name: 'Orangensaft', item_type: 'Getränke', unit: 'l', emoji: '🧃', sort_order: 22 },
+      { name: 'Sonstiges', item_type: 'Sonstiges', unit: 'pieces', emoji: '📦', sort_order: 23 }
+    ];
+    
+    for (const item of breakfastItems) {
+      await client.query(
+        `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [breakfastId, item.name, item.item_type, item.unit, item.emoji, item.sort_order]
+      );
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Templates wurden zurückgesetzt' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
 // Template auf Mahlzeit anwenden
 app.post('/api/admin/meals/:mealId/apply-template/:templateId', adminAuth, async (req, res) => {
   const { mealId, templateId } = req.params;
