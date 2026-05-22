@@ -2906,54 +2906,31 @@ app.delete('/api/admin/meal-items/:id', adminAuth, async (req, res) => {
 
 // ========== ITEM-VORLAGEN ==========
 
-// Item-Vorlagen abrufen (hardcodiert, später DB-basiert)
+// Item-Vorlagen abrufen (aus DB)
 app.get('/api/admin/item-templates', adminAuth, async (req, res) => {
-  const templates = {
-    breakfast: [
-      { name: 'Brötchen', itemType: 'Backwaren', unit: 'pieces', sortOrder: 1 },
-      { name: 'Toast', itemType: 'Backwaren', unit: 'pieces', sortOrder: 2 },
-      { name: 'Butter', itemType: 'Aufstrich', unit: 'g', sortOrder: 10 },
-      { name: 'Marmelade', itemType: 'Aufstrich', unit: 'g', sortOrder: 11 },
-      { name: 'Honig', itemType: 'Aufstrich', unit: 'g', sortOrder: 12 },
-      { name: 'Nutella', itemType: 'Aufstrich', unit: 'g', sortOrder: 13 },
-      { name: 'Käse (Scheiben)', itemType: 'Belag', unit: 'g', sortOrder: 20 },
-      { name: 'Wurst (Aufschnitt)', itemType: 'Belag', unit: 'g', sortOrder: 21 },
-      { name: 'Gurken', itemType: 'Gemüse', unit: 'pieces', sortOrder: 30 },
-      { name: 'Tomaten', itemType: 'Gemüse', unit: 'pieces', sortOrder: 31 },
-      { name: 'Paprika', itemType: 'Gemüse', unit: 'pieces', sortOrder: 32 },
-      { name: 'Eier', itemType: 'Sonstiges', unit: 'pieces', sortOrder: 40 },
-      { name: 'Müsli', itemType: 'Sonstiges', unit: 'g', sortOrder: 41 },
-      { name: 'Joghurt', itemType: 'Sonstiges', unit: 'g', sortOrder: 42 },
-      { name: 'Milch', itemType: 'Getränke', unit: 'l', sortOrder: 50 },
-      { name: 'Kaffee', itemType: 'Getränke', unit: 'l', sortOrder: 51 },
-      { name: 'Tee', itemType: 'Getränke', unit: 'l', sortOrder: 52 },
-      { name: 'Orangensaft', itemType: 'Getränke', unit: 'l', sortOrder: 53 },
-    ],
-    grill: [
-      { name: 'Würstchen', itemType: 'Fleisch', unit: 'pieces', sortOrder: 1 },
-      { name: 'Bratwurst', itemType: 'Fleisch', unit: 'pieces', sortOrder: 2 },
-      { name: 'Steaks', itemType: 'Fleisch', unit: 'pieces', sortOrder: 3 },
-      { name: 'Hähnchen', itemType: 'Fleisch', unit: 'pieces', sortOrder: 4 },
-      { name: 'Grillkäse', itemType: 'Vegetarisch', unit: 'pieces', sortOrder: 10 },
-      { name: 'Gemüsespieße', itemType: 'Vegetarisch', unit: 'pieces', sortOrder: 11 },
-      { name: 'Folienkartoffeln', itemType: 'Beilage', unit: 'pieces', sortOrder: 20 },
-      { name: 'Baguette', itemType: 'Beilage', unit: 'pieces', sortOrder: 21 },
-      { name: 'Salat (gemischt)', itemType: 'Beilage', unit: 'kg', sortOrder: 22 },
-      { name: 'Gurkensalat', itemType: 'Beilage', unit: 'kg', sortOrder: 23 },
-      { name: 'Tomatensalat', itemType: 'Beilage', unit: 'kg', sortOrder: 24 },
-      { name: 'Ketchup', itemType: 'Sauce', unit: 'ml', sortOrder: 30 },
-      { name: 'Senf', itemType: 'Sauce', unit: 'ml', sortOrder: 31 },
-      { name: 'Mayo', itemType: 'Sauce', unit: 'ml', sortOrder: 32 },
-      { name: 'Grillsauce', itemType: 'Sauce', unit: 'ml', sortOrder: 33 },
-      { name: 'Bier', itemType: 'Getränke', unit: 'l', sortOrder: 40 },
-      { name: 'Limonade', itemType: 'Getränke', unit: 'l', sortOrder: 41 },
-      { name: 'Wasser', itemType: 'Getränke', unit: 'l', sortOrder: 42 },
-      { name: 'Grillkohle', itemType: 'Sonstiges', unit: 'kg', sortOrder: 50 },
-      { name: 'Grillanzünder', itemType: 'Sonstiges', unit: 'pieces', sortOrder: 51 },
-    ]
-  };
-  
-  res.json(templates);
+  try {
+    const templatesResult = await pool.query(
+      'SELECT * FROM item_templates ORDER BY template_type, name'
+    );
+    
+    // Für jedes Template die Items laden
+    const templates = [];
+    for (const template of templatesResult.rows) {
+      const itemsResult = await pool.query(
+        'SELECT * FROM item_template_items WHERE template_id = $1 ORDER BY sort_order',
+        [template.id]
+      );
+      templates.push({
+        ...template,
+        items: itemsResult.rows
+      });
+    }
+    
+    res.json(templates);
+  } catch (err) {
+    console.error('Fehler:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
 });
 
 // Report für Grill/Frühstück (Mengenauswertung)
