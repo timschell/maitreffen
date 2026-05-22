@@ -384,23 +384,25 @@ async function initDB() {
       const grillId = grillTemplate.rows[0].id;
       
       const grillItems = [
-        { name: 'Würstchen', item_type: 'meat', unit: 'pieces', emoji: '🌭', sort_order: 1 },
-        { name: 'Bratwurst', item_type: 'meat', unit: 'pieces', emoji: '🌭', sort_order: 2 },
-        { name: 'Steaks', item_type: 'meat', unit: 'pieces', emoji: '🥩', sort_order: 3 },
-        { name: 'Hähnchen', item_type: 'meat', unit: 'pieces', emoji: '🍗', sort_order: 4 },
-        { name: 'Grillkäse', item_type: 'vegetarian', unit: 'pieces', emoji: '🧀', sort_order: 5 },
-        { name: 'Gemüsespieße', item_type: 'vegetarian', unit: 'pieces', emoji: '🍢', sort_order: 6 },
-        { name: 'Folienkartoffeln', item_type: 'sides', unit: 'pieces', emoji: '🥔', sort_order: 7 },
-        { name: 'Baguette', item_type: 'sides', unit: 'pieces', emoji: '🥖', sort_order: 8 },
-        { name: 'Salat (gemischt)', item_type: 'sides', unit: 'kg', emoji: '🥗', sort_order: 9 },
-        { name: 'Ketchup', item_type: 'sauce', unit: 'ml', emoji: '🥫', sort_order: 10 },
-        { name: 'Senf', item_type: 'sauce', unit: 'ml', emoji: '🥫', sort_order: 11 },
-        { name: 'Mayo', item_type: 'sauce', unit: 'ml', emoji: '🥫', sort_order: 12 },
-        { name: 'Bier', item_type: 'drinks', unit: 'l', emoji: '🍺', sort_order: 13 },
-        { name: 'Limonade', item_type: 'drinks', unit: 'l', emoji: '🥤', sort_order: 14 },
-        { name: 'Wasser', item_type: 'drinks', unit: 'l', emoji: '💧', sort_order: 15 },
-        { name: 'Grillkohle', item_type: 'other', unit: 'kg', emoji: '🪵', sort_order: 16 },
-        { name: 'Grillanzünder', item_type: 'other', unit: 'pieces', emoji: '🔥', sort_order: 17 }
+        { name: 'Nürnberger Würstchen', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 1 },
+        { name: 'Thüringer Würstchen Grob', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 2 },
+        { name: 'Thüringer Würstchen Fein', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 3 },
+        { name: 'Schweinenackensteak', item_type: 'Fleisch', unit: 'pieces', emoji: '🥩', sort_order: 4 },
+        { name: 'Hähnchenbrust', item_type: 'Fleisch', unit: 'pieces', emoji: '🍗', sort_order: 5 },
+        { name: 'Grillfackel', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 6 },
+        { name: 'Hähnchenflügel', item_type: 'Fleisch', unit: 'pieces', emoji: '🍗', sort_order: 7 },
+        { name: 'Hähnchenkeule', item_type: 'Fleisch', unit: 'pieces', emoji: '🍗', sort_order: 8 },
+        { name: 'Grillkäse', item_type: 'Vegetarisch', unit: 'pieces', emoji: '🧀', sort_order: 9 },
+        { name: 'Würstchen vegan', item_type: 'Vegan', unit: 'pieces', emoji: '🌭', sort_order: 10 },
+        { name: 'Grillgemüse', item_type: 'Gemüse', unit: 'kg', emoji: '🥬', sort_order: 11 },
+        { name: 'Nudelsalat', item_type: 'Beilage', unit: 'boolean', emoji: '🥗', sort_order: 12 },
+        { name: 'Kartoffelsalat', item_type: 'Beilage', unit: 'boolean', emoji: '🥔', sort_order: 13 },
+        { name: 'Baguette (Knobi)', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 14 },
+        { name: 'Baguette (Kräuter)', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 15 },
+        { name: 'Ketchup', item_type: 'Saucen', unit: 'ml', emoji: '🥫', sort_order: 16 },
+        { name: 'Senf', item_type: 'Saucen', unit: 'ml', emoji: '🥫', sort_order: 17 },
+        { name: 'Grillkohle', item_type: 'Sonstiges', unit: 'kg', emoji: '🪵', sort_order: 18 },
+        { name: 'Grillanzünder', item_type: 'Sonstiges', unit: 'pieces', emoji: '🔥', sort_order: 19 }
       ];
       
       for (const item of grillItems) {
@@ -420,24 +422,24 @@ async function initDB() {
       const breakfastId = breakfastTemplate.rows[0].id;
       
       const breakfastItems = [
-        { name: 'Brötchen', item_type: 'bread', unit: 'pieces', emoji: '🥖', sort_order: 1 },
-        { name: 'Toast', item_type: 'bread', unit: 'pieces', emoji: '🍞', sort_order: 2 },
-        { name: 'Croissant', item_type: 'bread', unit: 'pieces', emoji: '🥐', sort_order: 3 },
-        { name: 'Butter', item_type: 'spread', unit: 'g', emoji: '🧈', sort_order: 4 },
-        { name: 'Marmelade', item_type: 'spread', unit: 'g', emoji: '🍓', sort_order: 5 },
-        { name: 'Honig', item_type: 'spread', unit: 'g', emoji: '🍯', sort_order: 6 },
-        { name: 'Nutella', item_type: 'spread', unit: 'g', emoji: '🍫', sort_order: 7 },
-        { name: 'Käse (Scheiben)', item_type: 'topping', unit: 'g', emoji: '🧀', sort_order: 8 },
-        { name: 'Wurst (Aufschnitt)', item_type: 'topping', unit: 'g', emoji: '🥓', sort_order: 9 },
-        { name: 'Gurken', item_type: 'vegetables', unit: 'pieces', emoji: '🥒', sort_order: 10 },
-        { name: 'Tomaten', item_type: 'vegetables', unit: 'pieces', emoji: '🍅', sort_order: 11 },
-        { name: 'Eier', item_type: 'other', unit: 'pieces', emoji: '🥚', sort_order: 12 },
-        { name: 'Müsli', item_type: 'other', unit: 'g', emoji: '🥣', sort_order: 13 },
-        { name: 'Joghurt', item_type: 'dairy', unit: 'g', emoji: '🥛', sort_order: 14 },
-        { name: 'Milch', item_type: 'drinks', unit: 'l', emoji: '🥛', sort_order: 15 },
-        { name: 'Kaffee', item_type: 'drinks', unit: 'l', emoji: '☕', sort_order: 16 },
-        { name: 'Tee', item_type: 'drinks', unit: 'l', emoji: '🍵', sort_order: 17 },
-        { name: 'Orangensaft', item_type: 'drinks', unit: 'l', emoji: '🧃', sort_order: 18 }
+        { name: 'Brötchen', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 1 },
+        { name: 'Brötchen Mehrkorn', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 2 },
+        { name: 'Wurst (Normal)', item_type: 'Wurst & Käse', unit: 'g', emoji: '🥓', sort_order: 3 },
+        { name: 'Wurst (Vegan)', item_type: 'Wurst & Käse', unit: 'g', emoji: '🥓', sort_order: 4 },
+        { name: 'Käse (Normal)', item_type: 'Wurst & Käse', unit: 'g', emoji: '🧀', sort_order: 5 },
+        { name: 'Käse (Vegan)', item_type: 'Wurst & Käse', unit: 'g', emoji: '🧀', sort_order: 6 },
+        { name: 'Müsli', item_type: 'Sonstiges', unit: 'g', emoji: '🥣', sort_order: 7 },
+        { name: 'Yoghurt', item_type: 'Sonstiges', unit: 'g', emoji: '🥛', sort_order: 8 },
+        { name: 'Milch', item_type: 'Getränke', unit: 'l', emoji: '🥛', sort_order: 9 },
+        { name: 'Haferdrink', item_type: 'Getränke', unit: 'l', emoji: '🥛', sort_order: 10 },
+        { name: 'Nutella', item_type: 'Aufstriche', unit: 'g', emoji: '🍫', sort_order: 11 },
+        { name: 'Hummus', item_type: 'Aufstriche', unit: 'g', emoji: '🫒', sort_order: 12 },
+        { name: 'Vegiaufstrich', item_type: 'Aufstriche', unit: 'g', emoji: '🥑', sort_order: 13 },
+        { name: 'Rührei ala Tim (ohne Speck)', item_type: 'Sonstiges', unit: 'boolean', emoji: '🍳', sort_order: 14 },
+        { name: 'Rührei ala Tim (mit Speck)', item_type: 'Sonstiges', unit: 'boolean', emoji: '🍳', sort_order: 15 },
+        { name: 'Kaffee', item_type: 'Getränke', unit: 'l', emoji: '☕', sort_order: 16 },
+        { name: 'Tee', item_type: 'Getränke', unit: 'l', emoji: '🍵', sort_order: 17 },
+        { name: 'Orangensaft', item_type: 'Getränke', unit: 'l', emoji: '🧃', sort_order: 18 }
       ];
       
       for (const item of breakfastItems) {
