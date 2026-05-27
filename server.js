@@ -2176,29 +2176,99 @@ app.get('/api/admin/events/:eventId/meals/report', adminAuth, async (req, res) =
   const { eventId } = req.params;
   
   try {
-    // Alle Mahlzeiten mit Gerichten und Auswahlen laden
-    const result = await pool.query(`
+    // 1. Alle Mahlzeiten des Events laden
+    const mealsResult = await pool.query(
+      `SELECT id, name, meal_date, meal_time, meal_type, description
+       FROM meals
+       WHERE event_id = $1
+       ORDER BY meal_date, meal_time, sort_order`,
+      [eventId]
+    );
+    
+    // 2. Dishes mit Selections für alle 'meal' Mahlzeiten
+    const dishesResult = await pool.query(`
       SELECT 
-        m.id as meal_id,
-        m.name as meal_name,
-        m.meal_date,
-        m.meal_time,
+        d.meal_id,
         d.id as dish_id,
         d.name as dish_name,
         d.diet_type,
+        d.sort_order,
         COUNT(ms.id) FILTER (WHERE ms.is_child_portion = false OR ms.is_child_portion IS NULL) as adult_count,
         COUNT(ms.id) FILTER (WHERE ms.is_child_portion = true) as child_count,
         array_agg(ms.person_name ORDER BY ms.person_name) FILTER (WHERE ms.is_child_portion = false OR ms.is_child_portion IS NULL) as adults,
         array_agg(ms.person_name ORDER BY ms.person_name) FILTER (WHERE ms.is_child_portion = true) as children
-      FROM meals m
-      LEFT JOIN dishes d ON d.meal_id = m.id
+      FROM dishes d
+      INNER JOIN meals m ON d.meal_id = m.id
       LEFT JOIN meal_selections ms ON ms.dish_id = d.id
       WHERE m.event_id = $1
-      GROUP BY m.id, m.name, m.meal_date, m.meal_time, d.id, d.name, d.diet_type
-      ORDER BY m.meal_date, m.meal_time, d.sort_order
+      GROUP BY d.id, d.meal_id, d.name, d.diet_type, d.sort_order
+      ORDER BY d.meal_id, d.sort_order
     `, [eventId]);
     
-    res.json(result.rows);
+    // 3. Items mit Selections für alle 'grill'/'breakfast' Mahlzeiten
+    const itemsResult = await pool.query(`
+      SELECT 
+        mi.meal_id,
+        mi.id as item_id,
+        mi.name as item_name,
+        mi.item_type,
+        mi.unit,
+        mi.emoji,
+        mi.sort_order,
+        COALESCE(SUM(mis.quantity), 0)::int as total_quantity,
+        COUNT(mis.id) as selection_count,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'person_name', mis.person_name,
+              'quantity', mis.quantity,
+              'notes', mis.notes
+            ) ORDER BY mis.person_name
+          ) FILTER (WHERE mis.id IS NOT NULL),
+          '[]'::json
+        ) as selections
+      FROM meal_items mi
+      INNER JOIN meals m ON mi.meal_id = m.id
+      LEFT JOIN meal_item_selections mis ON mis.meal_item_id = mi.id
+      WHERE m.event_id = $1
+      GROUP BY mi.id, mi.meal_id, mi.name, mi.item_type, mi.unit, mi.emoji, mi.sort_order
+      ORDER BY mi.meal_id, mi.sort_order
+    `, [eventId]);
+    
+    // 4. Daten pro Mahlzeit zusammenführen
+    const report = mealsResult.rows.map(meal => ({
+      meal_id: meal.id,
+      meal_name: meal.name,
+      meal_date: meal.meal_date,
+      meal_time: meal.meal_time,
+      meal_type: meal.meal_type,
+      description: meal.description,
+      dishes: dishesResult.rows
+        .filter(d => d.meal_id === meal.id)
+        .map(d => ({
+          dish_id: d.dish_id,
+          dish_name: d.dish_name,
+          diet_type: d.diet_type,
+          adult_count: parseInt(d.adult_count) || 0,
+          child_count: parseInt(d.child_count) || 0,
+          adults: d.adults || [],
+          children: d.children || [],
+        })),
+      items: itemsResult.rows
+        .filter(i => i.meal_id === meal.id)
+        .map(i => ({
+          item_id: i.item_id,
+          item_name: i.item_name,
+          item_type: i.item_type,
+          unit: i.unit,
+          emoji: i.emoji,
+          total_quantity: i.total_quantity,
+          selection_count: parseInt(i.selection_count) || 0,
+          selections: i.selections || [],
+        })),
+    }));
+    
+    res.json(report);
   } catch (err) {
     console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });

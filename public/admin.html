@@ -2104,57 +2104,259 @@
 											{showReport && (
 												<div style={{ marginTop: '1rem' }}>
 													{reportData.length === 0 ? (
-														<p>Noch keine Auswahlen vorhanden</p>
+														<p>Noch keine Mahlzeiten vorhanden</p>
 													) : (
-														<table className="users-table">
-															<thead>
-																<tr>
-																	<th>Mahlzeit</th>
-																	<th>Gericht</th>
-																	<th>Typ</th>
-																	<th>Anzahl</th>
-																	<th>Personen</th>
-																</tr>
-															</thead>
-															<tbody>
-																{reportData.map((row, i) => (
-																	<tr key={i}>
-																		<td>
-																			<strong>{row.meal_name}</strong>
-																			<br />
-																			<small>
-																				{new Date(
-																					row.meal_date,
-																				).toLocaleDateString('de-DE')}{' '}
-																				{row.meal_time.slice(0, 5)}
-																			</small>
-																		</td>
-																		<td>
-																			<strong>{row.dish_name}</strong>
-																		</td>
-																		<td>
-																			{row.diet_type === 'Fleisch' && '🥩'}
-																			{row.diet_type === 'Vegetarisch' && '🧀'}
-																			{row.diet_type === 'Vegan' && '🌱'}{' '}
-																			{row.diet_type || '-'}
-																		</td>
-																		<td>
-																			<strong style={{ fontSize: '1.1rem' }}>
-																				{row.selection_count}
-																			</strong>
-																		</td>
-																		<td>
-																			<small>
-																				{row.selected_by &&
-																					row.selected_by
-																						.filter((n) => n)
-																						.join(', ')}
-																			</small>
-																		</td>
-																	</tr>
-																))}
-															</tbody>
-														</table>
+														<div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+															{reportData.map((meal) => {
+																const hasDishes = meal.dishes && meal.dishes.length > 0;
+																const hasItems = meal.items && meal.items.length > 0;
+																const isMealType = meal.meal_type === 'meal';
+																const isItemType = meal.meal_type === 'grill' || meal.meal_type === 'breakfast';
+
+																// Anzahl Personen die in dieser Mahlzeit etwas ausgewählt haben
+																let totalPersons = 0;
+																if (isMealType) {
+																	const allPersons = new Set();
+																	meal.dishes.forEach(d => {
+																		(d.adults || []).forEach(p => allPersons.add(p));
+																		(d.children || []).forEach(p => allPersons.add(p));
+																	});
+																	totalPersons = allPersons.size;
+																} else if (isItemType) {
+																	const allPersons = new Set();
+																	meal.items.forEach(i => {
+																		(i.selections || []).forEach(s => allPersons.add(s.person_name));
+																	});
+																	totalPersons = allPersons.size;
+																}
+
+																const mealIcon = meal.meal_type === 'breakfast' ? '🥐' 
+																	: meal.meal_type === 'grill' ? '🔥' 
+																	: '🍽️';
+
+																return (
+																	<div
+																		key={meal.meal_id}
+																		style={{
+																			background: 'white',
+																			borderRadius: '12px',
+																			padding: '1.25rem',
+																			border: '1px solid var(--border)',
+																			boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+																		}}
+																	>
+																		{/* Mahlzeit-Header */}
+																		<div
+																			style={{
+																				display: 'flex',
+																				justifyContent: 'space-between',
+																				alignItems: 'flex-start',
+																				marginBottom: '1rem',
+																				paddingBottom: '0.75rem',
+																				borderBottom: '2px solid var(--border)',
+																				gap: '1rem',
+																				flexWrap: 'wrap',
+																			}}
+																		>
+																			<div>
+																				<h4 style={{ margin: 0, fontSize: '1.15rem' }}>
+																					{mealIcon} {meal.meal_name}
+																				</h4>
+																				<div style={{
+																					fontSize: '0.875rem',
+																					color: 'var(--text-muted)',
+																					marginTop: '0.25rem',
+																				}}>
+																					📅 {new Date(meal.meal_date).toLocaleDateString('de-DE', {
+																						weekday: 'long',
+																						day: '2-digit',
+																						month: '2-digit',
+																						year: 'numeric',
+																					})}
+																					{' · 🕒 '}
+																					{meal.meal_time?.slice(0, 5)} Uhr
+																				</div>
+																			</div>
+																			<div style={{
+																				background: totalPersons > 0 ? 'var(--primary)' : '#ccc',
+																				color: 'white',
+																				padding: '0.4rem 0.8rem',
+																				borderRadius: '20px',
+																				fontWeight: 600,
+																				fontSize: '0.9rem',
+																				whiteSpace: 'nowrap',
+																			}}>
+																				👥 {totalPersons} {totalPersons === 1 ? 'Person' : 'Personen'}
+																			</div>
+																		</div>
+
+																		{/* GERICHTE-Tabelle (für 'meal' Mahlzeiten) */}
+																		{isMealType && hasDishes && (
+																			<div style={{ overflowX: 'auto' }}>
+																				<table className="users-table">
+																					<thead>
+																						<tr>
+																							<th>Gericht</th>
+																							<th>Typ</th>
+																							<th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Anzahl</th>
+																							<th>Personen</th>
+																						</tr>
+																					</thead>
+																					<tbody>
+																						{meal.dishes.map((dish) => {
+																							const total = (dish.adult_count || 0) + (dish.child_count || 0);
+																							return (
+																								<tr key={dish.dish_id}>
+																									<td>
+																										<strong>{dish.dish_name}</strong>
+																									</td>
+																									<td style={{ whiteSpace: 'nowrap' }}>
+																										{dish.diet_type === 'Fleisch' && '🥩'}
+																										{dish.diet_type === 'Vegetarisch' && '🧀'}
+																										{dish.diet_type === 'Vegan' && '🌱'}{' '}
+																										{dish.diet_type || '-'}
+																									</td>
+																									<td style={{ textAlign: 'center' }}>
+																										<strong style={{
+																											fontSize: '1.1rem',
+																											color: total > 0 ? 'var(--primary)' : '#999',
+																										}}>
+																											{total}
+																										</strong>
+																										{dish.child_count > 0 && (
+																											<div style={{
+																												fontSize: '0.7rem',
+																												color: 'var(--text-muted)',
+																											}}>
+																												({dish.adult_count} Erw. + {dish.child_count} Kind)
+																											</div>
+																										)}
+																									</td>
+																									<td>
+																										<small>
+																											{[...(dish.adults || []), ...(dish.children || []).map(c => `${c} 👶`)].join(', ') || '—'}
+																										</small>
+																									</td>
+																								</tr>
+																							);
+																						})}
+																					</tbody>
+																				</table>
+																			</div>
+																		)}
+
+																		{/* ITEMS-Tabelle (für 'grill'/'breakfast' Mahlzeiten) */}
+																		{isItemType && hasItems && (
+																			<div style={{ overflowX: 'auto' }}>
+																				<table className="users-table">
+																					<thead>
+																						<tr>
+																							<th>Item</th>
+																							<th>Typ</th>
+																							<th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Gesamt</th>
+																							<th>Wer? (Menge)</th>
+																						</tr>
+																					</thead>
+																					<tbody>
+																						{meal.items
+																							.filter(item => item.total_quantity > 0)
+																							.map((item) => {
+																								const unitLabel = UNIT_LABELS[item.unit] || item.unit;
+																								return (
+																									<tr key={item.item_id}>
+																										<td>
+																											{item.emoji && (
+																												<span style={{ fontSize: '1.25rem', marginRight: '0.5rem' }}>
+																													{item.emoji}
+																												</span>
+																											)}
+																											<strong>{item.item_name}</strong>
+																										</td>
+																										<td style={{ whiteSpace: 'nowrap' }}>
+																											<small style={{
+																												color: 'var(--text-muted)',
+																											}}>
+																												{item.item_type || '-'}
+																											</small>
+																										</td>
+																										<td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+																											<strong style={{
+																												fontSize: '1.1rem',
+																												color: 'var(--primary)',
+																											}}>
+																												{item.total_quantity}
+																											</strong>
+																											<div style={{
+																												fontSize: '0.7rem',
+																												color: 'var(--text-muted)',
+																											}}>
+																												{unitLabel}
+																											</div>
+																										</td>
+																										<td>
+																											<div style={{
+																												display: 'flex',
+																												flexWrap: 'wrap',
+																												gap: '0.25rem',
+																											}}>
+																												{(item.selections || []).map((sel, si) => (
+																													<span key={si} style={{
+																														fontSize: '0.8rem',
+																														padding: '0.15rem 0.5rem',
+																														background: 'var(--primary-light, #e8f5e9)',
+																														borderRadius: '12px',
+																														color: 'var(--text)',
+																														whiteSpace: 'nowrap',
+																													}}>
+																														{sel.person_name}: <strong>{sel.quantity}</strong>
+																														{sel.notes && <span title={sel.notes}> 💬</span>}
+																													</span>
+																												))}
+																											</div>
+																										</td>
+																									</tr>
+																								);
+																							})}
+																					</tbody>
+																				</table>
+																				{meal.items.filter(item => item.total_quantity > 0).length === 0 && (
+																					<p style={{
+																						color: 'var(--text-muted)',
+																						fontStyle: 'italic',
+																						textAlign: 'center',
+																						padding: '1rem',
+																					}}>
+																						Noch keine Wünsche eingetragen
+																					</p>
+																				)}
+																			</div>
+																		)}
+
+																		{/* Empty States */}
+																		{isMealType && !hasDishes && (
+																			<p style={{
+																				color: 'var(--text-muted)',
+																				fontStyle: 'italic',
+																				textAlign: 'center',
+																				padding: '1rem',
+																			}}>
+																				Noch keine Gerichte angelegt
+																			</p>
+																		)}
+																		{isItemType && !hasItems && (
+																			<p style={{
+																				color: 'var(--text-muted)',
+																				fontStyle: 'italic',
+																				textAlign: 'center',
+																				padding: '1rem',
+																			}}>
+																				Noch keine Items angelegt
+																			</p>
+																		)}
+																	</div>
+																);
+															})}
+														</div>
 													)}
 												</div>
 											)}
