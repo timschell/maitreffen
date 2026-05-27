@@ -2270,30 +2270,33 @@
 						onClick={() => {
 						if (!confirm('🔄 Deutsche Standard-Templates einfügen? Dies überschreibt alle aktuellen Vorlagen!')) return;
 						
-						const token = sessionStorage.getItem('admin_token') || '';
+						// Token aus sessionStorage holen (WordPress ODER Passwort)
+						const wpToken = sessionStorage.getItem('wp_token') || '';
+						const adminToken = sessionStorage.getItem('admin_token') || '';
 						
 						fetch('/api/admin/item-templates/reset', {
 						method: 'POST',
 						headers: {
 						 'Content-Type': 'application/json',
-						'X-Admin-Token': token
-						},
-						body: JSON.stringify({})
+						 'X-Admin-Token': adminToken,
+						  'X-WP-Token': wpToken
+						 },
+						 body: JSON.stringify({})
 						})
 						.then(r => r.json())
 						.then(data => {
 						if (data.success) {
-						  alert('✅ Templates erfolgreich eingefügt!\n\nGrill: ' + data.grill + ' Items\nFrühstück: ' + data.breakfast + ' Items');
-						   loadTemplates();
-						  } else {
-						    alert('❌ Fehler: ' + (data.error || 'Unbekannter Fehler'));
-						  }
-						  })
-						   .catch(err => {
-									alert('❌ Fehler: ' + err.message);
-								});
-							}}
-							style={{ background: '#e74c3c' }}
+						alert('✅ Templates erfolgreich eingefügt!\n\nGrill: ' + data.grill + ' Items\nFrühstück: ' + data.breakfast + ' Items');
+						 loadTemplates();
+						 } else {
+						  alert('❌ Fehler: ' + (data.error || 'Unbekannter Fehler'));
+						}
+						})
+						 .catch(err => {
+						  alert('❌ Fehler: ' + err.message);
+						  });
+						}}
+						 style={{ background: '#e74c3c' }}
 						>
 							🔄 Standard-Templates laden
 						</button>
