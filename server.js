@@ -2458,20 +2458,28 @@ app.get('/api/admin/item-templates', adminAuth, async (req, res) => {
       'SELECT * FROM item_templates ORDER BY template_type, name'
     );
     
-    // Für jedes Template die Items laden
-    const templates = [];
+    // Gruppiere nach template_type
+    const templatesByType = { breakfast: [], grill: [] };
+    
     for (const template of templatesResult.rows) {
       const itemsResult = await pool.query(
         'SELECT * FROM item_template_items WHERE template_id = $1 ORDER BY sort_order',
         [template.id]
       );
-      templates.push({
+      
+      const fullTemplate = {
         ...template,
         items: itemsResult.rows
-      });
+      };
+      
+      if (template.template_type === 'breakfast') {
+        templatesByType.breakfast.push(fullTemplate);
+      } else if (template.template_type === 'grill') {
+        templatesByType.grill.push(fullTemplate);
+      }
     }
     
-    res.json(templates);
+    res.json(templatesByType);
   } catch (err) {
     console.error('Fehler:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
