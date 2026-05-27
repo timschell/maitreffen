@@ -1327,14 +1327,29 @@
 
 				const handleAddFromTemplates = async (selectedTemplates) => {
 					try {
+						// Sammle alle Items aus allen ausgewählten Templates
+						let sortOrder = 0;
 						for (const template of selectedTemplates) {
-							await adminFetch(
-								`${API_URL}/admin/meals/${templateModalMealId}/items`,
-								{
-									method: 'POST',
-									body: JSON.stringify(template),
-								},
-							);
+							if (!template.items || template.items.length === 0) {
+								console.warn(`Template "${template.name}" hat keine Items`);
+								continue;
+							}
+							// Iteriere über die Items des Templates und füge jedes einzeln hinzu
+							for (const item of template.items) {
+								await adminFetch(
+									`${API_URL}/admin/meals/${templateModalMealId}/items`,
+									{
+										method: 'POST',
+										body: JSON.stringify({
+											name: item.name,
+											itemType: item.item_type || null,
+											unit: item.unit || 'pieces',
+											emoji: item.emoji || null,
+											sortOrder: sortOrder++,
+										}),
+									},
+								);
+							}
 						}
 						await loadMeals();
 						setTemplateModalOpen(false);
@@ -3661,24 +3676,26 @@
 					);
 				}
 
-				const toggleTemplate = (index) => {
+				const toggleTemplate = (id) => {
 					setSelectedIds((prev) =>
-						prev.includes(index)
-							? prev.filter((id) => id !== index)
-							: [...prev, index],
+						prev.includes(id)
+							? prev.filter((tid) => tid !== id)
+							: [...prev, id],
 					);
 				};
 
 				const handleSubmit = async (e) => {
 					e.preventDefault();
 					if (selectedIds.length === 0) {
-						alert('Bitte wähle mindestens ein Item aus');
+						alert('Bitte wähle mindestens eine Vorlage aus');
 						return;
 					}
 
 					setSaving(true);
 					try {
-						const selectedTemplates = selectedIds.map((id) => templates[id]);
+						const selectedTemplates = templates.filter((t) =>
+							selectedIds.includes(t.id),
+						);
 						await onSave(selectedTemplates);
 					} catch (err) {
 						alert('Fehler beim Hinzufügen');
@@ -3687,99 +3704,167 @@
 					}
 				};
 
-				// Gruppiere nach Typ
-				const groupedTemplates = templates.reduce((acc, template, index) => {
-					const type = template.itemType || 'Sonstiges';
-					if (!acc[type]) acc[type] = [];
-					acc[type].push({ ...template, originalIndex: index });
-					return acc;
-				}, {});
+				// Gesamtzahl der Items über alle ausgewählten Templates
+				const totalItemsCount = templates
+					.filter((t) => selectedIds.includes(t.id))
+					.reduce((sum, t) => sum + (t.items?.length || 0), 0);
 
 				return (
 					<div className="modal-overlay" onClick={onClose}>
 						<div
 							className="modal"
 							onClick={(e) => e.stopPropagation()}
-							style={{ maxWidth: '600px' }}
+							style={{ maxWidth: '700px', maxHeight: '90vh', overflow: 'auto' }}
 						>
 							<h2>
-								📚 {mealType === 'breakfast' ? 'Frühstück' : 'Grill'}-Vorlagen
+								📚 {mealType === 'breakfast' ? 'Frühstück' : 'Grill'}-Vorlagen anwenden
 							</h2>
 							<p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
-								Wähle Items aus, die hinzugefügt werden sollen:
+								Wähle eine oder mehrere Vorlagen aus. Alle enthaltenen Items werden zur Mahlzeit hinzugefügt.
 							</p>
 
 							<form onSubmit={handleSubmit}>
 								<div
 									style={{
-										maxHeight: '400px',
+										maxHeight: '50vh',
 										overflowY: 'auto',
 										marginBottom: '1rem',
+										display: 'flex',
+										flexDirection: 'column',
+										gap: '0.75rem',
 									}}
 								>
-									{Object.entries(groupedTemplates).map(([type, items]) => (
-										<div key={type} style={{ marginBottom: '1.5rem' }}>
-											<h4
+									{templates.map((template) => {
+										const isSelected = selectedIds.includes(template.id);
+										const itemCount = template.items?.length || 0;
+										const previewItems = (template.items || []).slice(0, 8);
+										const hasMore = itemCount > previewItems.length;
+
+										return (
+											<label
+												key={template.id}
 												style={{
-													marginBottom: '0.5rem',
-													color: 'var(--primary)',
+													display: 'block',
+													padding: '1rem',
+													borderRadius: '12px',
+													cursor: 'pointer',
+													background: isSelected
+														? 'var(--primary-light, #e8f5e9)'
+														: 'var(--bg-card, white)',
+													border: `2px solid ${
+														isSelected
+															? 'var(--primary, #4caf50)'
+															: 'var(--border, #e0e0e0)'
+													}`,
+													transition: 'all 0.2s',
 												}}
 											>
-												{type}
-											</h4>
-											{items.map((template) => (
-												<label
-													key={template.originalIndex}
+												<div
 													style={{
 														display: 'flex',
-														alignItems: 'center',
-														padding: '0.5rem',
-														borderRadius: '6px',
-														cursor: 'pointer',
-														background: selectedIds.includes(
-															template.originalIndex,
-														)
-															? 'var(--primary-light)'
-															: 'transparent',
-														marginBottom: '0.25rem',
+														alignItems: 'flex-start',
+														gap: '0.75rem',
 													}}
 												>
 													<input
 														type="checkbox"
-														checked={selectedIds.includes(
-															template.originalIndex,
-														)}
-														onChange={() =>
-															toggleTemplate(template.originalIndex)
-														}
-														style={{ marginRight: '0.75rem' }}
+														checked={isSelected}
+														onChange={() => toggleTemplate(template.id)}
+														style={{
+															width: '20px',
+															height: '20px',
+															marginTop: '0.2rem',
+															cursor: 'pointer',
+															flexShrink: 0,
+														}}
 													/>
-													<span style={{ flex: 1 }}>
-														{template.emoji && (
-															<span
-																style={{
-																	fontSize: '1.2rem',
-																	marginRight: '0.5rem',
-																}}
-															>
-																{template.emoji}
-															</span>
-														)}
-														<strong>{template.name}</strong>
-														<span
+													<div style={{ flex: 1, minWidth: 0 }}>
+														<div
 															style={{
-																color: 'var(--text-muted)',
-																fontSize: '0.9rem',
-																marginLeft: '0.5rem',
+																display: 'flex',
+																justifyContent: 'space-between',
+																alignItems: 'center',
+																marginBottom: '0.25rem',
+																gap: '0.5rem',
+																flexWrap: 'wrap',
 															}}
 														>
-															({UNIT_LABELS[template.unit] || template.unit})
-														</span>
-													</span>
-												</label>
-											))}
-										</div>
-									))}
+															<strong style={{ fontSize: '1.05rem' }}>
+																{template.name}
+															</strong>
+															<span
+																style={{
+																	fontSize: '0.8rem',
+																	padding: '0.15rem 0.5rem',
+																	background: 'var(--primary, #4caf50)',
+																	color: 'white',
+																	borderRadius: '12px',
+																	fontWeight: 600,
+																}}
+															>
+																{itemCount} Items
+															</span>
+														</div>
+														{template.description && (
+															<p
+																style={{
+																	margin: '0 0 0.5rem',
+																	fontSize: '0.85rem',
+																	color: 'var(--text-muted)',
+																}}
+															>
+																{template.description}
+															</p>
+														)}
+														{previewItems.length > 0 && (
+															<div
+																style={{
+																	display: 'flex',
+																	flexWrap: 'wrap',
+																	gap: '0.35rem',
+																	marginTop: '0.5rem',
+																}}
+															>
+																{previewItems.map((item) => (
+																	<span
+																		key={item.id}
+																		style={{
+																			fontSize: '0.75rem',
+																			padding: '0.2rem 0.5rem',
+																			background:
+																				'var(--bg-secondary, #f5f5f5)',
+																			borderRadius: '6px',
+																			color: 'var(--text-muted)',
+																			whiteSpace: 'nowrap',
+																		}}
+																	>
+																		{item.emoji && (
+																			<span style={{ marginRight: '0.2rem' }}>
+																				{item.emoji}
+																			</span>
+																		)}
+																		{item.name}
+																	</span>
+																))}
+																{hasMore && (
+																	<span
+																		style={{
+																			fontSize: '0.75rem',
+																			padding: '0.2rem 0.5rem',
+																			fontStyle: 'italic',
+																			color: 'var(--text-muted)',
+																		}}
+																	>
+																		+{itemCount - previewItems.length} weitere
+																	</span>
+																)}
+															</div>
+														)}
+													</div>
+												</div>
+											</label>
+										);
+									})}
 								</div>
 
 								<div
@@ -3796,7 +3881,9 @@
 											marginBottom: '1rem',
 										}}
 									>
-										✅ {selectedIds.length} Items ausgewählt
+										✅ {selectedIds.length}{' '}
+										{selectedIds.length === 1 ? 'Vorlage' : 'Vorlagen'}{' '}
+										ausgewählt {selectedIds.length > 0 && `(${totalItemsCount} Items insgesamt)`}
 									</p>
 									<div className="modal-buttons">
 										<button
@@ -3813,7 +3900,9 @@
 										>
 											{saving
 												? 'Füge hinzu...'
-												: `${selectedIds.length} Items hinzufügen`}
+												: selectedIds.length === 0
+													? 'Keine Vorlage ausgewählt'
+													: `${totalItemsCount} Items hinzufügen`}
 										</button>
 									</div>
 								</div>
