@@ -2637,21 +2637,25 @@ app.delete('/api/admin/item-templates/:id', adminAuth, async (req, res) => {
 
 // Templates zurücksetzen (auf deutsche Standardvorlagen)
 app.post('/api/admin/item-templates/reset', adminAuth, async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    console.log('🔄 Setze Templates zurück...');
     
-    // Lösche ALLE Templates
-    await client.query('DELETE FROM item_templates');
+    // Lösche ALLE Templates (CASCADE löscht auch die Items)
+    await pool.query('TRUNCATE TABLE item_template_items CASCADE');
+    await pool.query('TRUNCATE TABLE item_templates CASCADE');
     
-    // Grill-Standard Template (NEU)
-    const grillTemplate = await client.query(
+    console.log('✅ Alte Templates gelöscht');
+    
+    // Grill-Standard Template
+    const grillResult = await pool.query(
       `INSERT INTO item_templates (name, description, template_type)
-       VALUES ($1, $2, $3) RETURNING *`,
+       VALUES ($1, $2, $3) RETURNING id`,
       ['Grill-Standard', 'Standard-Layout für Grill-Events', 'grill']
     );
-    const grillId = grillTemplate.rows[0].id;
+    const grillId = grillResult.rows[0].id;
+    console.log('✅ Grill-Template erstellt:', grillId);
     
+    // Grill Items einfügen
     const grillItems = [
       { name: 'Nürnberger Würstchen', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 1 },
       { name: 'Thüringer Würstchen Grob', item_type: 'Fleisch', unit: 'pieces', emoji: '🌭', sort_order: 2 },
@@ -2675,21 +2679,24 @@ app.post('/api/admin/item-templates/reset', adminAuth, async (req, res) => {
     ];
     
     for (const item of grillItems) {
-      await client.query(
+      await pool.query(
         `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [grillId, item.name, item.item_type, item.unit, item.emoji, item.sort_order]
       );
     }
+    console.log(`✅ ${grillItems.length} Grill-Items eingefügt`);
     
-    // Frühstück-Standard Template (NEU)
-    const breakfastTemplate = await client.query(
+    // Frühstück-Standard Template
+    const breakfastResult = await pool.query(
       `INSERT INTO item_templates (name, description, template_type)
-       VALUES ($1, $2, $3) RETURNING *`,
+       VALUES ($1, $2, $3) RETURNING id`,
       ['Frühstück-Standard', 'Standard-Layout für Frühstück', 'breakfast']
     );
-    const breakfastId = breakfastTemplate.rows[0].id;
+    const breakfastId = breakfastResult.rows[0].id;
+    console.log('✅ Frühstück-Template erstellt:', breakfastId);
     
+    // Frühstück Items einfügen
     const breakfastItems = [
       { name: 'Brötchen', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 1 },
       { name: 'Brötchen Mehrkorn', item_type: 'Backwaren', unit: 'pieces', emoji: '🥖', sort_order: 2 },
@@ -2717,21 +2724,24 @@ app.post('/api/admin/item-templates/reset', adminAuth, async (req, res) => {
     ];
     
     for (const item of breakfastItems) {
-      await client.query(
+      await pool.query(
         `INSERT INTO item_template_items (template_id, name, item_type, unit, emoji, sort_order)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [breakfastId, item.name, item.item_type, item.unit, item.emoji, item.sort_order]
       );
     }
+    console.log(`✅ ${breakfastItems.length} Frühstück-Items eingefügt`);
     
-    await client.query('COMMIT');
-    res.json({ success: true, message: 'Templates wurden zurückgesetzt' });
+    res.json({ 
+      success: true, 
+      message: '✅ Deutsche Templates erfolgreich eingefügt!',
+      grill: grillItems.length,
+      breakfast: breakfastItems.length
+    });
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Fehler:', err.message);
-    res.status(500).json({ error: 'Datenbankfehler' });
-  } finally {
-    client.release();
+    console.error('❌ Reset Fehler:', err.message);
+    console.error(err);
+    res.status(500).json({ error: 'Datenbankfehler: ' + err.message });
   }
 });
 
