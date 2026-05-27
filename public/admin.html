@@ -2257,39 +2257,47 @@
 						</p>
 						<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
 						<button
-						 className="btn btn-primary"
+						className="btn btn-primary"
 						onClick={() => {
-						 setEditingTemplate(null);
-						  setTemplateFormOpen(true);
-						  }}
+						setEditingTemplate(null);
+						setTemplateFormOpen(true);
+						}}
 						>
-						  + Neue Vorlage
-						  </button>
-									<button
-										className="btn btn-danger"
-										onClick={async () => {
-											if (!confirm('🔄 Deutsche Standard-Templates einfügen? Dies überschreibt alle aktuellen Vorlagen!')) return;
-											try {
-												const res = await adminFetch('/api/admin/item-templates/reset', {
-													method: 'POST',
-													headers: { 'Content-Type': 'application/json' }
-												});
-												const data = await res.json();
-												if (data.success) {
-													alert('✅ Templates erfolgreich eingefügt!\n\nGrill: ' + data.grill + ' Items\nFrühstück: ' + data.breakfast + ' Items');
-													await loadTemplates();
-												} else {
-													alert('❌ Fehler: ' + (data.error || 'Unbekannter Fehler'));
-												}
-											} catch (err) {
-												alert('❌ Fehler: ' + err.message);
-											}
-										}}
-										style={{ background: '#e74c3c' }}
-									>
-										🔄 Standard-Templates laden
-									</button>
-								</div>
+						+ Neue Vorlage
+						</button>
+						<button
+						className="btn btn-danger"
+						onClick={() => {
+						if (!confirm('🔄 Deutsche Standard-Templates einfügen? Dies überschreibt alle aktuellen Vorlagen!')) return;
+						
+						const token = sessionStorage.getItem('admin_token') || '';
+						
+						fetch('/api/admin/item-templates/reset', {
+						method: 'POST',
+						headers: {
+						 'Content-Type': 'application/json',
+						'X-Admin-Token': token
+						},
+						body: JSON.stringify({})
+						})
+						.then(r => r.json())
+						.then(data => {
+						if (data.success) {
+						  alert('✅ Templates erfolgreich eingefügt!\n\nGrill: ' + data.grill + ' Items\nFrühstück: ' + data.breakfast + ' Items');
+						   loadTemplates();
+						  } else {
+						    alert('❌ Fehler: ' + (data.error || 'Unbekannter Fehler'));
+						  }
+						  })
+						   .catch(err => {
+									alert('❌ Fehler: ' + err.message);
+								});
+							}}
+							style={{ background: '#e74c3c' }}
+						>
+							🔄 Standard-Templates laden
+						</button>
+					</div>
 							</div>
 
 								{templates.length === 0 ? (
