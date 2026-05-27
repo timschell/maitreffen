@@ -2324,57 +2324,127 @@
 															? '🥐 Frühstück-Vorlagen'
 															: '🔥 Grill-Vorlagen'}
 													</h3>
-													<table className="users-table">
-														<thead>
-															<tr>
-																<th>Item</th>
-																<th>Typ</th>
-																<th>Einheit</th>
-																<th>Aktionen</th>
-															</tr>
-														</thead>
-														<tbody>
-															{catTemplates.map((tpl) => (
-																<tr key={tpl.id}>
-																	<td>
-																		{tpl.emoji && (
-																			<span
-																				style={{
-																					fontSize: '1.5rem',
-																					marginRight: '0.5rem',
-																				}}
-																			>
-																				{tpl.emoji}
-																			</span>
-																		)}
-																		<strong>{tpl.name}</strong>
-																	</td>
-																	<td>{tpl.itemType || '-'}</td>
-																	<td>{UNIT_LABELS[tpl.unit] || tpl.unit}</td>
-																	<td>
-																		<button
-																			className="btn btn-sm btn-secondary"
-																			onClick={() => {
-																				setEditingTemplate(tpl);
-																				setTemplateFormOpen(true);
+													{catTemplates.map((tpl) => (
+														<div
+															key={tpl.id}
+															style={{
+																marginBottom: '1.5rem',
+																background: 'var(--bg-card, white)',
+																border: '1px solid var(--border)',
+																borderRadius: '12px',
+																padding: '1.25rem',
+																boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+															}}
+														>
+															{/* Template-Header */}
+															<div
+																style={{
+																	display: 'flex',
+																	justifyContent: 'space-between',
+																	alignItems: 'flex-start',
+																	marginBottom: '1rem',
+																	paddingBottom: '0.75rem',
+																	borderBottom: '2px solid var(--border)',
+																	gap: '1rem',
+																	flexWrap: 'wrap',
+																}}
+															>
+																<div style={{ flex: 1, minWidth: '200px' }}>
+																	<h4 style={{ margin: 0, fontSize: '1.15rem' }}>
+																		{tpl.name}
+																	</h4>
+																	{tpl.description && (
+																		<p
+																			style={{
+																				margin: '0.25rem 0 0',
+																				color: 'var(--text-muted)',
+																				fontSize: '0.875rem',
 																			}}
 																		>
-																			✏️
-																		</button>
-																		<button
-																			className="btn btn-sm btn-danger"
-																			onClick={() =>
-																				handleDeleteTemplate(tpl.id)
-																			}
-																			style={{ marginLeft: '0.25rem' }}
-																		>
-																			✕
-																		</button>
-																	</td>
-																</tr>
-															))}
-														</tbody>
-													</table>
+																			{tpl.description}
+																		</p>
+																	)}
+																	<p
+																		style={{
+																			margin: '0.25rem 0 0',
+																			color: 'var(--text-muted)',
+																			fontSize: '0.75rem',
+																		}}
+																	>
+																		📋 {(tpl.items || []).length} Items
+																	</p>
+																</div>
+																<div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+																	<button
+																		className="btn btn-sm btn-secondary"
+																		onClick={() => {
+																			setEditingTemplate(tpl);
+																			setTemplateFormOpen(true);
+																		}}
+																	>
+																		✏️ Bearbeiten
+																	</button>
+																	<button
+																		className="btn btn-sm btn-danger"
+																		onClick={() =>
+																			handleDeleteTemplate(tpl.id)
+																		}
+																	>
+																		🗑️
+																	</button>
+																</div>
+															</div>
+
+															{/* Items-Tabelle */}
+															{tpl.items && tpl.items.length > 0 ? (
+																<div style={{ overflowX: 'auto' }}>
+																	<table className="users-table">
+																		<thead>
+																			<tr>
+																				<th style={{ width: '50%' }}>Item</th>
+																				<th>Typ</th>
+																				<th>Einheit</th>
+																			</tr>
+																		</thead>
+																		<tbody>
+																			{tpl.items.map((item) => (
+																				<tr key={item.id}>
+																					<td>
+																						{item.emoji && (
+																							<span
+																								style={{
+																									fontSize: '1.25rem',
+																									marginRight: '0.5rem',
+																								}}
+																							>
+																								{item.emoji}
+																							</span>
+																						)}
+																						<strong>{item.name}</strong>
+																					</td>
+																					<td>{item.item_type || '-'}</td>
+																					<td>
+																						{UNIT_LABELS[item.unit] || item.unit}
+																					</td>
+																				</tr>
+																			))}
+																		</tbody>
+																	</table>
+																</div>
+															) : (
+																<p
+																	style={{
+																		color: 'var(--text-muted)',
+																		fontStyle: 'italic',
+																		textAlign: 'center',
+																		padding: '1rem',
+																	}}
+																>
+																	Noch keine Items in dieser Vorlage. Klicke "Bearbeiten" um Items hinzuzufügen.
+																</p>
+															)}
+														</div>
+													))}
 												</div>
 											);
 										})}
@@ -3755,26 +3825,104 @@
 
 			// Template Form Modal (für Vorlage erstellen/bearbeiten)
 			function TemplateFormModal({ template, onSave, onClose }) {
+				// Beim Bearbeiten: Items von snake_case (Backend) zu camelCase (Frontend) konvertieren
+				const initialItems = template?.items
+					? template.items.map((item) => ({
+							id: item.id,
+							name: item.name || '',
+							itemType: item.item_type || '',
+							unit: item.unit || 'pieces',
+							emoji: item.emoji || '',
+							sortOrder: item.sort_order ?? 0,
+						}))
+					: [];
+
 				const [formData, setFormData] = useState({
 					name: template?.name || '',
-					itemType: template?.itemType || '',
-					unit: template?.unit || 'pieces',
-					emoji: template?.emoji || '',
+					description: template?.description || '',
 					category: template?.category || 'grill',
-					sortOrder: template?.sortOrder || 0,
+					items: initialItems,
 				});
 				const [saving, setSaving] = useState(false);
-				const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+				const [typeDropdownOpen, setTypeDropdownOpen] = useState(null);
 
 				const updateField = (field, value) => {
 					setFormData((prev) => ({ ...prev, [field]: value }));
 				};
 
+				const updateItem = (index, field, value) => {
+					setFormData((prev) => ({
+						...prev,
+						items: prev.items.map((item, i) =>
+							i === index ? { ...item, [field]: value } : item,
+						),
+					}));
+				};
+
+				const addItem = () => {
+					setFormData((prev) => ({
+						...prev,
+						items: [
+							...prev.items,
+							{
+								name: '',
+								itemType: '',
+								unit: 'pieces',
+								emoji: '',
+								sortOrder: prev.items.length,
+							},
+						],
+					}));
+				};
+
+				const removeItem = (index) => {
+					setFormData((prev) => ({
+						...prev,
+						items: prev.items.filter((_, i) => i !== index),
+					}));
+				};
+
+				const moveItem = (index, direction) => {
+					const newIndex = index + direction;
+					if (newIndex < 0 || newIndex >= formData.items.length) return;
+					setFormData((prev) => {
+						const newItems = [...prev.items];
+						[newItems[index], newItems[newIndex]] = [
+							newItems[newIndex],
+							newItems[index],
+						];
+						return {
+							...prev,
+							items: newItems.map((item, i) => ({ ...item, sortOrder: i })),
+						};
+					});
+				};
+
 				const handleSubmit = async (e) => {
 					e.preventDefault();
+					if (!formData.name.trim()) {
+						alert('Bitte gib einen Namen für die Vorlage ein');
+						return;
+					}
+					if (formData.items.some((item) => !item.name.trim())) {
+						alert('Alle Items müssen einen Namen haben');
+						return;
+					}
 					setSaving(true);
 					try {
-						await onSave(formData);
+						// Konvertiere für Backend: category → templateType
+						await onSave({
+							name: formData.name.trim(),
+							description: formData.description.trim() || null,
+							templateType: formData.category,
+							items: formData.items.map((item, i) => ({
+								name: item.name.trim(),
+								itemType: item.itemType || null,
+								unit: item.unit || 'pieces',
+								emoji: item.emoji || null,
+								sortOrder: i,
+							})),
+						});
 					} catch (err) {
 						alert('Fehler beim Speichern');
 					} finally {
@@ -3784,144 +3932,238 @@
 
 				return (
 					<div className="modal-overlay" onClick={onClose}>
-						<div className="modal" onClick={(e) => e.stopPropagation()}>
+						<div
+							className="modal"
+							onClick={(e) => e.stopPropagation()}
+							style={{ maxWidth: '900px', maxHeight: '90vh', overflow: 'auto' }}
+						>
 							<h2>{template ? '✏️ Vorlage bearbeiten' : '📚 Neue Vorlage'}</h2>
 
 							<form onSubmit={handleSubmit}>
-								<div className="form-group">
-									<label>Kategorie *</label>
-									<select
-										value={formData.category}
-										onChange={(e) => updateField('category', e.target.value)}
-										required
-									>
-										<option value="grill">🔥 Grill</option>
-										<option value="breakfast">🥐 Frühstück</option>
-									</select>
-								</div>
-
-								<div className="form-group">
-									<label>Name des Items *</label>
-									<input
-										type="text"
-										value={formData.name}
-										onChange={(e) => updateField('name', e.target.value)}
-										placeholder="z.B. Würstchen, Brötchen, Käse"
-										required
-									/>
-								</div>
-
-								<div className="form-group">
-									<label>Emoji / Symbol</label>
-									<input
-										type="text"
-										value={formData.emoji}
-										onChange={(e) => updateField('emoji', e.target.value)}
-										placeholder="z.B. 🌭 🥖 🧀"
-										maxLength="2"
-										style={{
-											fontSize: '2rem',
-											textAlign: 'center',
-											padding: '1rem',
-										}}
-									/>
-									<small
-										style={{
-											color: '#666',
-											fontSize: '0.75rem',
-											display: 'block',
-											marginTop: '0.25rem',
-										}}
-									>
-										Tipp: Nutze die Emoji-Tastatur deines Geräts
-										(⌘+Ctrl+Leertaste auf Mac, Win+. auf Windows)
-									</small>
-								</div>
-
+								{/* Template-Eigenschaften */}
 								<div className="form-row">
 									<div className="form-group">
-										<label>Typ / Kategorie</label>
-										<div style={{ position: 'relative' }}>
-											<input
-												type="text"
-												value={formData.itemType}
-												onChange={(e) =>
-													updateField('itemType', e.target.value)
-												}
-												onFocus={() => setShowTypeDropdown(true)}
-												onBlur={() =>
-													setTimeout(() => setShowTypeDropdown(false), 200)
-												}
-												placeholder="z.B. Fleisch, Beilage, Aufstrich"
-											/>
-											{showTypeDropdown && (
-												<div
-													style={{
-														position: 'absolute',
-														top: '100%',
-														left: 0,
-														right: 0,
-														background: 'white',
-														border: '2px solid var(--border)',
-														borderRadius: '8px',
-														marginTop: '0.25rem',
-														maxHeight: '200px',
-														overflowY: 'auto',
-														zIndex: 1000,
-														boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-													}}
-												>
-													{TYPE_CATEGORIES.map((cat) => (
-														<div
-															key={cat}
-															onMouseDown={() => updateField('itemType', cat)}
-															style={{
-																padding: '0.5rem 0.75rem',
-																cursor: 'pointer',
-																borderBottom: '1px solid #f0f0f0',
-															}}
-															onMouseEnter={(e) =>
-																(e.target.style.background =
-																	'var(--primary-light)')
-															}
-															onMouseLeave={(e) =>
-																(e.target.style.background = 'white')
-															}
-														>
-															{cat}
-														</div>
-													))}
-												</div>
-											)}
-										</div>
-									</div>
-									<div className="form-group">
-										<label>Einheit</label>
+										<label>Kategorie *</label>
 										<select
-											value={formData.unit}
-											onChange={(e) => updateField('unit', e.target.value)}
+											value={formData.category}
+											onChange={(e) => updateField('category', e.target.value)}
+											required
 										>
-											{Object.entries(UNIT_LABELS).map(([value, label]) => (
-												<option key={value} value={value}>
-													{label}
-												</option>
-											))}
+											<option value="grill">🔥 Grill</option>
+											<option value="breakfast">🥐 Frühstück</option>
 										</select>
+									</div>
+									<div className="form-group" style={{ flex: 2 }}>
+										<label>Name der Vorlage *</label>
+										<input
+											type="text"
+											value={formData.name}
+											onChange={(e) => updateField('name', e.target.value)}
+											placeholder="z.B. Grill-Standard, Sommer-Frühstück"
+											required
+										/>
 									</div>
 								</div>
 
 								<div className="form-group">
-									<label>Sortierung</label>
+									<label>Beschreibung (optional)</label>
 									<input
-										type="number"
-										value={formData.sortOrder}
-										onChange={(e) =>
-											updateField('sortOrder', parseInt(e.target.value) || 0)
-										}
+										type="text"
+										value={formData.description}
+										onChange={(e) => updateField('description', e.target.value)}
+										placeholder="z.B. Standard-Layout für Grill-Events"
 									/>
 								</div>
 
-								<div className="modal-buttons">
+								{/* Items-Editor */}
+								<div
+									style={{
+										marginTop: '1.5rem',
+										paddingTop: '1.5rem',
+										borderTop: '2px solid var(--border)',
+									}}
+								>
+									<div
+										style={{
+											display: 'flex',
+											justifyContent: 'space-between',
+											alignItems: 'center',
+											marginBottom: '1rem',
+											gap: '1rem',
+											flexWrap: 'wrap',
+										}}
+									>
+										<h3 style={{ margin: 0 }}>
+											📋 Items ({formData.items.length})
+										</h3>
+										<button
+											type="button"
+											className="btn btn-sm btn-primary"
+											onClick={addItem}
+										>
+											+ Item hinzufügen
+										</button>
+									</div>
+
+									{formData.items.length === 0 ? (
+										<p
+											style={{
+												color: 'var(--text-muted)',
+												fontStyle: 'italic',
+												textAlign: 'center',
+												padding: '1.5rem',
+												background: 'var(--bg-secondary, #f9f9f9)',
+												borderRadius: '8px',
+											}}
+										>
+											Noch keine Items. Klicke "+ Item hinzufügen" um zu starten.
+										</p>
+									) : (
+										<div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+											{formData.items.map((item, index) => (
+												<div
+													key={index}
+													style={{
+														display: 'flex',
+														gap: '0.5rem',
+														alignItems: 'center',
+														padding: '0.6rem',
+														background: 'var(--bg-secondary, #f9f9f9)',
+														borderRadius: '8px',
+														border: '1px solid var(--border)',
+														flexWrap: 'wrap',
+													}}
+												>
+													{/* Reihenfolge */}
+													<div
+														style={{
+															display: 'flex',
+															flexDirection: 'column',
+															gap: '0.1rem',
+														}}
+													>
+														<button
+															type="button"
+															onClick={() => moveItem(index, -1)}
+															disabled={index === 0}
+															style={{
+																background: 'none',
+																border: 'none',
+																cursor: index === 0 ? 'not-allowed' : 'pointer',
+																opacity: index === 0 ? 0.3 : 1,
+																padding: '0.05rem 0.3rem',
+																fontSize: '0.7rem',
+															}}
+															title="Nach oben"
+														>
+															▲
+														</button>
+														<button
+															type="button"
+															onClick={() => moveItem(index, 1)}
+															disabled={index === formData.items.length - 1}
+															style={{
+																background: 'none',
+																border: 'none',
+																cursor:
+																	index === formData.items.length - 1
+																		? 'not-allowed'
+																		: 'pointer',
+																opacity:
+																	index === formData.items.length - 1
+																		? 0.3
+																		: 1,
+																padding: '0.05rem 0.3rem',
+																fontSize: '0.7rem',
+															}}
+															title="Nach unten"
+														>
+															▼
+														</button>
+													</div>
+
+													{/* Emoji */}
+													<input
+														type="text"
+														value={item.emoji}
+														onChange={(e) =>
+															updateItem(index, 'emoji', e.target.value)
+														}
+														placeholder="🍔"
+														maxLength="2"
+														style={{
+															width: '55px',
+															fontSize: '1.25rem',
+															textAlign: 'center',
+															padding: '0.4rem',
+														}}
+														title="Emoji"
+													/>
+
+													{/* Name */}
+													<input
+														type="text"
+														value={item.name}
+														onChange={(e) =>
+															updateItem(index, 'name', e.target.value)
+														}
+														placeholder="Item-Name"
+														style={{ flex: '2 1 150px', minWidth: '120px' }}
+														required
+													/>
+
+													{/* Typ */}
+													<select
+														value={item.itemType}
+														onChange={(e) =>
+															updateItem(index, 'itemType', e.target.value)
+														}
+														style={{ flex: '1 1 120px', minWidth: '100px' }}
+														title="Typ / Kategorie"
+													>
+														<option value="">— Typ —</option>
+														{TYPE_CATEGORIES.map((cat) => (
+															<option key={cat} value={cat}>
+																{cat}
+															</option>
+														))}
+													</select>
+
+													{/* Einheit */}
+													<select
+														value={item.unit}
+														onChange={(e) =>
+															updateItem(index, 'unit', e.target.value)
+														}
+														style={{ flex: '1 1 100px', minWidth: '90px' }}
+														title="Einheit"
+													>
+														{Object.entries(UNIT_LABELS).map(
+															([value, label]) => (
+																<option key={value} value={value}>
+																	{label}
+																</option>
+															),
+														)}
+													</select>
+
+													{/* Löschen */}
+													<button
+														type="button"
+														onClick={() => removeItem(index)}
+														className="btn btn-sm btn-danger"
+														style={{ padding: '0.4rem 0.6rem' }}
+														title="Item entfernen"
+													>
+														✕
+													</button>
+												</div>
+											))}
+										</div>
+									)}
+								</div>
+
+								<div className="modal-buttons" style={{ marginTop: '1.5rem' }}>
 									<button
 										type="button"
 										className="btn btn-secondary"
