@@ -1233,57 +1233,6 @@ app.post('/api/admin/users/:id/admin', adminAuth, async (req, res) => {
   }
 });
 
-// ==================== ADMIN: ITEM TEMPLATES ====================
-
-// Item-Vorlagen für Grill & Frühstück laden
-app.get('/api/admin/item-templates', adminAuth, (req, res) => {
-  const breakfastItems = [
-    { name: 'Brötchen', itemType: 'bread', unit: 'pieces', sortOrder: 0 },
-    { name: 'Toast', itemType: 'bread', unit: 'pieces', sortOrder: 1 },
-    { name: 'Butter', itemType: 'spread', unit: 'g', sortOrder: 2 },
-    { name: 'Marmelade', itemType: 'spread', unit: 'g', sortOrder: 3 },
-    { name: 'Honig', itemType: 'spread', unit: 'g', sortOrder: 4 },
-    { name: 'Nutella', itemType: 'spread', unit: 'g', sortOrder: 5 },
-    { name: 'Käse', itemType: 'cold_cuts', unit: 'g', sortOrder: 6 },
-    { name: 'Wurst', itemType: 'cold_cuts', unit: 'g', sortOrder: 7 },
-    { name: 'Gurken', itemType: 'vegetables', unit: 'pieces', sortOrder: 8 },
-    { name: 'Tomaten', itemType: 'vegetables', unit: 'pieces', sortOrder: 9 },
-    { name: 'Paprika', itemType: 'vegetables', unit: 'pieces', sortOrder: 10 },
-    { name: 'Eier', itemType: 'dairy', unit: 'pieces', sortOrder: 11 },
-    { name: 'Müsli', itemType: 'cereals', unit: 'g', sortOrder: 12 },
-    { name: 'Joghurt', itemType: 'dairy', unit: 'g', sortOrder: 13 },
-    { name: 'Milch', itemType: 'dairy', unit: 'l', sortOrder: 14 },
-    { name: 'Kaffee', itemType: 'drinks', unit: 'l', sortOrder: 15 },
-    { name: 'Tee', itemType: 'drinks', unit: 'l', sortOrder: 16 },
-    { name: 'Orangensaft', itemType: 'drinks', unit: 'l', sortOrder: 17 }
-  ];
-
-  const grillItems = [
-    { name: 'Würstchen', itemType: 'meat', unit: 'pieces', sortOrder: 0 },
-    { name: 'Bratwurst', itemType: 'meat', unit: 'pieces', sortOrder: 1 },
-    { name: 'Steaks', itemType: 'meat', unit: 'pieces', sortOrder: 2 },
-    { name: 'Hähnchen', itemType: 'meat', unit: 'pieces', sortOrder: 3 },
-    { name: 'Grillkäse', itemType: 'vegetarian', unit: 'pieces', sortOrder: 4 },
-    { name: 'Gemüsespieße', itemType: 'vegetarian', unit: 'pieces', sortOrder: 5 },
-    { name: 'Folienkartoffeln', itemType: 'sides', unit: 'pieces', sortOrder: 6 },
-    { name: 'Baguette', itemType: 'sides', unit: 'pieces', sortOrder: 7 },
-    { name: 'Salat (gemischt)', itemType: 'salads', unit: 'g', sortOrder: 8 },
-    { name: 'Gurkensalat', itemType: 'salads', unit: 'g', sortOrder: 9 },
-    { name: 'Tomatensalat', itemType: 'salads', unit: 'g', sortOrder: 10 },
-    { name: 'Ketchup', itemType: 'sauces', unit: 'ml', sortOrder: 11 },
-    { name: 'Senf', itemType: 'sauces', unit: 'ml', sortOrder: 12 },
-    { name: 'Mayo', itemType: 'sauces', unit: 'ml', sortOrder: 13 },
-    { name: 'Grillsauce', itemType: 'sauces', unit: 'ml', sortOrder: 14 },
-    { name: 'Bier', itemType: 'drinks', unit: 'l', sortOrder: 15 },
-    { name: 'Limonade', itemType: 'drinks', unit: 'l', sortOrder: 16 },
-    { name: 'Wasser', itemType: 'drinks', unit: 'l', sortOrder: 17 },
-    { name: 'Grillkohle', itemType: 'supplies', unit: 'kg', sortOrder: 18 },
-    { name: 'Grillanzünder', itemType: 'supplies', unit: 'pieces', sortOrder: 19 }
-  ];
-
-  res.json({ breakfast: breakfastItems, grill: grillItems });
-});
-
 // ==================== BUCHUNGEN ====================
 
 // Alle Buchungen abrufen (für aktuelles Event)
