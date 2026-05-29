@@ -1417,6 +1417,235 @@
             return '🍽️'; // Default
         };
 
+        // ===== Gemeinsame Mahlzeit-Karte (für Buchungs-Modal UND nachträgliches Bearbeiten) =====
+        // Sorgt für einheitliche Darstellung an beiden Stellen.
+        function MealCard({
+            meal,
+            dishSelections,        // { [dishId]: bool }
+            itemSelections,        // { [itemId]: { quantity, notes } }
+            onToggleDish,          // (dishId) => void
+            onUpdateItemQty,       // (itemId, qty) => void
+            onUpdateItemNotes,     // (itemId, notes) => void
+            onCopyBreakfastToAll,  // (meal) => void   (optional)
+            mealWish,              // string  (Wunsch-/Kommentartext dieser Mahlzeit)
+            onUpdateMealWish,      // (meal, text) => void
+        }) {
+            const isItemBased = meal.meal_type === 'grill' || meal.meal_type === 'breakfast';
+            const isBreakfast = meal.meal_type === 'breakfast';
+            const mealIcon = isBreakfast ? '🥐' : meal.meal_type === 'grill' ? '🔥' : '🍽️';
+
+            return (
+                <div style={{
+                    background: 'white',
+                    borderRadius: '12px',
+                    padding: '1rem',
+                    marginBottom: '1rem',
+                    border: '1px solid #e0e0e0'
+                }}>
+                    {/* Header */}
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap'}}>
+                        <div>
+                            <div style={{fontWeight: 700, fontSize: '1.05rem', color: '#333'}}>{mealIcon} {meal.name}</div>
+                            <div style={{fontSize: '0.85rem', color: '#666', marginTop: '0.25rem'}}>
+                                📅 {new Date(meal.meal_date).toLocaleDateString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit'})} ·
+                                🕒 {meal.meal_time.slice(0,5)} Uhr
+                                {meal.description && ` · ${meal.description}`}
+                            </div>
+                        </div>
+                        {/* "Für alle Frühstücke übernehmen" */}
+                        {isBreakfast && onCopyBreakfastToAll && (
+                            <button
+                                type="button"
+                                onClick={() => onCopyBreakfastToAll(meal)}
+                                style={{
+                                    padding: '0.4rem 0.7rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                    background: '#fff',
+                                    color: '#4caf50',
+                                    border: '2px solid #4caf50',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap'
+                                }}
+                                title="Diese Mengen auf alle anderen Frühstücke übertragen"
+                            >
+                                📋 Für alle Frühstücke
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Gerichte (meal-type) */}
+                    {!isItemBased && meal.dishes && meal.dishes.length > 0 && (
+                        <div>
+                            {meal.dishes.map(dish => {
+                                const isSelected = !!dishSelections[dish.id];
+                                return (
+                                    <div
+                                        key={dish.id}
+                                        onClick={() => onToggleDish(dish.id)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '0.5rem',
+                                            marginBottom: '0.5rem',
+                                            background: isSelected ? '#e8f5e9' : '#fafafa',
+                                            borderRadius: '8px',
+                                            border: `2px solid ${isSelected ? '#4caf50' : 'transparent'}`,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => onToggleDish(dish.id)}
+                                            onClick={e => e.stopPropagation()}
+                                            style={{width: '20px', height: '20px', marginRight: '0.75rem', cursor: 'pointer'}}
+                                        />
+                                        <div style={{flex: 1}}>
+                                            <div style={{fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                                                {dish.diet_type === 'Fleisch' && '🥩'}
+                                                {dish.diet_type === 'Vegetarisch' && '🧀'}
+                                                {dish.diet_type === 'Vegan' && '🌱'}
+                                                {dish.name}
+                                            </div>
+                                            {dish.description && (
+                                                <div style={{fontSize: '0.8rem', color: '#666', marginTop: '0.25rem'}}>{dish.description}</div>
+                                            )}
+                                            {(dish.diet_type || dish.allergies) && (
+                                                <div style={{display: 'flex', gap: '0.5rem', marginTop: '0.25rem'}}>
+                                                    {dish.diet_type && <span style={{fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: '#f0f0f0', borderRadius: '4px', color: '#666'}}>{dish.diet_type}</span>}
+                                                    {dish.allergies && <span style={{fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: '#f0f0f0', borderRadius: '4px', color: '#666'}}>⚠️ {dish.allergies}</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Items (grill/breakfast) - GRID */}
+                    {isItemBased && meal.items && meal.items.length > 0 && (
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                            gap: '0.75rem'
+                        }}>
+                            {meal.items.map(item => {
+                                const selection = itemSelections[item.id] || { quantity: 0, notes: '' };
+                                const hasSelection = selection.quantity > 0;
+                                const emoji = getItemEmoji(item.name, item.emoji);
+                                const setQty = (q) => onUpdateItemQty(item.id, String(Math.max(0, q)));
+
+                                return (
+                                    <div key={item.id} style={{
+                                        position: 'relative',
+                                        padding: '1rem 0.75rem',
+                                        background: hasSelection ? '#e8f5e9' : 'white',
+                                        borderRadius: '12px',
+                                        border: `3px solid ${hasSelection ? '#4caf50' : '#e8e8e8'}`,
+                                        textAlign: 'center',
+                                        minHeight: '120px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'center',
+                                        boxShadow: hasSelection ? '0 4px 12px rgba(76, 175, 80, 0.2)' : '0 2px 8px rgba(0,0,0,0.05)'
+                                    }}>
+                                        {hasSelection && (
+                                            <div
+                                                onClick={() => setQty((selection.quantity || 0) - 1)}
+                                                style={{
+                                                    position: 'absolute', top: '-8px', right: '-8px',
+                                                    background: '#4caf50', color: 'white', borderRadius: '50%',
+                                                    width: '32px', height: '32px', display: 'flex',
+                                                    alignItems: 'center', justifyContent: 'center',
+                                                    fontWeight: 'bold', fontSize: '0.9rem',
+                                                    boxShadow: '0 2px 8px rgba(76, 175, 80, 0.4)',
+                                                    border: '3px solid white', cursor: 'pointer'
+                                                }}
+                                            >
+                                                {selection.quantity}
+                                            </div>
+                                        )}
+
+                                        <div style={{fontSize: '3rem', marginBottom: '0.5rem', lineHeight: 1}}>{emoji}</div>
+                                        <div style={{fontWeight: 600, fontSize: '0.85rem', color: '#333', lineHeight: 1.2, marginBottom: '0.5rem'}}>{item.name}</div>
+
+                                        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'center'}}>
+                                            <button
+                                                onClick={() => setQty((selection.quantity || 0) - 1)}
+                                                disabled={!hasSelection}
+                                                style={{
+                                                    width: '32px', height: '32px', borderRadius: '8px', border: 'none',
+                                                    background: hasSelection ? '#4caf50' : '#e0e0e0', color: 'white',
+                                                    fontSize: '1.2rem', fontWeight: 'bold',
+                                                    cursor: hasSelection ? 'pointer' : 'not-allowed',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    opacity: hasSelection ? 1 : 0.5
+                                                }}
+                                            >−</button>
+
+                                            <div style={{minWidth: '32px', textAlign: 'center', fontWeight: 'bold', fontSize: '1rem', color: hasSelection ? '#4caf50' : '#999'}}>
+                                                {selection.quantity || 0}
+                                            </div>
+
+                                            <button
+                                                onClick={() => setQty((selection.quantity || 0) + 1)}
+                                                style={{
+                                                    width: '32px', height: '32px', borderRadius: '8px', border: 'none',
+                                                    background: '#4caf50', color: 'white', fontSize: '1.2rem', fontWeight: 'bold',
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}
+                                            >+</button>
+                                        </div>
+
+                                        {hasSelection && (
+                                            <div style={{fontSize: '0.7rem', color: '#666', marginTop: '0.25rem'}}>
+                                                {item.unit === 'pieces' ? 'Stück' : item.unit}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Allgemeines Wunsch-/Kommentarfeld pro Mahlzeit (für Sonderwünsche / "Sonstiges") */}
+                    {isItemBased && onUpdateMealWish && (
+                        <div style={{marginTop: '0.85rem'}}>
+                            <label style={{display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#555', marginBottom: '0.25rem'}}>
+                                💬 Sonderwunsch / Sonstiges
+                            </label>
+                            <textarea
+                                value={mealWish || ''}
+                                onChange={e => onUpdateMealWish(meal, e.target.value)}
+                                placeholder="z.B. laktosefreie Milch, glutenfreies Brot, Lieblingsaufstrich…"
+                                style={{
+                                    width: '100%', padding: '0.5rem', border: '1px solid #ddd',
+                                    borderRadius: '8px', fontSize: '0.85rem', resize: 'vertical',
+                                    minHeight: '42px', fontFamily: 'inherit', boxSizing: 'border-box'
+                                }}
+                            />
+                        </div>
+                    )}
+
+                    {/* Empty states */}
+                    {!isItemBased && (!meal.dishes || meal.dishes.length === 0) && (
+                        <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
+                            Noch keine Gerichte verfügbar
+                        </div>
+                    )}
+                    {isItemBased && (!meal.items || meal.items.length === 0) && (
+                        <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
+                            Noch keine Items verfügbar
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         const API_URL = '/api';
         const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
         const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
@@ -1835,7 +2064,77 @@
                     }
                 }));
             };
-            
+
+            // ===== Helfer: "Sonstiges"-Item einer Mahlzeit finden =====
+            // Das allgemeine Wunschfeld wird auf dem Item mit Namen "Sonstiges" gespeichert.
+            const getMiscItem = (meal) => {
+                if (!meal?.items) return null;
+                return meal.items.find(it => (it.name || '').trim().toLowerCase() === 'sonstiges') || null;
+            };
+
+            // Wunschtext einer Mahlzeit aus einem Selection-Objekt lesen
+            const getMealWish = (meal, selections) => {
+                const misc = getMiscItem(meal);
+                if (!misc) return '';
+                return selections[misc.id]?.notes || '';
+            };
+
+            // Wunschtext setzen (generisch für beide State-Setter)
+            const setMealWishGeneric = (setter) => (meal, text) => {
+                const misc = getMiscItem(meal);
+                if (!misc) return;
+                setter(prev => ({
+                    ...prev,
+                    [misc.id]: {
+                        // Wunsch eingetragen => quantity mind. 1, damit es gespeichert & im Report sichtbar wird
+                        quantity: text.trim() ? Math.max(1, prev[misc.id]?.quantity || 0) : 0,
+                        notes: text
+                    }
+                }));
+            };
+            const updateMealModalMealWish = setMealWishGeneric(setMealModalItemSelections);
+
+            // ===== Helfer: Frühstück-Mengen auf alle anderen Frühstücke übertragen =====
+            // Generisch: nutzt Item-NAMEN als Schlüssel (IDs unterscheiden sich je Mahlzeit).
+            const copyBreakfastToAllGeneric = (setter) => (sourceMeal, currentSelections) => {
+                const breakfastMeals = meals.filter(m => m.meal_type === 'breakfast');
+                if (breakfastMeals.length <= 1) {
+                    alert('Es gibt nur ein Frühstück – nichts zu übertragen.');
+                    return;
+                }
+                // Quelle: Name -> { quantity, notes }
+                const sourceByName = {};
+                (sourceMeal.items || []).forEach(it => {
+                    const sel = currentSelections[it.id];
+                    if (sel && (sel.quantity > 0 || (sel.notes && sel.notes.trim()))) {
+                        sourceByName[(it.name || '').trim().toLowerCase()] = {
+                            quantity: sel.quantity || 0,
+                            notes: sel.notes || ''
+                        };
+                    }
+                });
+
+                setter(prev => {
+                    const next = { ...prev };
+                    breakfastMeals.forEach(bm => {
+                        if (bm.id === sourceMeal.id) return; // Quelle nicht überschreiben
+                        (bm.items || []).forEach(it => {
+                            const key = (it.name || '').trim().toLowerCase();
+                            if (sourceByName[key]) {
+                                next[it.id] = { ...sourceByName[key] };
+                            } else {
+                                // Items, die in der Quelle nicht gewählt waren, zurücksetzen
+                                next[it.id] = { quantity: 0, notes: '' };
+                            }
+                        });
+                    });
+                    return next;
+                });
+                const cnt = breakfastMeals.length - 1;
+                alert(`✅ Auf ${cnt} weitere${cnt === 1 ? 's' : ''} Frühstück übertragen.`);
+            };
+            const copyBreakfastToAllModal = (meal) => copyBreakfastToAllGeneric(setMealModalItemSelections)(meal, mealModalItemSelections);
+
             // Essensauswahl für Person im Buchungs-Modal laden
             const loadPersonMealSelections = async (personName) => {
                 if (!personName) return;
@@ -1976,7 +2275,11 @@
                     }
                 }));
             };
-            
+
+            // Inline-Varianten (nachträgliches Bearbeiten) der Mahlzeit-Wunsch- und Copy-Handler
+            const updatePersonMealWish = setMealWishGeneric(setPersonItemSelections);
+            const copyBreakfastToAllPerson = (meal) => copyBreakfastToAllGeneric(setPersonItemSelections)(meal, personItemSelections);
+
             // Item-Selections im Buchungs-Modal speichern
             const savePersonItemSelections = async () => {
                 const personName = bookings[selectedBed]?.name;
@@ -3116,158 +3419,73 @@
                                                 
                                                 {modalMealSelectionsLoading ? (
                                                     <div style={{textAlign: 'center', padding: '1rem', color: '#666'}}>⏳ Lade...</div>
-                                                ) : personMealSelections.length === 0 && !editingMealSelections ? (
+                                                ) : personMealSelections.length === 0 && Object.values(personItemSelections).every(s => !(s?.quantity > 0) && !(s?.notes && s.notes.trim())) && !editingMealSelections ? (
                                                     <div style={{textAlign: 'center', padding: '1rem', color: '#999'}}>
-                                                        Noch keine Gerichte ausgewählt
+                                                        Noch nichts ausgewählt
                                                     </div>
                                                 ) : (
-                                                    <div style={{maxHeight: '300px', overflowY: 'auto'}}>
-                                                        {meals.map(meal => {
-                                                            // Check meal type
-                                                            const isItemBased = meal.meal_type === 'grill' || meal.meal_type === 'breakfast';
-                                                            
-                                                            // Get dishes or items
-                                                            const mealDishes = meal.dishes || [];
-                                                            const mealItems = meal.items || [];
-                                                            
-                                                            // Check selections
-                                                            const selectedDishes = mealDishes.filter(d => 
-                                                                personMealSelections.some(s => s.dish_id === d.id)
-                                                            );
-                                                            const selectedItems = mealItems.filter(item => 
-                                                                personItemSelections[item.id]?.quantity > 0
-                                                            );
-                                                            
-                                                            // Hide if nothing selected and not editing
-                                                            if (!editingMealSelections && selectedDishes.length === 0 && selectedItems.length === 0) return null;
-                                                            
-                                                            return (
-                                                                <div key={meal.id} style={{marginBottom: '1rem', padding: '0.75rem', background: 'white', borderRadius: '8px'}}>
-                                                                    <div style={{fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem'}}>
-                                                                        {meal.name}
-                                                                    </div>
-                                                                    
-                                                                    {/* Render dishes for normal meals */}
-                                                                    {!isItemBased && (
-                                                                        editingMealSelections ? (
-                                                                            mealDishes.map(dish => {
-                                                                                const isSelected = personMealSelections.some(s => s.dish_id === dish.id);
-                                                                                return (
-                                                                                    <div 
-                                                                                        key={dish.id}
-                                                                                        onClick={() => togglePersonMealDish(dish.id)}
-                                                                                        style={{
-                                                                                            display: 'flex',
-                                                                                            alignItems: 'center',
-                                                                                            padding: '0.5rem',
-                                                                                            marginBottom: '0.25rem',
-                                                                                            background: isSelected ? '#e8f5e9' : '#fafafa',
-                                                                                            borderRadius: '6px',
-                                                                                            border: `2px solid ${isSelected ? '#4caf50' : 'transparent'}`,
-                                                                                            cursor: 'pointer'
-                                                                                        }}
-                                                                                    >
-                                                                                        <input 
-                                                                                            type="checkbox" 
-                                                                                            checked={isSelected}
-                                                                                            onChange={() => togglePersonMealDish(dish.id)}
-                                                                                            onClick={e => e.stopPropagation()}
-                                                                                            style={{marginRight: '0.5rem'}}
-                                                                                        />
-                                                                                        <span style={{fontSize: '0.85rem'}}>
-                                                                                            {dish.diet_type === 'Fleisch' && '🥩 '}
-                                                                                            {dish.diet_type === 'Vegetarisch' && '🧀 '}
-                                                                                            {dish.diet_type === 'Vegan' && '🌱 '}
-                                                                                            {dish.name}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                );
-                                                                            })
-                                                                        ) : (
-                                                                            selectedDishes.map(dish => (
-                                                                                <div key={dish.id} style={{fontSize: '0.85rem', padding: '0.25rem 0', color: '#555'}}>
-                                                                                    {dish.diet_type === 'Fleisch' && '🥩 '}
-                                                                                    {dish.diet_type === 'Vegetarisch' && '🧀 '}
-                                                                                    {dish.diet_type === 'Vegan' && '🌱 '}
-                                                                                    {dish.name}
+                                                    <div style={{maxHeight: '420px', overflowY: 'auto'}}>
+                                                        {editingMealSelections ? (
+                                                            /* EDIT-MODUS: gleiche Darstellung wie im Buchungs-Modal */
+                                                            meals.map(meal => (
+                                                                <MealCard
+                                                                    key={meal.id}
+                                                                    meal={meal}
+                                                                    dishSelections={personMealSelections.reduce((acc, s) => { acc[s.dish_id] = true; return acc; }, {})}
+                                                                    itemSelections={personItemSelections}
+                                                                    onToggleDish={togglePersonMealDish}
+                                                                    onUpdateItemQty={updatePersonItemQuantity}
+                                                                    onUpdateItemNotes={updatePersonItemNotes}
+                                                                    onCopyBreakfastToAll={copyBreakfastToAllPerson}
+                                                                    mealWish={getMealWish(meal, personItemSelections)}
+                                                                    onUpdateMealWish={updatePersonMealWish}
+                                                                />
+                                                            ))
+                                                        ) : (
+                                                            /* LESE-MODUS: kompakte Zusammenfassung */
+                                                            meals.map(meal => {
+                                                                const isItemBased = meal.meal_type === 'grill' || meal.meal_type === 'breakfast';
+                                                                const mealDishes = meal.dishes || [];
+                                                                const mealItems = meal.items || [];
+                                                                const selectedDishes = mealDishes.filter(d => personMealSelections.some(s => s.dish_id === d.id));
+                                                                const selectedItems = mealItems.filter(item => personItemSelections[item.id]?.quantity > 0);
+                                                                const misc = mealItems.find(it => (it.name || '').trim().toLowerCase() === 'sonstiges');
+                                                                const wishText = misc ? (personItemSelections[misc.id]?.notes || '') : '';
+                                                                const visibleItems = selectedItems.filter(it => (it.name || '').trim().toLowerCase() !== 'sonstiges');
+
+                                                                if (selectedDishes.length === 0 && visibleItems.length === 0 && !wishText.trim()) return null;
+
+                                                                const mealIcon = meal.meal_type === 'breakfast' ? '🥐' : meal.meal_type === 'grill' ? '🔥' : '🍽️';
+                                                                return (
+                                                                    <div key={meal.id} style={{marginBottom: '0.75rem', padding: '0.75rem', background: 'white', borderRadius: '8px', border: '1px solid #eee'}}>
+                                                                        <div style={{fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem'}}>
+                                                                            {mealIcon} {meal.name}
+                                                                        </div>
+                                                                        {!isItemBased && selectedDishes.map(dish => (
+                                                                            <div key={dish.id} style={{fontSize: '0.85rem', padding: '0.15rem 0', color: '#555'}}>
+                                                                                {dish.diet_type === 'Fleisch' && '🥩 '}
+                                                                                {dish.diet_type === 'Vegetarisch' && '🧀 '}
+                                                                                {dish.diet_type === 'Vegan' && '🌱 '}
+                                                                                {dish.name}
+                                                                            </div>
+                                                                        ))}
+                                                                        {isItemBased && visibleItems.map(item => {
+                                                                            const sel = personItemSelections[item.id];
+                                                                            return (
+                                                                                <div key={item.id} style={{fontSize: '0.85rem', padding: '0.15rem 0', color: '#555'}}>
+                                                                                    {getItemEmoji(item.name, item.emoji)} {item.name}: <strong>{sel.quantity} {item.unit === 'pieces' ? 'Stück' : item.unit}</strong>
                                                                                 </div>
-                                                                            ))
-                                                                        )
-                                                                    )}
-                                                                    
-                                                                    {/* Render items for Grill/Frühstück */}
-                                                                    {isItemBased && (
-                                                                        editingMealSelections ? (
-                                                                            mealItems.map(item => {
-                                                                                const selection = personItemSelections[item.id] || { quantity: 0, notes: '' };
-                                                                                const hasSelection = selection.quantity > 0;
-                                                                                return (
-                                                                                    <div 
-                                                                                        key={item.id}
-                                                                                        style={{
-                                                                                            padding: '0.5rem',
-                                                                                            marginBottom: '0.5rem',
-                                                                                            background: hasSelection ? '#e8f5e9' : '#fafafa',
-                                                                                            borderRadius: '6px',
-                                                                                            border: `2px solid ${hasSelection ? '#4caf50' : '#e0e0e0'}`
-                                                                                        }}
-                                                                                    >
-                                                                                        <div style={{display: 'flex', alignItems: 'center', marginBottom: '0.25rem'}}>
-                                                                                            <span style={{flex: 1, fontSize: '0.85rem', fontWeight: 500}}>{item.name}</span>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                value={selection.quantity || ''}
-                                                                                                onChange={e => updatePersonItemQuantity(item.id, e.target.value)}
-                                                                                                onClick={e => e.stopPropagation()}
-                                                                                                placeholder="0"
-                                                                                                style={{
-                                                                                                    width: '60px',
-                                                                                                    padding: '0.3rem',
-                                                                                                    border: '1px solid #ccc',
-                                                                                                    borderRadius: '4px',
-                                                                                                    fontSize: '0.85rem',
-                                                                                                    textAlign: 'center',
-                                                                                                    marginRight: '0.3rem'
-                                                                                                }}
-                                                                                            />
-                                                                                            <span style={{fontSize: '0.75rem', color: '#666', minWidth: '35px'}}>
-                                                                                                {item.unit === 'pieces' ? 'Stk' : item.unit}
-                                                                                            </span>
-                                                                                        </div>
-                                                                                        <textarea
-                                                                                            value={selection.notes || ''}
-                                                                                            onChange={e => updatePersonItemNotes(item.id, e.target.value)}
-                                                                                            onClick={e => e.stopPropagation()}
-                                                                                            placeholder="Kommentar..."
-                                                                                            style={{
-                                                                                                width: '100%',
-                                                                                                padding: '0.3rem',
-                                                                                                border: '1px solid #ddd',
-                                                                                                borderRadius: '4px',
-                                                                                                fontSize: '0.75rem',
-                                                                                                resize: 'vertical',
-                                                                                                minHeight: '40px',
-                                                                                                fontFamily: 'inherit'
-                                                                                            }}
-                                                                                        />
-                                                                                    </div>
-                                                                                );
-                                                                            })
-                                                                        ) : (
-                                                                            selectedItems.map(item => {
-                                                                                const selection = personItemSelections[item.id];
-                                                                                return (
-                                                                                    <div key={item.id} style={{fontSize: '0.85rem', padding: '0.25rem 0', color: '#555'}}>
-                                                                                        {item.name}: <strong>{selection.quantity} {item.unit === 'pieces' ? 'Stück' : item.unit}</strong>
-                                                                                        {selection.notes && <div style={{fontSize: '0.75rem', color: '#999', fontStyle: 'italic', marginTop: '0.15rem'}}>💬 {selection.notes}</div>}
-                                                                                    </div>
-                                                                                );
-                                                                            })
-                                                                        )
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
+                                                                            );
+                                                                        })}
+                                                                        {wishText.trim() && (
+                                                                            <div style={{fontSize: '0.8rem', color: '#777', fontStyle: 'italic', marginTop: '0.3rem'}}>
+                                                                                💬 {wishText}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        )}
                                                     </div>
                                                 )}
                                                 
@@ -3278,6 +3496,7 @@
                                                             onClick={() => {
                                                                 setEditingMealSelections(false);
                                                                 loadPersonMealSelections(bookings[selectedBed]?.name);
+                                                                loadPersonItemSelections(bookings[selectedBed]?.name);
                                                             }}
                                                             style={{flex: 1, padding: '0.5rem', fontSize: '0.85rem'}}
                                                         >
@@ -3492,278 +3711,18 @@
                                 ) : (
                                     <div style={{maxHeight: '60vh', overflowY: 'auto'}}>
                                         {meals.map(meal => (
-                                            <div key={meal.id} style={{
-                                                background: 'white',
-                                                borderRadius: '12px',
-                                                padding: '1rem',
-                                                marginBottom: '1rem',
-                                                border: '1px solid #e0e0e0'
-                                            }}>
-                                                <div style={{marginBottom: '0.75rem'}}>
-                                                    <div style={{fontWeight: 700, fontSize: '1.05rem', color: '#333'}}>{meal.name}</div>
-                                                    <div style={{fontSize: '0.85rem', color: '#666', marginTop: '0.25rem'}}>
-                                                        📅 {new Date(meal.meal_date).toLocaleDateString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit'})} ·
-                                                        🕒 {meal.meal_time.slice(0,5)} Uhr
-                                                        {meal.description && ` · ${meal.description}`}
-                                                    </div>
-                                                </div>
-                                                
-                                                {/* Gerichte für normale Mahlzeiten */}
-                                                {meal.meal_type === 'meal' && meal.dishes && meal.dishes.length > 0 && (
-                                                    <div>
-                                                        {meal.dishes.map(dish => {
-                                                            const isSelected = mealModalSelections[dish.id];
-                                                            return (
-                                                                <div 
-                                                                    key={dish.id} 
-                                                                    style={{
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        padding: '0.5rem',
-                                                                        marginBottom: '0.5rem',
-                                                                        background: isSelected ? '#e8f5e9' : '#fafafa',
-                                                                        borderRadius: '8px',
-                                                                        border: `2px solid ${isSelected ? '#4caf50' : 'transparent'}`,
-                                                                        cursor: 'pointer',
-                                                                        transition: 'all 0.2s'
-                                                                    }}
-                                                                    onClick={() => toggleMealModalDish(dish.id)}
-                                                                >
-                                                                    <input 
-                                                                        type="checkbox" 
-                                                                        checked={isSelected || false}
-                                                                        onChange={() => toggleMealModalDish(dish.id)}
-                                                                        onClick={e => e.stopPropagation()}
-                                                                        style={{width: '20px', height: '20px', marginRight: '0.75rem', cursor: 'pointer'}}
-                                                                    />
-                                                                    <div style={{flex: 1}}>
-                                                                        <div style={{fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-                                                                            {dish.diet_type === 'Fleisch' && '🥩'}
-                                                                            {dish.diet_type === 'Vegetarisch' && '🧀'}
-                                                                            {dish.diet_type === 'Vegan' && '🌱'}
-                                                                            {dish.name}
-                                                                        </div>
-                                                                        {dish.description && (
-                                                                            <div style={{fontSize: '0.8rem', color: '#666', marginTop: '0.25rem'}}>{dish.description}</div>
-                                                                        )}
-                                                                        {(dish.diet_type || dish.allergies) && (
-                                                                            <div style={{display: 'flex', gap: '0.5rem', marginTop: '0.25rem'}}>
-                                                                                {dish.diet_type && <span style={{fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: '#f0f0f0', borderRadius: '4px', color: '#666'}}>{dish.diet_type}</span>}
-                                                                                {dish.allergies && <span style={{fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: '#f0f0f0', borderRadius: '4px', color: '#666'}}>⚠️ {dish.allergies}</span>}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                                
-                                                {/* Items für Grill & Frühstück - GRID LAYOUT */}
-                                                {(meal.meal_type === 'grill' || meal.meal_type === 'breakfast') && meal.items && meal.items.length > 0 && (
-                                                    <div style={{
-                                                        display: 'grid',
-                                                        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                                                        gap: '0.75rem'
-                                                    }}>
-                                                        {meal.items.map(item => {
-                                                            const selection = mealModalItemSelections[item.id] || { quantity: 0, notes: '' };
-                                                            const hasSelection = selection.quantity > 0;
-                                                            const emoji = getItemEmoji(item.name, item.emoji);
-                                                            
-                                                            return (
-                                                                <div 
-                                                                    key={item.id}
-                                                                    onClick={() => {
-                                                                        // Click auf Card ist jetzt deaktiviert - nur Buttons funktionieren
-                                                                    }}
-                                                                    style={{
-                                                                        position: 'relative',
-                                                                        padding: '1rem 0.75rem',
-                                                                        background: hasSelection ? '#e8f5e9' : 'white',
-                                                                        borderRadius: '12px',
-                                                                        border: `3px solid ${hasSelection ? '#4caf50' : '#e8e8e8'}`,
-                                                                        cursor: 'pointer',
-                                                                        transition: 'all 0.2s',
-                                                                        textAlign: 'center',
-                                                                        minHeight: '120px',
-                                                                        display: 'flex',
-                                                                        flexDirection: 'column',
-                                                                        justifyContent: 'center',
-                                                                        boxShadow: hasSelection ? '0 4px 12px rgba(76, 175, 80, 0.2)' : '0 2px 8px rgba(0,0,0,0.05)'
-                                                                    }}
-                                                                >
-                                                                    {/* Quantity Badge - Click to decrease */}
-                                                                    {hasSelection && (
-                                                                        <div 
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                const newQty = Math.max(0, (selection.quantity || 0) - 1);
-                                                                                updateMealModalItemQuantity(item.id, newQty.toString());
-                                                                            }}
-                                                                            style={{
-                                                                                position: 'absolute',
-                                                                                top: '-8px',
-                                                                                right: '-8px',
-                                                                                background: '#4caf50',
-                                                                                color: 'white',
-                                                                                borderRadius: '50%',
-                                                                                width: '32px',
-                                                                                height: '32px',
-                                                                                display: 'flex',
-                                                                                alignItems: 'center',
-                                                                                justifyContent: 'center',
-                                                                                fontWeight: 'bold',
-                                                                                fontSize: '0.9rem',
-                                                                                boxShadow: '0 2px 8px rgba(76, 175, 80, 0.4)',
-                                                                                border: '3px solid white',
-                                                                                cursor: 'pointer',
-                                                                                transition: 'transform 0.1s'
-                                                                            }}
-                                                                            onMouseDown={(e) => {
-                                                                                e.currentTarget.style.transform = 'scale(0.9)';
-                                                                            }}
-                                                                            onMouseUp={(e) => {
-                                                                                e.currentTarget.style.transform = 'scale(1)';
-                                                                            }}
-                                                                        >
-                                                                            {selection.quantity}
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {/* Emoji Icon */}
-                                                                    <div style={{
-                                                                        fontSize: '3rem',
-                                                                        marginBottom: '0.5rem',
-                                                                        lineHeight: 1
-                                                                    }}>
-                                                                        {emoji}
-                                                                    </div>
-                                                                    
-                                                                    {/* Item Name */}
-                                                                    <div style={{
-                                                                        fontWeight: 600,
-                                                                        fontSize: '0.85rem',
-                                                                        color: '#333',
-                                                                        lineHeight: 1.2,
-                                                                        marginBottom: '0.5rem'
-                                                                    }}>
-                                                                        {item.name}
-                                                                    </div>
-                                                                    
-                                                                    {/* Plus/Minus Buttons */}
-                                                                    <div style={{
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        gap: '0.5rem',
-                                                                        marginTop: '0.5rem'
-                                                                    }}>
-                                                                        {/* Minus Button */}
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                const newQty = Math.max(0, (selection.quantity || 0) - 1);
-                                                                                updateMealModalItemQuantity(item.id, newQty.toString());
-                                                                            }}
-                                                                            disabled={!hasSelection}
-                                                                            style={{
-                                                                                width: '32px',
-                                                                                height: '32px',
-                                                                                borderRadius: '8px',
-                                                                                border: 'none',
-                                                                                background: hasSelection ? '#4caf50' : '#e0e0e0',
-                                                                                color: 'white',
-                                                                                fontSize: '1.2rem',
-                                                                                fontWeight: 'bold',
-                                                                                cursor: hasSelection ? 'pointer' : 'not-allowed',
-                                                                                display: 'flex',
-                                                                                alignItems: 'center',
-                                                                                justifyContent: 'center',
-                                                                                transition: 'all 0.2s',
-                                                                                opacity: hasSelection ? 1 : 0.5
-                                                                            }}
-                                                                        >
-                                                                            −
-                                                                        </button>
-                                                                        
-                                                                        {/* Quantity Display */}
-                                                                        <div style={{
-                                                                            minWidth: '40px',
-                                                                            textAlign: 'center',
-                                                                            fontWeight: 'bold',
-                                                                            fontSize: '1rem',
-                                                                            color: hasSelection ? '#4caf50' : '#999'
-                                                                        }}>
-                                                                            {selection.quantity || 0}
-                                                                        </div>
-                                                                        
-                                                                        {/* Plus Button */}
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                const newQty = (selection.quantity || 0) + 1;
-                                                                                updateMealModalItemQuantity(item.id, newQty.toString());
-                                                                            }}
-                                                                            style={{
-                                                                                width: '32px',
-                                                                                height: '32px',
-                                                                                borderRadius: '8px',
-                                                                                border: 'none',
-                                                                                background: '#4caf50',
-                                                                                color: 'white',
-                                                                                fontSize: '1.2rem',
-                                                                                fontWeight: 'bold',
-                                                                                cursor: 'pointer',
-                                                                                display: 'flex',
-                                                                                alignItems: 'center',
-                                                                                justifyContent: 'center',
-                                                                                transition: 'all 0.2s'
-                                                                            }}
-                                                                        >
-                                                                            +
-                                                                        </button>
-                                                                    </div>
-                                                                    
-                                                                    {/* Unit Hint */}
-                                                                    {hasSelection && (
-                                                                        <div style={{
-                                                                            fontSize: '0.7rem',
-                                                                            color: '#666',
-                                                                            marginTop: '0.25rem'
-                                                                        }}>
-                                                                            {item.unit === 'pieces' ? 'Stück' : item.unit}
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {/* Notes Indicator */}
-                                                                    {selection.notes && (
-                                                                        <div style={{
-                                                                            position: 'absolute',
-                                                                            bottom: '4px',
-                                                                            right: '4px',
-                                                                            fontSize: '0.9rem'
-                                                                        }}>
-                                                                            💬
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                                
-                                                {/* Keine Items/Gerichte verfügbar */}
-                                                {meal.meal_type === 'meal' && (!meal.dishes || meal.dishes.length === 0) && (
-                                                    <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
-                                                        Noch keine Gerichte verfügbar
-                                                    </div>
-                                                )}
-                                                {(meal.meal_type === 'grill' || meal.meal_type === 'breakfast') && (!meal.items || meal.items.length === 0) && (
-                                                    <div style={{padding: '1rem', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', color: '#999'}}>
-                                                        Noch keine Items verfügbar
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <MealCard
+                                                key={meal.id}
+                                                meal={meal}
+                                                dishSelections={mealModalSelections}
+                                                itemSelections={mealModalItemSelections}
+                                                onToggleDish={toggleMealModalDish}
+                                                onUpdateItemQty={updateMealModalItemQuantity}
+                                                onUpdateItemNotes={updateMealModalItemNotes}
+                                                onCopyBreakfastToAll={copyBreakfastToAllModal}
+                                                mealWish={getMealWish(meal, mealModalItemSelections)}
+                                                onUpdateMealWish={updateMealModalMealWish}
+                                            />
                                         ))}
                                     </div>
                                 )}
