@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const fetch = require('node-fetch');
 const cookieParser = require('cookie-parser');
 
@@ -55,7 +56,9 @@ const pool = new Pool({
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser()); // Cookie-Parser Middleware
-app.use(express.static('public'));
+// index: false => index.html wird NICHT automatisch von static ausgeliefert,
+// damit der Catch-all-Handler unten die Meta-Tags pro Event einsetzen kann.
+app.use(express.static('public', { index: false }));
 
 // Event-Erkennung Middleware (erkennt Event anhand Subdomain)
 app.use(async (req, res, next) => {
@@ -3468,9 +3471,80 @@ app.delete('/api/breakfast-selections/:personName/:breakfastEventId', async (req
   }
 });
 
-// Fallback für SPA
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Fallback für SPA – liefert index.html mit dynamischen Meta-Tags (für WhatsApp/Social-Sharing)
+// HTML-Escaping für Meta-Tag-Werte (verhindert kaputtes Markup / Injection)
+function escapeHtmlAttr(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Event anhand Subdomain ermitteln (Catch-all läuft außerhalb der /api-Middleware)
+async function resolveEventForRequest(req) {
+  try {
+    const host = req.hostname || req.headers.host || '';
+    const subdomain = host.split('.')[0];
+    if (subdomain && subdomain !== 'www' && subdomain !== 'localhost') {
+      const bySlug = await pool.query('SELECT * FROM events WHERE slug = $1', [subdomain]);
+      if (bySlug.rows.length > 0) return bySlug.rows[0];
+    }
+    const active = await pool.query('SELECT * FROM events WHERE is_active = true LIMIT 1');
+    return active.rows[0] || null;
+  } catch (err) {
+    console.error('resolveEventForRequest Fehler:', err.message);
+    return null;
+  }
+}
+
+// index.html-Pfad (wird bei jedem Request gelesen und mit Event-Daten befüllt)
+const INDEX_HTML_PATH = path.join(__dirname, 'public', 'index.html');
+
+app.get('*', async (req, res) => {
+  try {
+    const event = await resolveEventForRequest(req);
+
+    // Titel & Beschreibung aus Event-Daten bauen
+    let title = 'Brettspielfamilie – Zimmerbuchung';
+    let description = 'Zimmerbuchung und Event-Planung der Brettspielfamilie.';
+    if (event) {
+      title = `${event.name} – Zimmerbuchung`;
+      // Datumsbereich für die Beschreibung formatieren
+      let dateStr = '';
+      try {
+        const opts = { day: 'numeric', month: 'long', year: 'numeric' };
+        const start = event.start_date ? new Date(event.start_date) : null;
+        const end = event.end_date ? new Date(event.end_date) : null;
+        if (start && end) {
+          dateStr = `${start.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })} – ${end.toLocaleDateString('de-DE', opts)}`;
+        }
+      } catch (e) { /* Datum optional */ }
+      const parts = [];
+      if (dateStr) parts.push(`📅 ${dateStr}`);
+      if (event.location_name) parts.push(`📍 ${event.location_name}`);
+      description = event.description
+        ? event.description
+        : (parts.length ? `${event.name} · ${parts.join(' · ')} · Jetzt Bett buchen!` : `${event.name} · Jetzt Bett buchen!`);
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const fullUrl = `${protocol}://${req.headers.host || ''}${req.originalUrl || '/'}`;
+
+    let html = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+    html = html
+      .split('%%OG_TITLE%%').join(escapeHtmlAttr(title))
+      .split('%%OG_DESCRIPTION%%').join(escapeHtmlAttr(description))
+      .split('%%OG_URL%%').join(escapeHtmlAttr(fullUrl));
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('Fehler beim Ausliefern der index.html:', err.message);
+    // Notfall-Fallback: Datei unverändert senden
+    res.sendFile(INDEX_HTML_PATH);
+  }
 });
 
 // Server starten (initDB MUSS vor Listen laufen)
