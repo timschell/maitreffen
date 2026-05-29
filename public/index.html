@@ -543,6 +543,45 @@
             margin: 0 auto 1.25rem;
         }
 
+        /* Essens-Modal: Mobil = Vollbild-Sheet mit fixiertem Footer */
+        .meal-modal {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 500px;
+            height: 100dvh;
+            max-height: 100dvh;
+            border-radius: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .meal-modal-header {
+            flex-shrink: 0;
+            padding: 1.25rem 1.25rem 0.75rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .meal-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 1rem 1.25rem;
+        }
+
+        .meal-modal-footer {
+            flex-shrink: 0;
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.85rem 1.25rem;
+            padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
+            border-top: 1px solid #eee;
+            background: var(--bg-paper);
+            box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+        }
+
+        .meal-modal-footer .btn { margin: 0; }
+
         .modal h2 {
             font-family: 'Architects Daughter', cursive;
             font-size: 1.5rem;
@@ -1321,10 +1360,26 @@
             .modal-overlay { align-items: center; padding: 1rem; }
             .modal { border-radius: 20px; }
             .modal-handle { display: none; }
+
+            /* Essens-Modal auf Desktop: breiter, zentriert, mehr Optionen sichtbar */
+            .meal-modal {
+                max-width: 760px;
+                height: auto;
+                max-height: 90vh;
+                border-radius: 20px;
+            }
+            .meal-modal-body { padding: 1.25rem 1.5rem; }
+            .meal-modal-header { padding: 1.5rem 1.5rem 1rem; }
+            .meal-modal-footer { padding: 1rem 1.5rem; }
+            /* Kompaktere Item-Kacheln => mehr pro Reihe */
+            .meal-item-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+            }
         }
 
         @media (min-width: 1024px) {
             .rooms-grid { grid-template-columns: repeat(3, 1fr); }
+            .meal-modal { max-width: 900px; }
         }
 
         /* User Status Bar */
@@ -1528,7 +1583,7 @@
 
                     {/* Items (grill/breakfast) - GRID */}
                     {isItemBased && meal.items && meal.items.length > 0 && (
-                        <div style={{
+                        <div className="meal-item-grid" style={{
                             display: 'grid',
                             gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
                             gap: '0.75rem'
@@ -3692,25 +3747,26 @@
                     {/* Essens-Modal nach Buchung */}
                     {mealModalOpen && (
                         <div className="modal-overlay">
-                            <div className="modal" style={{maxWidth: '600px'}}>
-                                <div className="modal-handle"></div>
-                                <h2>🍽️ Essensauswahl für {mealModalPersonName}</h2>
-                                {totalMealPersons > 1 && (
-                                    <div style={{fontSize: '0.85rem', color: 'var(--accent)', marginBottom: '0.5rem', fontWeight: '600'}}>
-                                        Person {totalMealPersons - pendingMealPersons.length} von {totalMealPersons}
-                                    </div>
-                                )}
-                                <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem'}}>
-                                    Wähle jetzt deine Gerichte aus oder überspringe diesen Schritt.
-                                </p>
-                                
-                                {meals.length === 0 ? (
-                                    <div style={{textAlign: 'center', padding: '2rem', color: '#666'}}>
-                                        Noch keine Mahlzeiten verfügbar
-                                    </div>
-                                ) : (
-                                    <div style={{maxHeight: '60vh', overflowY: 'auto'}}>
-                                        {meals.map(meal => (
+                            <div className="modal meal-modal">
+                                <div className="meal-modal-header">
+                                    <h2 style={{marginBottom: '0.25rem'}}>🍽️ Essensauswahl für {mealModalPersonName}</h2>
+                                    {totalMealPersons > 1 && (
+                                        <div style={{fontSize: '0.85rem', color: 'var(--accent)', marginBottom: '0.25rem', fontWeight: '600'}}>
+                                            Person {totalMealPersons - pendingMealPersons.length} von {totalMealPersons}
+                                        </div>
+                                    )}
+                                    <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0}}>
+                                        Wähle deine Gerichte aus oder überspringe diesen Schritt.
+                                    </p>
+                                </div>
+
+                                <div className="meal-modal-body">
+                                    {meals.length === 0 ? (
+                                        <div style={{textAlign: 'center', padding: '2rem', color: '#666'}}>
+                                            Noch keine Mahlzeiten verfügbar
+                                        </div>
+                                    ) : (
+                                        meals.map(meal => (
                                             <MealCard
                                                 key={meal.id}
                                                 meal={meal}
@@ -3723,16 +3779,16 @@
                                                 mealWish={getMealWish(meal, mealModalItemSelections)}
                                                 onUpdateMealWish={updateMealModalMealWish}
                                             />
-                                        ))}
-                                    </div>
-                                )}
-                                
-                                <div className="modal-buttons" style={{marginTop: '1rem'}}>
+                                        ))
+                                    )}
+                                </div>
+
+                                <div className="meal-modal-footer">
                                     <button className="btn btn-secondary" onClick={skipMealSelection}>
-                                        ⏭️ Später auswählen
+                                        ⏭️ Später
                                     </button>
                                     <button className="btn btn-primary" onClick={saveMealSelectionsFromModal}>
-                                        💾 Auswahl speichern
+                                        💾 Speichern
                                     </button>
                                 </div>
                             </div>
