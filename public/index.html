@@ -38,6 +38,15 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        /* iOS Safari zoomt automatisch rein, wenn ein fokussiertes Eingabefeld
+           kleiner als 16px Schrift hat. Auf Mobil daher mind. 16px erzwingen,
+           damit die Seite beim Tippen nicht verschoben/herangezoomt wird. */
+        @media (max-width: 767px) {
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+        }
+
         body {
             font-family: 'Nunito', sans-serif;
             background: var(--bg-primary);
