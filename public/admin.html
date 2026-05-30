@@ -2877,6 +2877,8 @@
 					locationAddress: event?.location_address || '',
 					locationUrl: event?.location_url || '',
 					arrivalStation: event?.arrival_station || '',
+					arrivalStations: (event?.arrival_stations && Array.isArray(event.arrival_stations)) ? event.arrival_stations : [],
+					pickupRequired: event?.pickup_required || false,
 					checkInTime: event?.check_in_time || '16:00',
 					checkOutTime: event?.check_out_time || '11:00',
 				});
@@ -2891,6 +2893,28 @@
 
 				const updateField = (field, value) => {
 					setFormData((prev) => ({ ...prev, [field]: value }));
+				};
+
+				// Bahnhof-Liste Helfer
+				const addStation = () => {
+					setFormData((prev) => ({
+						...prev,
+						arrivalStations: [...(prev.arrivalStations || []), { name: '', duration: '', recommended: false }],
+					}));
+				};
+				const updateStation = (index, key, value) => {
+					setFormData((prev) => ({
+						...prev,
+						arrivalStations: prev.arrivalStations.map((s, i) =>
+							i === index ? { ...s, [key]: value } : s
+						),
+					}));
+				};
+				const removeStation = (index) => {
+					setFormData((prev) => ({
+						...prev,
+						arrivalStations: prev.arrivalStations.filter((_, i) => i !== index),
+					}));
 				};
 
 				// Auto-generate slug from name
@@ -3043,17 +3067,64 @@
 										/>
 									</div>
 									<div className="form-group">
-										<label>🚆 Ankunfts-Bahnhof (für Zug-Matching)</label>
-										<input
-											type="text"
-											value={formData.arrivalStation}
-											onChange={(e) =>
-												updateField('arrivalStation', e.target.value)
-											}
-											placeholder="z.B. Sternhagen, Templin, Prenzlau"
-										/>
+										<label>🚆 Ankunfts-Bahnhöfe (für Zug-Anreise)</label>
+										<small style={{color: '#666', fontSize: '0.8rem', display: 'block', marginBottom: '0.5rem'}}>
+											Bahnhöfe, an denen Gäste mit der Bahn ankommen können. Werden beim Buchen als Auswahl angezeigt. „Empfohlen“ markiert die beste Option. Fahrzeit ist optional (z.B. „15 Min“).
+										</small>
+										{(formData.arrivalStations || []).map((st, i) => (
+											<div key={i} style={{display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap'}}>
+												<input
+													type="text"
+													value={st.name}
+													onChange={(e) => updateStation(i, 'name', e.target.value)}
+													placeholder="Bahnhof, z.B. Seehausen (Uckermark)"
+													style={{flex: '2 1 180px'}}
+												/>
+												<input
+													type="text"
+													value={st.duration || ''}
+													onChange={(e) => updateStation(i, 'duration', e.target.value)}
+													placeholder="Fahrzeit, z.B. 15 Min"
+													style={{flex: '1 1 110px'}}
+												/>
+												<label style={{display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', whiteSpace: 'nowrap', cursor: 'pointer'}}>
+													<input
+														type="checkbox"
+														checked={!!st.recommended}
+														onChange={(e) => updateStation(i, 'recommended', e.target.checked)}
+													/>
+													⭐ Empfohlen
+												</label>
+												<button
+													type="button"
+													className="btn btn-sm btn-danger"
+													onClick={() => removeStation(i)}
+													style={{padding: '0.4rem 0.6rem'}}
+												>
+													✕
+												</button>
+											</div>
+										))}
+										<button
+											type="button"
+											className="btn btn-sm btn-secondary"
+											onClick={addStation}
+											style={{marginTop: '0.25rem'}}
+										>
+											+ Bahnhof hinzufügen
+										</button>
+									</div>
+									<div className="form-group">
+										<label style={{display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer'}}>
+											<input
+												type="checkbox"
+												checked={!!formData.pickupRequired}
+												onChange={(e) => updateField('pickupRequired', e.target.checked)}
+											/>
+											🚉 Abholung bei Bahn-Anreise nötig
+										</label>
 										<small style={{color: '#666', fontSize: '0.8rem', display: 'block', marginTop: '0.25rem'}}>
-											Standard-Bahnhof, an dem die meisten ankommen. Wird beim Buchen als Vorschlag angezeigt; jeder kann seinen eigenen Bahnhof eintragen. Leer lassen = wird automatisch aus dem Location-Namen abgeleitet.
+											Wenn aktiv, wird beim Buchen der „Abholung gewünscht“-Haken automatisch vorausgewählt (Gast kann ihn abwählen, z.B. bei Taxi).
 										</small>
 									</div>
 								</div>

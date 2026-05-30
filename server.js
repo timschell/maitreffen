@@ -130,6 +130,10 @@ async function initDB() {
 
     // Migration: Standard-Ankunftsbahnhof/-ort pro Event (für Zug-Matching, dynamisch statt hardcoded "Halbe")
     await client.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS arrival_station VARCHAR(200) DEFAULT NULL`);
+    // Strukturierte Bahnhof-Liste pro Event: [{ name, duration, recommended }]
+    await client.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS arrival_stations JSONB DEFAULT '[]'::jsonb`);
+    // Ob bei Öffis-Anreise grundsätzlich eine Abholung nötig ist (Haken wird dann vorausgewählt)
+    await client.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS pickup_required BOOLEAN DEFAULT FALSE`);
 
     // Zimmer pro Event (konfigurierbar statt hardcoded)
     await client.query(`
@@ -1054,19 +1058,33 @@ app.get('/api/admin/events', adminAuth, async (req, res) => {
   }
 });
 
+// Hilfsfunktion: Bahnhof-Liste validieren/normalisieren
+function normalizeStations(stations) {
+  if (!Array.isArray(stations)) return [];
+  return stations
+    .filter(s => s && typeof s.name === 'string' && s.name.trim())
+    .map(s => ({
+      name: s.name.trim(),
+      duration: (s.duration != null && s.duration !== '') ? String(s.duration).trim() : null,
+      recommended: !!s.recommended
+    }))
+    .slice(0, 20); // Sicherheitslimit
+}
+
 // Neues Event erstellen
 app.post('/api/admin/events', adminAuth, async (req, res) => {
-  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime, arrivalStation } = req.body;
+  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime, arrivalStation, arrivalStations, pickupRequired } = req.body;
   
   if (!slug?.trim() || !name?.trim() || !startDate || !endDate) {
     return res.status(400).json({ error: 'slug, name, startDate und endDate sind erforderlich' });
   }
   
   try {
+    const stations = normalizeStations(arrivalStations);
     const result = await pool.query(
-      `INSERT INTO events (slug, name, description, start_date, end_date, location_name, location_address, location_url, check_in_time, check_out_time, arrival_station)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [slug.trim().toLowerCase(), name.trim(), description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', arrivalStation || null]
+      `INSERT INTO events (slug, name, description, start_date, end_date, location_name, location_address, location_url, check_in_time, check_out_time, arrival_station, arrival_stations, pickup_required)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [slug.trim().toLowerCase(), name.trim(), description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', arrivalStation || null, JSON.stringify(stations), !!pickupRequired]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1078,14 +1096,16 @@ app.post('/api/admin/events', adminAuth, async (req, res) => {
 // Event aktualisieren
 app.put('/api/admin/events/:id', adminAuth, async (req, res) => {
   const { id } = req.params;
-  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime, arrivalStation } = req.body;
+  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime, arrivalStation, arrivalStations, pickupRequired } = req.body;
   
   try {
+    const stations = normalizeStations(arrivalStations);
     const result = await pool.query(
       `UPDATE events SET slug = $1, name = $2, description = $3, start_date = $4, end_date = $5, 
-       location_name = $6, location_address = $7, location_url = $8, check_in_time = $9, check_out_time = $10, arrival_station = $12
+       location_name = $6, location_address = $7, location_url = $8, check_in_time = $9, check_out_time = $10, arrival_station = $12,
+       arrival_stations = $13, pickup_required = $14
        WHERE id = $11 RETURNING *`,
-      [slug, name, description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', id, arrivalStation || null]
+      [slug, name, description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', id, arrivalStation || null, JSON.stringify(stations), !!pickupRequired]
     );
     res.json(result.rows[0]);
   } catch (err) {
