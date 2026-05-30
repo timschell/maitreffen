@@ -2876,6 +2876,7 @@
 					locationName: event?.location_name || '',
 					locationAddress: event?.location_address || '',
 					locationUrl: event?.location_url || '',
+					arrivalStation: event?.arrival_station || '',
 					checkInTime: event?.check_in_time || '16:00',
 					checkOutTime: event?.check_out_time || '11:00',
 				});
@@ -3040,6 +3041,20 @@
 											}
 											placeholder="Straße, PLZ Ort"
 										/>
+									</div>
+									<div className="form-group">
+										<label>🚆 Ankunfts-Bahnhof (für Zug-Matching)</label>
+										<input
+											type="text"
+											value={formData.arrivalStation}
+											onChange={(e) =>
+												updateField('arrivalStation', e.target.value)
+											}
+											placeholder="z.B. Sternhagen, Templin, Prenzlau"
+										/>
+										<small style={{color: '#666', fontSize: '0.8rem', display: 'block', marginTop: '0.25rem'}}>
+											Standard-Bahnhof, an dem die meisten ankommen. Wird beim Buchen als Vorschlag angezeigt; jeder kann seinen eigenen Bahnhof eintragen. Leer lassen = wird automatisch aus dem Location-Namen abgeleitet.
+										</small>
 									</div>
 								</div>
 

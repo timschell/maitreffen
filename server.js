@@ -128,6 +128,9 @@ async function initDB() {
       )
     `);
 
+    // Migration: Standard-Ankunftsbahnhof/-ort pro Event (für Zug-Matching, dynamisch statt hardcoded "Halbe")
+    await client.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS arrival_station VARCHAR(200) DEFAULT NULL`);
+
     // Zimmer pro Event (konfigurierbar statt hardcoded)
     await client.query(`
       CREATE TABLE IF NOT EXISTS event_rooms (
@@ -199,6 +202,7 @@ async function initDB() {
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS seats_available INTEGER DEFAULT 0`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_city VARCHAR(100) DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS train_station VARCHAR(100) DEFAULT NULL`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_station VARCHAR(150) DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS train_time TIME DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS train_number VARCHAR(50) DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_time TIME DEFAULT NULL`);
@@ -1052,7 +1056,7 @@ app.get('/api/admin/events', adminAuth, async (req, res) => {
 
 // Neues Event erstellen
 app.post('/api/admin/events', adminAuth, async (req, res) => {
-  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime } = req.body;
+  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime, arrivalStation } = req.body;
   
   if (!slug?.trim() || !name?.trim() || !startDate || !endDate) {
     return res.status(400).json({ error: 'slug, name, startDate und endDate sind erforderlich' });
@@ -1060,9 +1064,9 @@ app.post('/api/admin/events', adminAuth, async (req, res) => {
   
   try {
     const result = await pool.query(
-      `INSERT INTO events (slug, name, description, start_date, end_date, location_name, location_address, location_url, check_in_time, check_out_time)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [slug.trim().toLowerCase(), name.trim(), description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00']
+      `INSERT INTO events (slug, name, description, start_date, end_date, location_name, location_address, location_url, check_in_time, check_out_time, arrival_station)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [slug.trim().toLowerCase(), name.trim(), description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', arrivalStation || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1074,14 +1078,14 @@ app.post('/api/admin/events', adminAuth, async (req, res) => {
 // Event aktualisieren
 app.put('/api/admin/events/:id', adminAuth, async (req, res) => {
   const { id } = req.params;
-  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime } = req.body;
+  const { slug, name, description, startDate, endDate, locationName, locationAddress, locationUrl, checkInTime, checkOutTime, arrivalStation } = req.body;
   
   try {
     const result = await pool.query(
       `UPDATE events SET slug = $1, name = $2, description = $3, start_date = $4, end_date = $5, 
-       location_name = $6, location_address = $7, location_url = $8, check_in_time = $9, check_out_time = $10
+       location_name = $6, location_address = $7, location_url = $8, check_in_time = $9, check_out_time = $10, arrival_station = $12
        WHERE id = $11 RETURNING *`,
-      [slug, name, description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', id]
+      [slug, name, description || null, startDate, endDate, locationName || null, locationAddress || null, locationUrl || null, checkInTime || '15:00', checkOutTime || '11:00', id, arrivalStation || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1263,6 +1267,7 @@ app.get('/api/bookings', async (req, res) => {
         trainStation: row.train_station,
         trainTime: row.train_time,
         trainNumber: row.train_number,
+        arrivalStation: row.arrival_station,
         arrivalTime: row.arrival_time,
         departureTime: row.departure_time
       };
@@ -1277,7 +1282,7 @@ app.get('/api/bookings', async (req, res) => {
 // Buchung erstellen/aktualisieren
 app.post('/api/bookings/:bedId', async (req, res) => {
   const { bedId } = req.params;
-  const { name, roomRestriction, roomBeds, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber } = req.body;
+  const { name, roomRestriction, roomBeds, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber, arrivalStation } = req.body;
 
   if (!req.eventId) {
     return res.status(404).json({ error: 'Kein Event gefunden' });
@@ -1294,14 +1299,14 @@ app.post('/api/bookings/:bedId', async (req, res) => {
     
     // Hauptbuchung erstellen
     await client.query(`
-      INSERT INTO bookings (event_id, bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, arrival_time, departure_time, transport, needs_pickup, can_offer_ride, seats_available, departure_city, train_station, train_time, train_number)
-      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'booked', NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      INSERT INTO bookings (event_id, bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, arrival_time, departure_time, transport, needs_pickup, can_offer_ride, seats_available, departure_city, train_station, train_time, train_number, arrival_station)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'booked', NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       ON CONFLICT (event_id, bed_id) 
       DO UPDATE SET name = $3, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL,
                     arrival_date = $4, departure_date = $5, arrival_time = $6, departure_time = $7, transport = $8, needs_pickup = $9,
                     can_offer_ride = $10, seats_available = $11, departure_city = $12,
-                    train_station = $13, train_time = $14, train_number = $15
-    `, [req.eventId, bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null]);
+                    train_station = $13, train_time = $14, train_number = $15, arrival_station = $16
+    `, [req.eventId, bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, arrivalStation || null]);
     
     // Zimmer-Einschränkung setzen
     if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
@@ -1389,7 +1394,7 @@ app.delete('/api/bookings/:bedId/unblock', async (req, res) => {
 // Markiertes Bett buchen (Frau/Mann bucht in Frauen-/Männerzimmer)
 app.post('/api/bookings/:bedId/claim', async (req, res) => {
   const { bedId } = req.params;
-  const { name, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber } = req.body;
+  const { name, arrivalDate, departureDate, arrivalTime, departureTime, transport, needsPickup, canOfferRide, seatsAvailable, departureCity, trainStation, trainTime, trainNumber, arrivalStation } = req.body;
 
   if (!req.eventId) {
     return res.status(404).json({ error: 'Kein Event gefunden' });
@@ -1405,9 +1410,9 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
       SET name = $1, status = 'booked', booked_at = CURRENT_TIMESTAMP,
           arrival_date = $2, departure_date = $3, arrival_time = $4, departure_time = $5, transport = $6, needs_pickup = $7,
           can_offer_ride = $8, seats_available = $9, departure_city = $10,
-          train_station = $11, train_time = $12, train_number = $13
+          train_station = $11, train_time = $12, train_number = $13, arrival_station = $16
       WHERE event_id = $14 AND bed_id = $15 AND status IN ('women_only', 'men_only')
-    `, [name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, req.eventId, bedId]);
+    `, [name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, req.eventId, bedId, arrivalStation || null]);
     
     res.json({ success: true, bedId, name });
   } catch (err) {

@@ -1759,6 +1759,25 @@
         const formatDateLong = (d) => d ? new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '';
         const formatTime = (t) => t ? t.slice(0,5) : '';
 
+        // Dynamischer Ankunftsort/-bahnhof für Zug-Matching.
+        // Priorität: Event-Standardbahnhof > Ortsname (ohne Heim-Präfixe) > generisch.
+        const getArrivalPlace = (event) => {
+            if (!event) return 'am Zielort';
+            if (event.arrival_station && event.arrival_station.trim()) {
+                return event.arrival_station.trim();
+            }
+            if (event.location_name && event.location_name.trim()) {
+                // "Evangelisches Freizeitheim Sternhagen" -> "Sternhagen"
+                const cleaned = event.location_name
+                    .replace(/\b(evangelisches?|kath\.?|katholisches?|freizeitheim|jugendherberge|landheim|gästehaus|gasthaus|haus|heim)\b/gi, '')
+                    .trim();
+                // Letztes Wort (meist der Ortsname) nehmen, falls noch mehrere übrig
+                const parts = cleaned.split(/\s+/).filter(Boolean);
+                return parts.length ? parts[parts.length - 1] : event.location_name.trim();
+            }
+            return 'am Zielort';
+        };
+
         const transportLabels = { 'auto': '🚗 Auto', 'oepnv': '🚆 Öffis', '': '' };
 
         function App() {
@@ -1788,6 +1807,7 @@
             const [trainStation, setTrainStation] = useState('');
             const [trainTime, setTrainTime] = useState('');
             const [trainNumber, setTrainNumber] = useState('');
+            const [arrivalStation, setArrivalStation] = useState('');
             const [arrivalTime, setArrivalTime] = useState('');
             const [departureTime, setDepartureTime] = useState('');
             const [waitlistName, setWaitlistName] = useState("");
@@ -1828,6 +1848,9 @@
             // WordPress SSO
             const [wpUser, setWpUser] = useState(null);
             const [wpLoading, setWpLoading] = useState(true);
+
+            // Dynamischer Ankunftsort (z.B. "Sternhagen") statt hardcoded "Halbe"
+            const arrivalPlace = getArrivalPlace(event);
 
             useEffect(() => { loadEvent(); checkWordPressSSO(); }, []);
             
@@ -1913,6 +1936,7 @@
                     setTrainStation('');
                     setTrainTime('');
                     setTrainNumber('');
+                    setArrivalStation('');
                 }
                 if (transport !== 'auto') {
                     setCanOfferRide(false);
@@ -2426,6 +2450,7 @@
                 setTrainStation(b?.trainStation || '');
                 setTrainTime(b?.trainTime ? formatTime(b.trainTime) : '');
                 setTrainNumber(b?.trainNumber || '');
+                setArrivalStation(b?.arrivalStation || '');
                 setArrivalTime(b?.arrivalTime ? formatTime(b.arrivalTime) : '');
                 setDepartureTime(b?.departureTime ? formatTime(b.departureTime) : '');
                 setRoomRestriction('none');
@@ -2454,6 +2479,7 @@
                 trainStation: transport === 'oepnv' ? trainStation : null,
                 trainTime: transport === 'oepnv' && trainTime ? trainTime : null,
                 trainNumber: transport === 'oepnv' ? trainNumber : null,
+                arrivalStation: transport === 'oepnv' ? (arrivalStation || null) : null,
                 arrivalTime: arrivalTime || null,
                 departureTime: departureTime || null
             });
@@ -2759,6 +2785,7 @@
                 setTrainStation('');
                 setTrainTime('');
                 setTrainNumber('');
+                setArrivalStation('');
                 setArrivalTime('');
                 setDepartureTime('');
                 setRoomRestriction('none');
@@ -2845,7 +2872,7 @@
                 const tMinutes = timeToMinutes(t.trainTime);
                 const group = { 
                     time: t.trainTime,
-                    label: `🚆 Ankunft ${formatTime(t.trainTime)} in Halbe`, 
+                    label: `🚆 Ankunft ${formatTime(t.trainTime)} in ${arrivalPlace}`, 
                     members: [t] 
                 };
                 
@@ -2920,7 +2947,7 @@
                             <div className="form-section">
                                 <div className="form-section-title">🚆 Zugverbindung (für Reisepartner-Matching)</div>
                                 <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem'}}>
-                                    Wir matchen Leute die zur gleichen Zeit in Halbe ankommen – die sitzen wahrscheinlich im selben Zug!
+                                    Wir matchen Leute die zur gleichen Zeit in {arrivalPlace} ankommen – die sitzen wahrscheinlich im selben Zug!
                                 </p>
                                 <div className="extra-details train">
                                     <div className="form-group">
@@ -2928,17 +2955,26 @@
                                         <input type="text" placeholder="z.B. Berlin, Potsdam, Dresden" value={trainStation} onChange={e => setTrainStation(e.target.value)} disabled={saving} />
                                     </div>
                                     <div className="form-group">
-                                        <label>Ankunft in Halbe</label>
+                                        <label>Ankunfts-Bahnhof</label>
+                                        <input type="text" placeholder={event?.arrival_station ? event.arrival_station : `z.B. ${arrivalPlace}`} value={arrivalStation} onChange={e => setArrivalStation(e.target.value)} disabled={saving} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Ankunftszeit</label>
                                         <input type="time" value={trainTime} onChange={e => setTrainTime(e.target.value)} disabled={saving} />
                                     </div>
                                 </div>
+                                {event?.arrival_station && (
+                                    <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem'}}>
+                                        Standard für dieses Event ist <strong>{event.arrival_station}</strong> – nur ändern, falls du woanders ankommst.
+                                    </p>
+                                )}
                             </div>
 
                             <label className="checkbox-row" onClick={() => setNeedsPickup(!needsPickup)}>
                                 <input type="checkbox" checked={needsPickup} onChange={e => setNeedsPickup(e.target.checked)} onClick={e => e.stopPropagation()} />
                                 <div className="checkbox-row-label">
                                     <div className="checkbox-row-main">🚉 Abholung vom Bahnhof gewünscht</div>
-                                    <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof Halbe ab</div>
+                                    <div className="checkbox-row-sub">Jemand holt dich vom Bahnhof {arrivalStation || arrivalPlace} ab</div>
                                 </div>
                             </label>
                         </>
@@ -3085,7 +3121,7 @@
                         <div className="transport-section">
                             <h4 className="transport-title train">🚆 Gemeinsam im Zug?</h4>
                             <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem', marginTop: '-0.5rem'}}>
-                                Diese Leute kommen etwa zur gleichen Zeit in Halbe an – wahrscheinlich im selben Zug!
+                                Diese Leute kommen etwa zur gleichen Zeit in {arrivalPlace} an – wahrscheinlich im selben Zug!
                             </p>
                             {trainGroups.map((g, i) => (
                                 <div key={i} className="train-group">
@@ -3406,7 +3442,7 @@
                                                 <div className="current-guest-details">
                                                     {selectedBooking.arrivalDate && <span>📅 {formatDateLong(selectedBooking.arrivalDate)}{selectedBooking.arrivalTime ? ` ${formatTime(selectedBooking.arrivalTime)}` : ''} – {formatDateLong(selectedBooking.departureDate)}{selectedBooking.departureTime ? ` ${formatTime(selectedBooking.departureTime)}` : ''}</span>}
                                                     {selectedBooking.transport && <span>{transportLabels[selectedBooking.transport]}</span>}
-                                                    {selectedBooking.trainTime && <span>🚆 Ankunft Halbe: {formatTime(selectedBooking.trainTime)}{selectedBooking.trainStation ? ` (ab ${selectedBooking.trainStation})` : ''}</span>}
+                                                    {selectedBooking.trainTime && <span>🚆 Ankunft {selectedBooking.arrivalStation || arrivalPlace}: {formatTime(selectedBooking.trainTime)}{selectedBooking.trainStation ? ` (ab ${selectedBooking.trainStation})` : ''}</span>}
                                                     {selectedBooking.needsPickup && <span>🚉 Abholung gewünscht</span>}
                                                     {selectedBooking.canOfferRide && <span>🚗 Bietet {selectedBooking.seatsAvailable} Plätze ab {selectedBooking.departureCity || '?'}</span>}
                                                 </div>
