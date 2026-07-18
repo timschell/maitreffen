@@ -1767,8 +1767,8 @@
         }
 
         const API_URL = '/api';
-        const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
-        const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
+        // Neue Login-App (Better Auth). Session kommt vom domainweiten Cookie.
+        const AUTH_APP_URL = 'https://reviews.brettspielfamilie.de';
 
         // Hilfsfunktionen für dynamische Daten
         const generateBeds = (rooms) => {
@@ -1955,7 +1955,8 @@
             
             const checkWordPressSSO = async () => {
                 try {
-                    const res = await fetch(WP_SSO_URL, { credentials: 'include' });
+                    // Same-Origin: der Server validiert die Better-Auth-Session.
+                    const res = await fetch('/api/auth/me', { credentials: 'include' });
                     if (res.ok) {
                         const data = await res.json();
                         if (data.logged_in) {
@@ -1963,18 +1964,17 @@
                         }
                     }
                 } catch (err) {
-                    console.log('WordPress SSO nicht verfügbar');
+                    console.log('Login-Status nicht verfügbar');
                 }
                 setWpLoading(false);
             };
-            
+
             const handleWpLogin = () => {
-                window.location.href = `${WP_LOGIN_URL}?redirect_to=${encodeURIComponent(window.location.href)}`;
+                window.location.href = `${AUTH_APP_URL}/mitglieder/login?redirect=${encodeURIComponent(window.location.href)}`;
             };
-            
+
             const handleWpLogout = () => {
-                // WordPress Logout, dann zurück
-                window.location.href = `https://brettspielfamilie.de/wp-login.php?action=logout&redirect_to=${encodeURIComponent(window.location.href)}`;  
+                window.location.href = `${AUTH_APP_URL}/mitglieder/abmelden?redirect=${encodeURIComponent(window.location.href)}`;
             };
 
             useEffect(() => {

@@ -881,80 +881,69 @@ app.get('/api/event', async (req, res) => {
   }
 });
 
+// Öffentliche Event-Liste (für die Treffen-Übersicht auf der neuen Seite).
+app.get('/api/events', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT slug, name, start_date, end_date, location_name AS location, is_active, is_booking_open
+       FROM events
+       ORDER BY is_active DESC, start_date DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler beim Laden der Events:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
 // ==================== ADMIN API ====================
 
-// Admin-Passwort (Fallback, WordPress SSO ist primär)
+// Admin-Passwort (Notfall-Fallback)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brettspielfamilie2026';
 
-// WordPress SSO URL
-const WP_SSO_URL = process.env.WP_SSO_URL || 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
+// Neue Login-App (Better Auth, Magic-Link). Die Treffen-App teilt sich deren
+// Session über das domainweite *.brettspielfamilie.de-Cookie und validiert es
+// server-zu-server gegen /api/auth/get-session (keine eigene Session mehr).
+const AUTH_APP_URL = process.env.AUTH_APP_URL || 'https://reviews.brettspielfamilie.de';
 
-// WordPress Token-Validierung URL
-const WP_VALIDATE_URL = process.env.WP_VALIDATE_URL || 'https://brettspielfamilie.de/wp-json/bsf/v1/validate-token';
-
-// Admin-Auth Middleware (WordPress Token oder Passwort)
-const adminAuth = async (req, res, next) => {
-  // Option 1: Passwort-Token
-  const token = req.headers['x-admin-token'];
-  if (token === ADMIN_PASSWORD) {
-    return next();
-  }
-  
-  // Option 2: Session-Cookie (nach WordPress-Login)
-  const sessionToken = req.cookies?.maitreffen_wp_token;
-  if (sessionToken) {
-    // Token ist gültig (kommt von unserem eigenen Callback)
-    return next();
-  }
-  
-  // Option 3: WordPress SSO Token validieren
-  const wpToken = req.headers['x-wp-token'];
-  if (wpToken) {
-    try {
-      const wpRes = await fetch(WP_VALIDATE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: wpToken })
-      });
-      
-      if (wpRes.ok) {
-        const data = await wpRes.json();
-        if (data.valid) {
-          req.wpUser = data;
-          return next();
-        }
-      }
-    } catch (err) {
-      console.error('WordPress Token-Validierung fehlgeschlagen:', err.message);
+// Holt die aktuelle Better-Auth-Session, indem das eingehende Cookie an die
+// Login-App weitergereicht wird. Ergebnis pro Request cachen. Liefert das
+// User-Objekt (inkl. role) oder null.
+async function getSession(req) {
+  if (req._sessionResolved) return req._session;
+  req._sessionResolved = true;
+  req._session = null;
+  const cookie = req.headers.cookie;
+  if (!cookie) return null;
+  try {
+    const r = await fetch(`${AUTH_APP_URL}/api/auth/get-session`, {
+      headers: { Cookie: cookie, Accept: 'application/json' }
+    });
+    if (r.ok) {
+      const data = await r.json();
+      if (data && data.user) req._session = data.user;
     }
+  } catch (err) {
+    console.error('Session-Check fehlgeschlagen:', err.message);
   }
-  
+  return req._session;
+}
+
+const isAdminUser = (user) => !!user && ['admin', 'vorstand'].includes(user.role);
+
+// Admin-Auth Middleware: Better-Auth-Session mit Admin-/Vorstands-Rolle,
+// alternativ das Admin-Passwort als Notfall-Fallback.
+const adminAuth = async (req, res, next) => {
+  if (req.headers['x-admin-token'] === ADMIN_PASSWORD) {
+    return next();
+  }
+  const user = await getSession(req);
+  if (isAdminUser(user)) {
+    req.authUser = user;
+    return next();
+  }
   return res.status(401).json({ error: 'Nicht autorisiert' });
 };
-
-// Debug: Cookie-Check (temporär)
-app.get('/api/debug/cookies', async (req, res) => {
-  const cookies = req.headers.cookie || '';
-  let wpResult = null;
-  
-  if (cookies) {
-    try {
-      const wpRes = await fetch(WP_SSO_URL, {
-        headers: { 'Cookie': cookies }
-      });
-      wpResult = await wpRes.json();
-    } catch (err) {
-      wpResult = { error: err.message };
-    }
-  }
-  
-  res.json({
-    hasCookies: !!cookies,
-    cookieLength: cookies.length,
-    cookiePreview: cookies.substring(0, 100) + '...',
-    wpResult
-  });
-});
 
 // Admin Login (Passwort-Fallback)
 app.post('/api/admin/auth', (req, res) => {
@@ -966,85 +955,28 @@ app.post('/api/admin/auth', (req, res) => {
   }
 });
 
-// ==================== WORDPRESS SSO ====================
+// ==================== LOGIN (Better Auth, neue App) ====================
 
-// SSO Status prüfen (Proxy zu WordPress)
+// Session-Status – liefert das gleiche Shape wie früher der WP-Proxy, damit das
+// Frontend unverändert weiterläuft (liest logged_in / name / is_admin).
 app.get('/api/auth/me', async (req, res) => {
-  // Cookies vom Client an WordPress weiterleiten
-  const cookies = req.headers.cookie || '';
-  
-  try {
-    const wpRes = await fetch(WP_SSO_URL, {
-      headers: {
-        'Cookie': cookies
-      }
-    });
-    
-    const data = await wpRes.json();
-    
-    // Wenn WordPress-Login erfolgreich, setze Session-Cookie für diese Domain
-    if (data.logged_in && data.token) {
-      res.cookie('maitreffen_wp_token', data.token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000 // 24 Stunden
-      });
-    }
-    
-    res.json(data);
-  } catch (err) {
-    console.error('WordPress SSO Fehler:', err.message);
-    res.json({ logged_in: false, error: 'WordPress nicht erreichbar' });
-  }
+  const user = await getSession(req);
+  if (!user) return res.json({ logged_in: false });
+  res.json({
+    logged_in: true,
+    id: user.id,
+    name: user.name || null,
+    display_name: user.name || null,
+    email: user.email || null,
+    is_admin: isAdminUser(user)
+  });
 });
 
-// Login-Redirect URL
+// Login-Redirect URL -> neue Login-Seite mit Rücksprung zur aktuellen Seite.
 app.get('/api/auth/login-url', (req, res) => {
   const returnUrl = req.query.return || req.headers.referer || '/';
-  // Redirect zu WordPress mit Callback
-  const callbackUrl = `https://herbsttreffen.brettspielfamilie.de/api/auth/callback?return=${encodeURIComponent(returnUrl)}`;
-  const loginUrl = `https://brettspielfamilie.de/wp-login.php?redirect_to=${encodeURIComponent(callbackUrl)}`;
+  const loginUrl = `${AUTH_APP_URL}/mitglieder/login?redirect=${encodeURIComponent(returnUrl)}`;
   res.json({ url: loginUrl });
-});
-
-// WordPress Login Callback - Setzt Session nach erfolgreichem Login
-app.get('/api/auth/callback', async (req, res) => {
-  const returnUrl = req.query.return || '/admin.html';
-  const cookies = req.headers.cookie || '';
-  
-  try {
-    // Prüfe WordPress-Login
-    const wpRes = await fetch(WP_SSO_URL, {
-      headers: { 'Cookie': cookies }
-    });
-    const data = await wpRes.json();
-    
-    if (data.logged_in && data.token) {
-      // Setze Session-Cookie für diese Domain
-      res.cookie('maitreffen_wp_token', data.token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000
-      });
-      res.cookie('maitreffen_wp_user', JSON.stringify({
-        id: data.id,
-        name: data.display_name,
-        email: data.email
-      }), {
-        httpOnly: false, // JS muss das lesen können
-        secure: true,
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000
-      });
-    }
-  } catch (err) {
-    console.error('Callback Fehler:', err.message);
-  }
-  
-  // Redirect zurück zur Admin-Seite
-  res.redirect(returnUrl);
 });
 
 // Alle Events auflisten

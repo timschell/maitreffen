@@ -531,10 +531,8 @@
 				'Obst',
 				'Sonstiges',
 			];
-			const WP_SSO_URL = 'https://brettspielfamilie.de/wp-json/bsf/v1/me';
-			const WP_TOKEN_URL =
-				'https://brettspielfamilie.de/wp-json/bsf/v1/admin-token';
-			const WP_LOGIN_URL = 'https://brettspielfamilie.de/wp-login.php';
+			// Neue Login-App (Better Auth). Session = domainweites Cookie.
+			const AUTH_APP_URL = 'https://reviews.brettspielfamilie.de';
 
 			function AdminApp() {
 				const [authenticated, setAuthenticated] = useState(false);
@@ -623,45 +621,18 @@
 				const checkWordPressSSO = async () => {
 					setAuthLoading(true);
 					try {
-						// Versuche WordPress SSO
-						const res = await fetch(WP_SSO_URL, {
-							credentials: 'include', // Wichtig für Cross-Domain Cookies
-						});
-
+						// Same-Origin: der Server validiert die Better-Auth-Session
+						// (domainweites Cookie). Kein extra Token nötig.
+						const res = await fetch('/api/auth/me', { credentials: 'include' });
 						if (res.ok) {
 							const data = await res.json();
 							if (data.logged_in && data.is_admin) {
-								// WordPress Admin eingeloggt! Jetzt Token holen.
-								try {
-									const tokenRes = await fetch(WP_TOKEN_URL, {
-										credentials: 'include',
-									});
-
-									if (tokenRes.ok) {
-										const tokenData = await tokenRes.json();
-										if (tokenData.token) {
-											// Token speichern
-											sessionStorage.setItem('wp_token', tokenData.token);
-											sessionStorage.setItem('admin_auth', 'true');
-											setWpUser(data);
-											setAuthMethod('wordpress');
-											setAuthenticated(true);
-											setAuthLoading(false);
-											return;
-										}
-									}
-								} catch (tokenErr) {
-									console.log('Token-Abruf fehlgeschlagen:', tokenErr.message);
-								}
-
-								// Fallback: WordPress erkannt aber Token fehlgeschlagen
 								setWpUser(data);
 								setAuthMethod('wordpress');
 								setAuthenticated(true);
 								setAuthLoading(false);
 								return;
 							} else if (data.logged_in && !data.is_admin) {
-								// Eingeloggt aber kein Admin
 								setAuthError(
 									'Du bist eingeloggt als "' +
 										data.name +
@@ -670,10 +641,10 @@
 							}
 						}
 					} catch (err) {
-						console.log('WordPress SSO nicht verfügbar:', err.message);
+						console.log('Login-Status nicht verfügbar:', err.message);
 					}
 
-					// Fallback: Session prüfen
+					// Fallback: Passwort-Session prüfen
 					const stored = sessionStorage.getItem('admin_auth');
 					if (stored === 'true') {
 						setAuthMethod('password');
@@ -710,6 +681,11 @@
 					sessionStorage.removeItem('admin_auth');
 					sessionStorage.removeItem('admin_token');
 					sessionStorage.removeItem('wp_token');
+					// Session-Login: über die Login-App abmelden (domainweites Cookie).
+					if (authMethod === 'wordpress') {
+						window.location.href = `${AUTH_APP_URL}/mitglieder/abmelden?redirect=${encodeURIComponent(window.location.href)}`;
+						return;
+					}
 					setAuthenticated(false);
 					setAuthMethod(null);
 					setWpUser(null);
@@ -717,9 +693,7 @@
 				};
 
 				const handleWordPressLogin = () => {
-					// Redirect zu WordPress Login, danach zurück hierher
-					const returnUrl = window.location.href;
-					window.location.href = `${WP_LOGIN_URL}?redirect_to=${encodeURIComponent(returnUrl)}`;
+					window.location.href = `${AUTH_APP_URL}/mitglieder/login?redirect=${encodeURIComponent(window.location.href)}`;
 				};
 
 				const getAuthHeader = () => ({
