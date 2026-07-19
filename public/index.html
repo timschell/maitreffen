@@ -2684,7 +2684,8 @@
             
             const openGameModal = (type) => {
                 setGameModalType(type);
-                setGamePersonName('');
+                // Eingeloggte Nutzer:innen sind standardmäßig selbst gemeint.
+                setGamePersonName(wpUser?.name || '');
                 setBggSearchQuery('');
                 setBggSearchResults([]);
                 setSelectedBggGame(null);
@@ -3873,7 +3874,7 @@
                                         style={{marginBottom: 0}}
                                     >
                                         <option value="">-- Teilnehmer wählen --</option>
-                                        {bookedParticipants.map(name => (
+                                        {[...new Set([wpUser?.name, ...bookedParticipants].filter(Boolean))].map(name => (
                                             <option key={name} value={name}>{name}</option>
                                         ))}
                                     </select>
