@@ -1205,6 +1205,7 @@
         }
         .game-badge.kids { background: #e3f2fd; color: #1565c0; }
         .game-badge.fulfilled { background: var(--accent); color: white; }
+        .game-badge.collection { background: #fff3e0; color: #d2691e; }
 
         /* Interessenten */
         .game-interests {
@@ -1286,6 +1287,9 @@
         }
 
         .btn-fulfill:hover { background: #4a8a38; }
+
+        .btn-collection { background: #d2691e; }
+        .btn-collection:hover { background: #b85a1a; }
 
         .games-empty {
             text-align: center;
@@ -1895,6 +1899,8 @@
             // WordPress SSO
             const [wpUser, setWpUser] = useState(null);
             const [wpLoading, setWpLoading] = useState(true);
+            // BGG-IDs der eigenen Spielsammlung (aus der neuen App) für den Wunsch-Abgleich
+            const [myCollectionBggIds, setMyCollectionBggIds] = useState([]);
 
             // Dynamischer Ankunftsort (z.B. "Sternhagen") statt hardcoded "Halbe"
             const arrivalPlace = getArrivalPlace(event);
@@ -1915,6 +1921,18 @@
             useEffect(() => {
                 if (wpUser?.name) {
                     loadMyMealSelections();
+                }
+            }, [wpUser]);
+
+            // Lade die eigene Spielsammlung (neue App) für den Wunsch-Abgleich
+            useEffect(() => {
+                if (wpUser?.name) {
+                    fetch(`${API_URL}/my-collection`, { credentials: 'include' })
+                        .then(r => r.ok ? r.json() : { bggIds: [] })
+                        .then(data => setMyCollectionBggIds(Array.isArray(data.bggIds) ? data.bggIds : []))
+                        .catch(() => setMyCollectionBggIds([]));
+                } else {
+                    setMyCollectionBggIds([]);
                 }
             }, [wpUser]);
             
@@ -2793,6 +2811,21 @@
                 finally { setSaving(false); }
             };
 
+            // Wunsch direkt aus der eigenen Sammlung erfüllen (Name = eingeloggter Nutzer)
+            const handleBringFromCollection = async (game) => {
+                if (saving || !wpUser?.name) return;
+                setSaving(true);
+                try {
+                    await fetch(`${API_URL}/games/${game.id}/fulfill`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fulfilledBy: wpUser.name })
+                    });
+                    await loadGames();
+                } catch { setError('Fehler beim Mitbringen.'); }
+                finally { setSaving(false); }
+            };
+
             // "Ich spiel mit" - Interesse toggeln
             const handleToggleInterest = async (gameId, personName) => {
                 if (saving || !personName) return;
@@ -3382,6 +3415,7 @@
                                 <div className="games-list">
                                     {wishGames.map(g => {
                                         const isInterested = g.interested_players?.includes(wpUser?.name);
+                                        const inMyCollection = !!wpUser && g.bgg_id != null && myCollectionBggIds.includes(Number(g.bgg_id));
                                         return (
                                             <div key={g.id} className={`game-card wish ${g.fulfilled_by ? 'fulfilled' : ''}`}>
                                                 {g.bgg_thumbnail ? (
@@ -3401,6 +3435,7 @@
                                                         {g.bgg_playtime && <span className="game-details">⏱{g.bgg_playtime}'</span>}
                                                         {g.bgg_min_age && g.bgg_min_age > 0 && <span className="game-badge kids">{g.bgg_min_age}+</span>}
                                                         {g.fulfilled_by && <span className="game-badge fulfilled">✓ {g.fulfilled_by}</span>}
+                                                        {inMyCollection && <span className="game-badge collection" title="Dieses Spiel ist in deiner Sammlung">⭐ hast du</span>}
                                                     </div>
                                                     {/* Interessenten */}
                                                     {!g.fulfilled_by && (
@@ -3438,6 +3473,9 @@
                                                     )}
                                                 </div>
                                                 <div className="game-actions">
+                                                    {!g.fulfilled_by && inMyCollection && (
+                                                        <button className="btn-fulfill btn-collection" onClick={() => handleBringFromCollection(g)} title="Aus deiner Sammlung mitbringen">⭐ Bring ich mit</button>
+                                                    )}
                                                     {!g.fulfilled_by && (
                                                         <button className="btn-fulfill" onClick={() => openFulfillModal(g)}>Ich bring's</button>
                                                     )}

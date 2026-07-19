@@ -979,6 +979,24 @@ app.get('/api/auth/login-url', (req, res) => {
   res.json({ url: loginUrl });
 });
 
+// Eigene Spielsammlung (aus der neuen App) für den Wunsch-Abgleich. Reicht das
+// Cookie server-zu-server an die Login-App weiter (Muster wie getSession).
+app.get('/api/my-collection', async (req, res) => {
+  const cookie = req.headers.cookie;
+  if (!cookie) return res.json({ loggedIn: false, bggIds: [] });
+  try {
+    const r = await fetch(`${AUTH_APP_URL}/api/my-collection`, {
+      headers: { Cookie: cookie, Accept: 'application/json' }
+    });
+    if (!r.ok) return res.json({ loggedIn: false, bggIds: [] });
+    const data = await r.json();
+    res.json({ loggedIn: !!data.loggedIn, bggIds: Array.isArray(data.bggIds) ? data.bggIds : [] });
+  } catch (err) {
+    console.error('my-collection Proxy fehlgeschlagen:', err.message);
+    res.json({ loggedIn: false, bggIds: [] });
+  }
+});
+
 // Alle Events auflisten
 app.get('/api/admin/events', adminAuth, async (req, res) => {
   try {
