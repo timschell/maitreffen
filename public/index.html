@@ -405,10 +405,12 @@
         }
         .reg-badge.paid { background: #e4f4ea; color: #1f7a44; border: 1px solid #b6dfc6; }
         .reg-badge.open { background: #fdf0dd; color: #a35a12; border: 1px solid #f0d3a6; }
+        .reg-badge.ambiguous { background: #fbe6e2; color: #b0341a; border: 1px solid #f0bcae; }
         .reg-badge.none { background: rgba(0,0,0,0.05); color: #8a8072; border: 1px solid rgba(0,0,0,0.08); font-weight: 600; }
         /* Auf belegten (dunklen) Bettkarten lesbar halten */
         .bed-card.booked .reg-badge.paid,
         .bed-card.booked .reg-badge.open,
+        .bed-card.booked .reg-badge.ambiguous,
         .bed-card.booked .reg-badge.none { border-color: transparent; }
 
         /* Room Summary */
@@ -2083,15 +2085,23 @@
                 .normalize('NFD').replace(/[̀-ͯ]/g, '')
                 .toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-            // Anmeldungs-Status zu einem Bett-Namen finden (best effort: voller Name oder Vorname).
+            // Anmeldungs-Status zu einem Bett-Namen finden (best effort: voller Name oder
+            // Vorname). Wichtig: passt der Name auf mehrere verschiedene Anmeldungen (z. B.
+            // zwei „Lauras"), wird NICHT geraten, sondern 'ambiguous' zurückgegeben.
             const regStatusFor = (rawName) => {
                 if (!regStatus.authorized || !rawName) return null;
                 const n = normalizeName(rawName);
-                if (!n) return null;
+                if (!n) return 'none';
                 const first = n.split(' ')[0];
-                const hit = regStatus.people.find(p => p.name === n)
-                    || regStatus.people.find(p => p.first === first || p.first === n || p.name === first);
-                return hit ? hit.status : 'none';
+                // 1) exakte Voll-Namen-Treffer bevorzugen, sonst über den Vornamen abgleichen
+                let cands = regStatus.people.filter(p => p.name === n);
+                if (cands.length === 0) {
+                    cands = regStatus.people.filter(p => p.first === first || p.first === n || p.name === first);
+                }
+                const regIds = new Set(cands.map(c => c.regId));
+                if (regIds.size === 0) return 'none';
+                if (regIds.size > 1) return 'ambiguous'; // mehrere verschiedene Anmeldungen → nicht raten
+                return cands[0].status; // eindeutig: 'paid' | 'open'
             };
 
             const loadEvent = async () => {
@@ -3409,6 +3419,7 @@
                                                         const rs = regStatusFor(b.name);
                                                         if (rs === 'paid') return <div className="reg-badge paid" title="Verbindlich angemeldet und bezahlt">✓ bezahlt</div>;
                                                         if (rs === 'open') return <div className="reg-badge open" title="Verbindlich angemeldet – Zahlung offen">📋 angemeldet</div>;
+                                                        if (rs === 'ambiguous') return <div className="reg-badge ambiguous" title="Mehrere angemeldete Personen mit diesem Namen – bitte in der Anmeldeliste prüfen">⚠ mehrdeutig</div>;
                                                         return <div className="reg-badge none" title="Keine passende verbindliche Anmeldung gefunden (Namensabgleich)">keine Anmeldung</div>;
                                                     })()}
                                                     {booked && b.arrivalDate && <div className="bed-info">{formatDate(b.arrivalDate)}{b.arrivalTime ? ` ${formatTime(b.arrivalTime)}` : ''} – {formatDate(b.departureDate)}{b.departureTime ? ` ${formatTime(b.departureTime)}` : ''}</div>}
