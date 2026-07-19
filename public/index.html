@@ -392,6 +392,25 @@
             font-size: 0.6rem;
         }
 
+        /* Verbindliche-Anmeldung-Badge (nur für den Vorstand sichtbar) */
+        .reg-badge {
+            display: inline-block;
+            margin-top: 0.3rem;
+            padding: 0.12rem 0.45rem;
+            border-radius: 999px;
+            font-size: 0.62rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            line-height: 1.4;
+        }
+        .reg-badge.paid { background: #e4f4ea; color: #1f7a44; border: 1px solid #b6dfc6; }
+        .reg-badge.open { background: #fdf0dd; color: #a35a12; border: 1px solid #f0d3a6; }
+        .reg-badge.none { background: rgba(0,0,0,0.05); color: #8a8072; border: 1px solid rgba(0,0,0,0.08); font-weight: 600; }
+        /* Auf belegten (dunklen) Bettkarten lesbar halten */
+        .bed-card.booked .reg-badge.paid,
+        .bed-card.booked .reg-badge.open,
+        .bed-card.booked .reg-badge.none { border-color: transparent; }
+
         /* Room Summary */
         .room-summary {
             display: flex;
@@ -2010,6 +2029,8 @@
             // Eigene Spielsammlung (aus der neuen App): IDs für den Wunsch-Abgleich, volle Daten fürs Mitbringen
             const [myCollectionBggIds, setMyCollectionBggIds] = useState([]);
             const [myCollectionGames, setMyCollectionGames] = useState([]);
+            // Verbindliche-Anmeldungs-Status je Person (nur für den Vorstand) für die Bett-Badges.
+            const [regStatus, setRegStatus] = useState({ authorized: false, people: [] });
 
             // Dynamischer Ankunftsort (z.B. "Sternhagen") statt hardcoded "Halbe"
             const arrivalPlace = getArrivalPlace(event);
@@ -2044,7 +2065,35 @@
                 } catch { setMyCollectionBggIds([]); setMyCollectionGames([]); }
             };
             useEffect(() => { loadMyCollection(); }, [wpUser]);
-            
+
+            // Verbindliche-Anmeldungs-Status laden (nur für den Vorstand). Die neue App
+            // liefert Nicht-Admins authorized:false → keine Badges.
+            const loadRegStatus = async () => {
+                if (!wpUser?.is_admin) { setRegStatus({ authorized: false, people: [] }); return; }
+                try {
+                    const res = await fetch(`${API_URL}/treffen-status`, { credentials: 'include' });
+                    const data = res.ok ? await res.json() : {};
+                    setRegStatus({ authorized: !!data.authorized, people: Array.isArray(data.people) ? data.people : [] });
+                } catch { setRegStatus({ authorized: false, people: [] }); }
+            };
+            useEffect(() => { loadRegStatus(); }, [wpUser]);
+
+            // Freitext-Namen normalisieren (muss zur neuen App passen).
+            const normalizeName = (s) => (s || '')
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+            // Anmeldungs-Status zu einem Bett-Namen finden (best effort: voller Name oder Vorname).
+            const regStatusFor = (rawName) => {
+                if (!regStatus.authorized || !rawName) return null;
+                const n = normalizeName(rawName);
+                if (!n) return null;
+                const first = n.split(' ')[0];
+                const hit = regStatus.people.find(p => p.name === n)
+                    || regStatus.people.find(p => p.first === first || p.first === n || p.name === first);
+                return hit ? hit.status : 'none';
+            };
+
             const loadEvent = async () => {
                 try {
                     setEventLoading(true);
@@ -3356,6 +3405,12 @@
                                                     <div className="bed-icon">{blocked ? '🔒' : women ? '♀️' : men ? '♂️' : booked ? '😴' : '🛏️'}</div>
                                                     <div className="bed-label">Bett {i + 1}</div>
                                                     <div className="bed-name">{blocked ? 'Blockiert' : women ? 'Nur Frauen' : men ? 'Nur Männer' : booked ? b.name : 'Frei'}</div>
+                                                    {booked && regStatus.authorized && (() => {
+                                                        const rs = regStatusFor(b.name);
+                                                        if (rs === 'paid') return <div className="reg-badge paid" title="Verbindlich angemeldet und bezahlt">✓ bezahlt</div>;
+                                                        if (rs === 'open') return <div className="reg-badge open" title="Verbindlich angemeldet – Zahlung offen">📋 angemeldet</div>;
+                                                        return <div className="reg-badge none" title="Keine passende verbindliche Anmeldung gefunden (Namensabgleich)">keine Anmeldung</div>;
+                                                    })()}
                                                     {booked && b.arrivalDate && <div className="bed-info">{formatDate(b.arrivalDate)}{b.arrivalTime ? ` ${formatTime(b.arrivalTime)}` : ''} – {formatDate(b.departureDate)}{b.departureTime ? ` ${formatTime(b.departureTime)}` : ''}</div>}
                                                     {booked && (b.needsPickup || b.canOfferRide || b.trainTime) && (
                                                         <div className="bed-badges">

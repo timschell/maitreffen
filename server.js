@@ -1019,6 +1019,29 @@ app.post('/api/my-collection', async (req, res) => {
   }
 });
 
+// Status der verbindlichen Anmeldungen (aus der neuen App) für die „angemeldet/
+// bezahlt"-Badges an den Betten. Nur für den Vorstand – reicht das Cookie server-zu-
+// server weiter; die neue App gibt für Nicht-Admins authorized:false zurück.
+app.get('/api/treffen-status', async (req, res) => {
+  const cookie = req.headers.cookie;
+  const slug = req.event?.slug;
+  if (!cookie || !slug) return res.json({ authorized: false, people: [] });
+  try {
+    const r = await fetch(`${AUTH_APP_URL}/api/treffen-status/${encodeURIComponent(slug)}`, {
+      headers: { Cookie: cookie, Accept: 'application/json' }
+    });
+    if (!r.ok) return res.json({ authorized: false, people: [] });
+    const data = await r.json();
+    res.json({
+      authorized: !!data.authorized,
+      people: Array.isArray(data.people) ? data.people : []
+    });
+  } catch (err) {
+    console.error('treffen-status Proxy fehlgeschlagen:', err.message);
+    res.json({ authorized: false, people: [] });
+  }
+});
+
 // Alle Events auflisten
 app.get('/api/admin/events', adminAuth, async (req, res) => {
   try {
