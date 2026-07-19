@@ -1291,6 +1291,28 @@
         .btn-collection { background: #d2691e; }
         .btn-collection:hover { background: #b85a1a; }
 
+        .collection-pick { margin-bottom: 0.75rem; }
+        .collection-pick-label { font-size: 0.85rem; font-weight: 700; color: #d2691e; margin-bottom: 0.4rem; }
+        .collection-pick-list { display: flex; flex-direction: column; gap: 0.3rem; max-height: 220px; overflow-y: auto; }
+        .collection-pick-item {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.4rem 0.5rem; border: 1px solid #f0d9c0; border-radius: 8px;
+            background: #fff8f0; cursor: pointer; text-align: left;
+            font-family: inherit; font-size: 0.9rem; color: #333; width: 100%;
+        }
+        .collection-pick-item:hover { border-color: #d2691e; background: #fff3e0; }
+        .collection-pick-thumb {
+            width: 32px; height: 32px; object-fit: cover; border-radius: 5px; flex: none;
+            display: flex; align-items: center; justify-content: center; background: #f0e6da; font-size: 1rem;
+        }
+        .collection-pick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .collection-pick-or { text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
+        .collection-add-check {
+            display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;
+            font-size: 0.85rem; color: #333; cursor: pointer;
+        }
+        .collection-add-check input { width: auto; margin: 0; }
+
         .games-empty {
             text-align: center;
             padding: 2rem 1rem;
@@ -1871,6 +1893,7 @@
             const [gameModalOpen, setGameModalOpen] = useState(false);
             const [gameModalType, setGameModalType] = useState('bring');
             const [gamePersonName, setGamePersonName] = useState('');
+            const [addToMyCollection, setAddToMyCollection] = useState(true);
             const [gameName, setGameName] = useState('');
             const [gameBggLink, setGameBggLink] = useState('');
             const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
@@ -1899,8 +1922,9 @@
             // WordPress SSO
             const [wpUser, setWpUser] = useState(null);
             const [wpLoading, setWpLoading] = useState(true);
-            // BGG-IDs der eigenen Spielsammlung (aus der neuen App) für den Wunsch-Abgleich
+            // Eigene Spielsammlung (aus der neuen App): IDs für den Wunsch-Abgleich, volle Daten fürs Mitbringen
             const [myCollectionBggIds, setMyCollectionBggIds] = useState([]);
+            const [myCollectionGames, setMyCollectionGames] = useState([]);
 
             // Dynamischer Ankunftsort (z.B. "Sternhagen") statt hardcoded "Halbe"
             const arrivalPlace = getArrivalPlace(event);
@@ -1924,17 +1948,17 @@
                 }
             }, [wpUser]);
 
-            // Lade die eigene Spielsammlung (neue App) für den Wunsch-Abgleich
-            useEffect(() => {
-                if (wpUser?.name) {
-                    fetch(`${API_URL}/my-collection`, { credentials: 'include' })
-                        .then(r => r.ok ? r.json() : { bggIds: [] })
-                        .then(data => setMyCollectionBggIds(Array.isArray(data.bggIds) ? data.bggIds : []))
-                        .catch(() => setMyCollectionBggIds([]));
-                } else {
-                    setMyCollectionBggIds([]);
-                }
-            }, [wpUser]);
+            // Lade die eigene Spielsammlung (neue App) für Wunsch-Abgleich und Mitbringen
+            const loadMyCollection = async () => {
+                if (!wpUser?.name) { setMyCollectionBggIds([]); setMyCollectionGames([]); return; }
+                try {
+                    const res = await fetch(`${API_URL}/my-collection`, { credentials: 'include' });
+                    const data = res.ok ? await res.json() : {};
+                    setMyCollectionBggIds(Array.isArray(data.bggIds) ? data.bggIds : []);
+                    setMyCollectionGames(Array.isArray(data.games) ? data.games : []);
+                } catch { setMyCollectionBggIds([]); setMyCollectionGames([]); }
+            };
+            useEffect(() => { loadMyCollection(); }, [wpUser]);
             
             const loadEvent = async () => {
                 try {
@@ -2686,6 +2710,7 @@
                 setGameModalType(type);
                 // Eingeloggte Nutzer:innen sind standardmäßig selbst gemeint.
                 setGamePersonName(wpUser?.name || '');
+                setAddToMyCollection(true);
                 setBggSearchQuery('');
                 setBggSearchResults([]);
                 setSelectedBggGame(null);
@@ -2761,6 +2786,18 @@
                         bggDescription: selectedBggGame.description
                         })
                     });
+                    // Beim Mitbringen neues Spiel optional in die eigene Sammlung übernehmen
+                    if (gameModalType === 'bring' && addToMyCollection && wpUser?.name
+                        && selectedBggGame.bggId && !myCollectionBggIds.includes(Number(selectedBggGame.bggId))) {
+                        try {
+                            await fetch(`${API_URL}/my-collection`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ bggId: selectedBggGame.bggId })
+                            });
+                            await loadMyCollection();
+                        } catch { /* Sammlungs-Update ist optional */ }
+                    }
                     await loadGames();
                     setGameModalOpen(false);
                     setSelectedBggGame(null);
@@ -3809,10 +3846,30 @@
                                     {gameModalType === 'bring' ? '🎲 Spiel mitbringen' : '💭 Spielwunsch'}
                                 </h2>
                                 <p className="modal-room">
-                                    {gameModalType === 'bring' 
-                                        ? 'Suche ein Spiel auf BoardGameGeek und wähle es aus.' 
+                                    {gameModalType === 'bring'
+                                        ? 'Wähle aus deiner Sammlung oder suche auf BoardGameGeek.'
                                         : 'Wünsch dir ein Spiel, das jemand mitbringen soll.'}
                                 </p>
+
+                                {/* Aus eigener Sammlung wählen (nur beim Mitbringen) */}
+                                {gameModalType === 'bring' && !selectedBggGame && wpUser && myCollectionGames.length > 0 && (
+                                    <div className="collection-pick">
+                                        <div className="collection-pick-label">⭐ Aus deiner Sammlung</div>
+                                        <div className="collection-pick-list">
+                                            {myCollectionGames.map(cg => (
+                                                <button type="button" key={cg.bggId} className="collection-pick-item" onClick={() => setSelectedBggGame(cg)}>
+                                                    {cg.thumbnail ? (
+                                                        <img src={cg.thumbnail} alt="" className="collection-pick-thumb" />
+                                                    ) : (
+                                                        <span className="collection-pick-thumb">🎲</span>
+                                                    )}
+                                                    <span className="collection-pick-name">{cg.name}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="collection-pick-or">— oder auf BoardGameGeek suchen —</div>
+                                    </div>
+                                )}
 
                                 {/* BGG Suche */}
                                 {!selectedBggGame ? (
@@ -3861,6 +3918,14 @@
                                         </div>
                                         <button className="bgg-selected-clear" onClick={() => setSelectedBggGame(null)}>✕</button>
                                     </div>
+                                )}
+
+                                {/* Neues BGG-Spiel optional in die eigene Sammlung übernehmen */}
+                                {gameModalType === 'bring' && selectedBggGame && !myCollectionBggIds.includes(Number(selectedBggGame.bggId)) && (
+                                    <label className="collection-add-check">
+                                        <input type="checkbox" checked={addToMyCollection} onChange={e => setAddToMyCollection(e.target.checked)} />
+                                        <span>⭐ Auch zu meiner Spielesammlung hinzufügen</span>
+                                    </label>
                                 )}
 
                                 {/* Teilnehmer-Auswahl */}

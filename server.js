@@ -988,12 +988,34 @@ app.get('/api/my-collection', async (req, res) => {
     const r = await fetch(`${AUTH_APP_URL}/api/my-collection`, {
       headers: { Cookie: cookie, Accept: 'application/json' }
     });
-    if (!r.ok) return res.json({ loggedIn: false, bggIds: [] });
+    if (!r.ok) return res.json({ loggedIn: false, bggIds: [], games: [] });
     const data = await r.json();
-    res.json({ loggedIn: !!data.loggedIn, bggIds: Array.isArray(data.bggIds) ? data.bggIds : [] });
+    res.json({
+      loggedIn: !!data.loggedIn,
+      bggIds: Array.isArray(data.bggIds) ? data.bggIds : [],
+      games: Array.isArray(data.games) ? data.games : []
+    });
   } catch (err) {
     console.error('my-collection Proxy fehlgeschlagen:', err.message);
-    res.json({ loggedIn: false, bggIds: [] });
+    res.json({ loggedIn: false, bggIds: [], games: [] });
+  }
+});
+
+// Spiel zur eigenen Sammlung (neue App) hinzufügen – reicht Cookie + Body weiter.
+app.post('/api/my-collection', async (req, res) => {
+  const cookie = req.headers.cookie;
+  if (!cookie) return res.status(401).json({ ok: false, error: 'not-logged-in' });
+  try {
+    const r = await fetch(`${AUTH_APP_URL}/api/my-collection`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ bggId: req.body?.bggId })
+    });
+    const data = await r.json().catch(() => ({ ok: false }));
+    res.status(r.status).json(data);
+  } catch (err) {
+    console.error('my-collection POST Proxy fehlgeschlagen:', err.message);
+    res.status(500).json({ ok: false });
   }
 });
 
