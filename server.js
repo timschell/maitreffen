@@ -211,6 +211,8 @@ async function initDB() {
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS train_number VARCHAR(50) DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS arrival_time TIME DEFAULT NULL`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_time TIME DEFAULT NULL`);
+    // Account-Bindung: verknüpft eine (Freitext-)Buchung mit dem Better-Auth-Nutzer der neuen App.
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_id VARCHAR(100) DEFAULT NULL`);
 
     // Spiele-Tabelle (mit event_id)
     await client.query(`
@@ -1030,15 +1032,16 @@ app.get('/api/treffen-status', async (req, res) => {
     const r = await fetch(`${AUTH_APP_URL}/api/treffen-status/${encodeURIComponent(slug)}`, {
       headers: { Cookie: cookie, Accept: 'application/json' }
     });
-    if (!r.ok) return res.json({ authorized: false, people: [] });
+    if (!r.ok) return res.json({ authorized: false, people: [], byUser: {} });
     const data = await r.json();
     res.json({
       authorized: !!data.authorized,
-      people: Array.isArray(data.people) ? data.people : []
+      people: Array.isArray(data.people) ? data.people : [],
+      byUser: data.byUser && typeof data.byUser === 'object' ? data.byUser : {}
     });
   } catch (err) {
     console.error('treffen-status Proxy fehlgeschlagen:', err.message);
-    res.json({ authorized: false, people: [] });
+    res.json({ authorized: false, people: [], byUser: {} });
   }
 });
 
@@ -1264,9 +1267,14 @@ app.get('/api/bookings', async (req, res) => {
   }
   
   try {
+    // Account-Bindung datensparsam ausliefern: `linked` für alle, die konkrete `userId`
+    // nur für den Vorstand oder den eigenen Account (keine fremden IDs offenlegen).
+    const viewer = await getSession(req);
+    const viewerIsAdmin = viewer ? isAdminUser(viewer) : false;
     const result = await pool.query('SELECT * FROM bookings WHERE event_id = $1', [req.eventId]);
     const bookings = {};
     result.rows.forEach(row => {
+      const showUserId = row.user_id && (viewerIsAdmin || row.user_id === viewer?.id);
       bookings[row.bed_id] = {
         name: row.name,
         bookedAt: row.booked_at,
@@ -1284,7 +1292,9 @@ app.get('/api/bookings', async (req, res) => {
         trainNumber: row.train_number,
         arrivalStation: row.arrival_station,
         arrivalTime: row.arrival_time,
-        departureTime: row.departure_time
+        departureTime: row.departure_time,
+        linked: !!row.user_id,
+        userId: showUserId ? row.user_id : null
       };
     });
     res.json(bookings);
@@ -1307,21 +1317,26 @@ app.post('/api/bookings/:bedId', async (req, res) => {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
 
+  // Eingeloggte Nutzer werden automatisch mit der Buchung verknüpft (user_id).
+  const sessionUser = await getSession(req);
+  const uid = sessionUser?.id || null;
+
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
-    
+
     // Hauptbuchung erstellen
     await client.query(`
-      INSERT INTO bookings (event_id, bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, arrival_time, departure_time, transport, needs_pickup, can_offer_ride, seats_available, departure_city, train_station, train_time, train_number, arrival_station)
-      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'booked', NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-      ON CONFLICT (event_id, bed_id) 
+      INSERT INTO bookings (event_id, bed_id, name, booked_at, status, blocked_by, arrival_date, departure_date, arrival_time, departure_time, transport, needs_pickup, can_offer_ride, seats_available, departure_city, train_station, train_time, train_number, arrival_station, user_id)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'booked', NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      ON CONFLICT (event_id, bed_id)
       DO UPDATE SET name = $3, booked_at = CURRENT_TIMESTAMP, status = 'booked', blocked_by = NULL,
                     arrival_date = $4, departure_date = $5, arrival_time = $6, departure_time = $7, transport = $8, needs_pickup = $9,
                     can_offer_ride = $10, seats_available = $11, departure_city = $12,
-                    train_station = $13, train_time = $14, train_number = $15, arrival_station = $16
-    `, [req.eventId, bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, arrivalStation || null]);
+                    train_station = $13, train_time = $14, train_number = $15, arrival_station = $16,
+                    user_id = COALESCE($17, bookings.user_id)
+    `, [req.eventId, bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, arrivalStation || null, uid]);
     
     // Zimmer-Einschränkung setzen
     if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
@@ -1432,6 +1447,50 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
     res.json({ success: true, bedId, name });
   } catch (err) {
     console.error('Fehler beim Buchen:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Eine bestehende (Freitext-)Buchung nachträglich dem eigenen Account zuordnen.
+// Löst das „stornieren + neu buchen"-Problem, wenn man vor dem Login gebucht hat.
+app.post('/api/bookings/:bedId/link-account', async (req, res) => {
+  const user = await getSession(req);
+  if (!user) return res.status(401).json({ error: 'Bitte zuerst einloggen' });
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+  const { bedId } = req.params;
+  try {
+    const cur = await pool.query('SELECT user_id, status FROM bookings WHERE event_id = $1 AND bed_id = $2', [req.eventId, bedId]);
+    if (cur.rows.length === 0) return res.status(404).json({ error: 'Buchung nicht gefunden' });
+    const row = cur.rows[0];
+    if (row.status !== 'booked') return res.status(400).json({ error: 'Nur echte Buchungen können zugeordnet werden' });
+    // Schon einem ANDEREN Account zugeordnet? Nur der Vorstand darf übernehmen.
+    if (row.user_id && row.user_id !== user.id && !isAdminUser(user)) {
+      return res.status(403).json({ error: 'Diese Buchung ist bereits einem anderen Account zugeordnet' });
+    }
+    await pool.query('UPDATE bookings SET user_id = $1 WHERE event_id = $2 AND bed_id = $3', [user.id, req.eventId, bedId]);
+    res.json({ success: true, userId: user.id });
+  } catch (err) {
+    console.error('link-account fehlgeschlagen:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Account-Zuordnung wieder lösen (nur der zugeordnete Account oder der Vorstand).
+app.post('/api/bookings/:bedId/unlink-account', async (req, res) => {
+  const user = await getSession(req);
+  if (!user) return res.status(401).json({ error: 'Bitte zuerst einloggen' });
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+  const { bedId } = req.params;
+  try {
+    const cur = await pool.query('SELECT user_id FROM bookings WHERE event_id = $1 AND bed_id = $2', [req.eventId, bedId]);
+    if (cur.rows.length === 0) return res.status(404).json({ error: 'Buchung nicht gefunden' });
+    if (cur.rows[0].user_id && cur.rows[0].user_id !== user.id && !isAdminUser(user)) {
+      return res.status(403).json({ error: 'Nur der zugeordnete Account oder der Vorstand kann die Zuordnung lösen' });
+    }
+    await pool.query('UPDATE bookings SET user_id = NULL WHERE event_id = $1 AND bed_id = $2', [req.eventId, bedId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('unlink-account fehlgeschlagen:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });

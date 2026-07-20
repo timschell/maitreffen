@@ -1007,6 +1007,13 @@
         .current-guest-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem; }
         .current-guest-name { font-weight: 600; color: var(--text-dark); }
         .current-guest-details { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.2rem; }
+        .account-link { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #e6e6e6; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+        .account-link-hint { font-size: 0.78rem; color: var(--text-muted); }
+        .account-link-ok { font-size: 0.82rem; font-weight: 600; color: #1f7a44; }
+        .account-link-other { font-size: 0.82rem; color: var(--text-muted); }
+        .account-link-btn { background: none; border: none; color: var(--text-muted); text-decoration: underline; cursor: pointer; font-size: 0.8rem; padding: 0; font-family: inherit; }
+        .account-link-btn:disabled { opacity: 0.5; cursor: default; }
+        .account-link-btn.primary { text-decoration: none; background: var(--color-primary, #d2691e); color: #fff; padding: 0.4rem 0.75rem; border-radius: 8px; font-weight: 600; }
 
         .blocked-info {
             background: #fff3e0;
@@ -2032,7 +2039,8 @@
             const [myCollectionBggIds, setMyCollectionBggIds] = useState([]);
             const [myCollectionGames, setMyCollectionGames] = useState([]);
             // Verbindliche-Anmeldungs-Status je Person (nur für den Vorstand) für die Bett-Badges.
-            const [regStatus, setRegStatus] = useState({ authorized: false, people: [] });
+            const [regStatus, setRegStatus] = useState({ authorized: false, people: [], byUser: {} });
+            const [linkSaving, setLinkSaving] = useState(false);
 
             // Dynamischer Ankunftsort (z.B. "Sternhagen") statt hardcoded "Halbe"
             const arrivalPlace = getArrivalPlace(event);
@@ -2071,12 +2079,16 @@
             // Verbindliche-Anmeldungs-Status laden (nur für den Vorstand). Die neue App
             // liefert Nicht-Admins authorized:false → keine Badges.
             const loadRegStatus = async () => {
-                if (!wpUser?.is_admin) { setRegStatus({ authorized: false, people: [] }); return; }
+                if (!wpUser?.is_admin) { setRegStatus({ authorized: false, people: [], byUser: {} }); return; }
                 try {
                     const res = await fetch(`${API_URL}/treffen-status`, { credentials: 'include' });
                     const data = res.ok ? await res.json() : {};
-                    setRegStatus({ authorized: !!data.authorized, people: Array.isArray(data.people) ? data.people : [] });
-                } catch { setRegStatus({ authorized: false, people: [] }); }
+                    setRegStatus({
+                        authorized: !!data.authorized,
+                        people: Array.isArray(data.people) ? data.people : [],
+                        byUser: data.byUser && typeof data.byUser === 'object' ? data.byUser : {}
+                    });
+                } catch { setRegStatus({ authorized: false, people: [], byUser: {} }); }
             };
             useEffect(() => { loadRegStatus(); }, [wpUser]);
 
@@ -2085,15 +2097,16 @@
                 .normalize('NFD').replace(/[̀-ͯ]/g, '')
                 .toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-            // Anmeldungs-Status zu einem Bett-Namen finden (best effort: voller Name oder
-            // Vorname). Wichtig: passt der Name auf mehrere verschiedene Anmeldungen (z. B.
-            // zwei „Lauras"), wird NICHT geraten, sondern 'ambiguous' zurückgegeben.
-            const regStatusFor = (rawName) => {
-                if (!regStatus.authorized || !rawName) return null;
-                const n = normalizeName(rawName);
+            // Anmeldungs-Status zu einer Buchung finden. 1) Ist die Buchung an einen Account
+            // gebunden (userId), wird EINDEUTIG darüber zugeordnet. 2) Sonst Freitext-Namens-
+            // abgleich (best effort): voller Name oder Vorname; passt der Name auf mehrere
+            // verschiedene Anmeldungen (z. B. zwei „Lauras"), wird 'ambiguous' zurückgegeben.
+            const regStatusFor = (booking) => {
+                if (!regStatus.authorized || !booking) return null;
+                if (booking.userId && regStatus.byUser[booking.userId]) return regStatus.byUser[booking.userId];
+                const n = normalizeName(booking.name);
                 if (!n) return 'none';
                 const first = n.split(' ')[0];
-                // 1) exakte Voll-Namen-Treffer bevorzugen, sonst über den Vornamen abgleichen
                 let cands = regStatus.people.filter(p => p.name === n);
                 if (cands.length === 0) {
                     cands = regStatus.people.filter(p => p.first === first || p.first === n || p.name === first);
@@ -2102,6 +2115,20 @@
                 if (regIds.size === 0) return 'none';
                 if (regIds.size > 1) return 'ambiguous'; // mehrere verschiedene Anmeldungen → nicht raten
                 return cands[0].status; // eindeutig: 'paid' | 'open'
+            };
+
+            // Buchung dem eigenen Account zuordnen / Zuordnung lösen.
+            const linkBookingAccount = async (bedId, unlink) => {
+                if (linkSaving || !bedId) return;
+                setLinkSaving(true);
+                try {
+                    const path = unlink ? 'unlink-account' : 'link-account';
+                    const res = await fetch(`${API_URL}/bookings/${encodeURIComponent(bedId)}/${path}`, { method: 'POST', credentials: 'include' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) { alert(data.error || 'Zuordnung fehlgeschlagen'); }
+                    else { await loadBookings(); await loadRegStatus(); }
+                } catch { alert('Zuordnung fehlgeschlagen'); }
+                finally { setLinkSaving(false); }
             };
 
             const loadEvent = async () => {
@@ -3416,7 +3443,7 @@
                                                     <div className="bed-label">Bett {i + 1}</div>
                                                     <div className="bed-name">{blocked ? 'Blockiert' : women ? 'Nur Frauen' : men ? 'Nur Männer' : booked ? b.name : 'Frei'}</div>
                                                     {booked && regStatus.authorized && (() => {
-                                                        const rs = regStatusFor(b.name);
+                                                        const rs = regStatusFor(b);
                                                         if (rs === 'paid') return <div className="reg-badge paid" title="Verbindlich angemeldet und bezahlt">✓ bezahlt</div>;
                                                         if (rs === 'open') return <div className="reg-badge open" title="Verbindlich angemeldet – Zahlung offen">📋 angemeldet</div>;
                                                         if (rs === 'ambiguous') return <div className="reg-badge ambiguous" title="Mehrere angemeldete Personen mit diesem Namen – bitte in der Anmeldeliste prüfen">⚠ mehrdeutig</div>;
@@ -3781,6 +3808,23 @@
                                                     {selectedBooking.trainTime && <span>🚆 Ankunft {selectedBooking.arrivalStation || arrivalPlace}: {formatTime(selectedBooking.trainTime)}{selectedBooking.trainStation ? ` (ab ${selectedBooking.trainStation})` : ''}</span>}
                                                     {selectedBooking.needsPickup && <span>🚉 Abholung gewünscht</span>}
                                                     {selectedBooking.canOfferRide && <span>🚗 Bietet {selectedBooking.seatsAvailable} Plätze ab {selectedBooking.departureCity || '?'}</span>}
+                                                </div>
+                                                <div className="account-link">
+                                                    {!wpUser ? (
+                                                        <span className="account-link-hint">🔗 Logge dich ein, um diese Buchung deinem Account zuzuordnen.</span>
+                                                    ) : selectedBooking.userId && selectedBooking.userId === wpUser.id ? (
+                                                        <>
+                                                            <span className="account-link-ok">✓ Mit deinem Account verknüpft</span>
+                                                            <button type="button" className="account-link-btn" disabled={linkSaving} onClick={() => linkBookingAccount(selectedBed, true)}>Zuordnung lösen</button>
+                                                        </>
+                                                    ) : selectedBooking.linked ? (
+                                                        <>
+                                                            <span className="account-link-other">🔗 Einem Account zugeordnet</span>
+                                                            {wpUser.is_admin && <button type="button" className="account-link-btn" disabled={linkSaving} onClick={() => linkBookingAccount(selectedBed, true)}>lösen</button>}
+                                                        </>
+                                                    ) : (
+                                                        <button type="button" className="account-link-btn primary" disabled={linkSaving} onClick={() => linkBookingAccount(selectedBed, false)}>🔗 Diese Buchung meinem Account zuordnen</button>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
