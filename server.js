@@ -906,7 +906,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brettspielfamilie2026';
 // Neue Login-App (Better Auth, Magic-Link). Die Treffen-App teilt sich deren
 // Session über das domainweite *.brettspielfamilie.de-Cookie und validiert es
 // server-zu-server gegen /api/auth/get-session (keine eigene Session mehr).
-const AUTH_APP_URL = process.env.AUTH_APP_URL || 'https://reviews.brettspielfamilie.de';
+const AUTH_APP_URL = process.env.AUTH_APP_URL || 'https://brettspielfamilie.de';
 
 // Holt die aktuelle Better-Auth-Session, indem das eingehende Cookie an die
 // Login-App weitergereicht wird. Ergebnis pro Request cachen. Liefert das
