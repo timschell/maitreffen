@@ -4,6 +4,9 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Admin – Brettspielfamilie Treffen</title>
+			<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+			<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+			<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 		<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 		<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 		<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -505,27 +508,32 @@
 		}
 		.header-inner {
 			display: flex; align-items: center; justify-content: space-between;
-			gap: 1rem; min-height: 76px; flex-wrap: wrap;
+			gap: 0.75rem; min-height: 72px; flex-wrap: nowrap;
 		}
 		.brand { display: flex; align-items: center; gap: 0.65rem; text-decoration: none; }
-		.brand img { height: 52px; width: auto; }
-		.site-nav { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+		.brand img { height: 42px; width: auto; display: block; }
+		.site-nav { display: flex; align-items: center; gap: 0.15rem; flex-wrap: nowrap; }
 		.nav-link {
 			font-weight: 500; color: var(--color-brown);
-			padding: 0.45rem 0.75rem; border-radius: var(--radius-sm);
+			padding: 0.44rem 0.54rem; border-radius: var(--radius-sm); font-size: 0.95rem;
 			text-decoration: none; white-space: nowrap;
 		}
 		.nav-link:hover { background: var(--color-surface-2); color: var(--color-primary); text-decoration: none; }
 		.nav-link.active { color: var(--color-primary); background: var(--color-surface-2); }
 		.nav-toggle, .nav-burger { display: none; }
-		@media (max-width: 720px) {
+		@media (max-width: 1024px) {
+				.header-inner { flex-wrap: wrap; }
 			.nav-burger { display: flex; flex-direction: column; gap: 5px; padding: 0.6rem; cursor: pointer; }
 			.nav-burger span { width: 24px; height: 2px; background: var(--color-brown); border-radius: 2px; }
 			.site-nav { display: none; width: 100%; flex-direction: column; align-items: stretch; gap: 0.15rem; padding-bottom: 0.75rem; }
 			.nav-toggle:checked ~ .site-nav { display: flex; }
-			.nav-link { padding: 0.7rem 0.75rem; }
+			.nav-link { padding: 0.7rem 0.75rem; font-size: 1rem; }
 		}
-		.site-footer { margin-top: 4rem; background: var(--color-brown); color: #f3e7db; }
+		@media (max-width: 560px) {
+				.site-header { padding-top: 3px; }
+				.brand img { height: 38px; }
+			}
+			.site-footer { margin-top: 4rem; background: var(--color-brown); color: #f3e7db; }
 		.footer-inner { display: flex; justify-content: space-between; gap: 2rem; flex-wrap: wrap; padding-block: 2.5rem 1.5rem; }
 		.footer-title { font-family: var(--font-head); font-weight: 600; font-size: 1.15rem; margin: 0 0 0.35rem; color: #fff; }
 		.footer-muted { color: #d8c4b3; margin: 0; max-width: 34ch; }
@@ -540,7 +548,7 @@
 		<div class="site-header">
 			<div class="container header-inner">
 				<a href="https://brettspielfamilie.de/" class="brand" aria-label="Zur Startseite der Brettspielfamilie">
-					<img src="/bilder/logo.png" alt="Brettspielfamilie" width="175" height="60" />
+					<img src="/bilder/logo-horizontal.svg" alt="Brettspielfamilie e. V." width="272" height="42" />
 				</a>
 
 				<input type="checkbox" id="nav-toggle" class="nav-toggle" />
