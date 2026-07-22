@@ -104,11 +104,12 @@
 
         .site-footer { margin-top: 4rem; background: var(--color-brown); color: #f3e7db; }
         .footer-inner { display: flex; justify-content: space-between; gap: 2rem; flex-wrap: wrap; padding-block: 2.5rem 1.5rem; }
-        .footer-title { font-family: var(--font-head); font-weight: 600; font-size: 1.15rem; margin: 0 0 0.35rem; color: #fff; }
+        .footer-logo { height: 40px; width: auto; display: block; margin: 0 0 0.8rem; }
         .footer-muted { color: #d8c4b3; margin: 0; max-width: 34ch; }
-        .footer-nav { display: flex; flex-direction: column; gap: 0.5rem; }
-        .footer-nav a { color: #f3e7db; text-decoration: none; }
+        .footer-nav { columns: 2; column-gap: 2.5rem; }
+        .footer-nav a { display: block; color: #f3e7db; text-decoration: none; margin-bottom: 0.5rem; }
         .footer-nav a:hover { color: var(--color-secondary); text-decoration: underline; }
+        @media (max-width: 560px) { .footer-nav { columns: 1; } }
         .footer-bottom { padding-block: 1rem 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.12); }
         .footer-bottom p { margin: 0; font-size: 0.85rem; color: #cbb4a3; }
 
@@ -4277,7 +4278,7 @@
     <footer class="site-footer">
         <div class="container footer-inner">
             <div>
-                <p class="footer-title">Brettspielfamilie e. V.</p>
+                <img class="footer-logo" src="/bilder/logo-horizontal-cream.svg" alt="Brettspielfamilie e. V." width="272" height="42" />
                 <p class="footer-muted">
                     Verein zur Förderung von Familien durch Brettspiele – gemeinsam spielen, Gemeinschaft leben.
                 </p>
