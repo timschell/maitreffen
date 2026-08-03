@@ -214,6 +214,25 @@ async function initDB() {
     // Account-Bindung: verknüpft eine (Freitext-)Buchung mit dem Better-Auth-Nutzer der neuen App.
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_id VARCHAR(100) DEFAULT NULL`);
 
+    // Mitfahr-Anfragen: wer moechte bei welchem Angebot mitfahren.
+    // Die freien Plaetze ergeben sich aus seats_available minus zugesagter Anfragen –
+    // dadurch laesst sich eine Zusage jederzeit zuruecknehmen, ohne das Angebot zu verlieren.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ride_requests (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        offer_bed_id VARCHAR(100) NOT NULL,
+        requester_bed_id VARCHAR(100) DEFAULT NULL,
+        requester_name VARCHAR(100) NOT NULL,
+        requester_user_id VARCHAR(100) DEFAULT NULL,
+        message TEXT DEFAULT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        decided_at TIMESTAMP DEFAULT NULL
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS ride_requests_event_idx ON ride_requests (event_id, offer_bed_id)`);
+
     // Spiele-Tabelle (mit event_id)
     await client.query(`
       CREATE TABLE IF NOT EXISTS games (
@@ -908,6 +927,24 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'brettspielfamilie2026';
 // server-zu-server gegen /api/auth/get-session (keine eigene Session mehr).
 const AUTH_APP_URL = process.env.AUTH_APP_URL || 'https://brettspielfamilie.de';
 
+// Gemeinsames Geheimnis fuer server-zu-server-Benachrichtigungen an die Hauptseite.
+// Fehlt es, laeuft alles weiter – nur ohne E-Mail (die Anfragen stehen ja auf der Seite).
+const INTERNAL_API_TOKEN = process.env.INTERNAL_API_TOKEN || '';
+
+/**
+ * Schickt eine Mitfahr-Benachrichtigung an ein Vereinskonto. Nur moeglich, wenn die
+ * Buchung mit einem Konto verknuepft ist – Freitext-Buchungen haben keine Adresse.
+ * Bewusst "fire and forget": eine fehlgeschlagene Mail darf die Anfrage nicht kippen.
+ */
+function notifyRide(userId, { subject, text }) {
+  if (!userId || !INTERNAL_API_TOKEN) return;
+  fetch(`${AUTH_APP_URL}/api/ride-notify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-internal-token': INTERNAL_API_TOKEN },
+    body: JSON.stringify({ userId, subject, text })
+  }).catch(err => console.error('Mitfahr-Benachrichtigung fehlgeschlagen:', err.message));
+}
+
 // Holt die aktuelle Better-Auth-Session, indem das eingehende Cookie an die
 // Login-App weitergereicht wird. Ergebnis pro Request cachen. Liefert das
 // User-Objekt (inkl. role) oder null.
@@ -1300,6 +1337,172 @@ app.get('/api/bookings', async (req, res) => {
     res.json(bookings);
   } catch (err) {
     console.error('Fehler beim Abrufen der Buchungen:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// ==================== MITFAHRGELEGENHEITEN ====================
+// Angebote entstehen aus der Buchung (can_offer_ride + seats_available). Hier kommt
+// die Gegenseite dazu: anfragen, zu-/absagen, zurueckziehen.
+
+/** Alle Anfragen eines Events, gruppiert nach Angebot. */
+app.get('/api/rides/requests', async (req, res) => {
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+  try {
+    const r = await pool.query(
+      `SELECT id, offer_bed_id, requester_bed_id, requester_name, requester_user_id,
+              message, status, created_at
+         FROM ride_requests WHERE event_id = $1 ORDER BY created_at`,
+      [req.eventId]
+    );
+    const byOffer = {};
+    r.rows.forEach(row => {
+      (byOffer[row.offer_bed_id] = byOffer[row.offer_bed_id] || []).push({
+        id: row.id,
+        offerBedId: row.offer_bed_id,
+        requesterBedId: row.requester_bed_id,
+        requesterName: row.requester_name,
+        requesterUserId: row.requester_user_id,
+        message: row.message,
+        status: row.status,
+        createdAt: row.created_at
+      });
+    });
+    res.json(byOffer);
+  } catch (err) {
+    console.error('Fehler beim Abrufen der Mitfahr-Anfragen:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+/** Mitfahren anfragen. */
+app.post('/api/rides/:offerBedId/requests', async (req, res) => {
+  const { offerBedId } = req.params;
+  const { requesterBedId, requesterName, message } = req.body || {};
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+
+  const name = (requesterName || '').trim();
+  if (!name) return res.status(400).json({ error: 'Bitte gib deinen Namen an.' });
+
+  try {
+    const offer = await pool.query(
+      `SELECT bed_id, name, can_offer_ride, seats_available, user_id
+         FROM bookings WHERE event_id = $1 AND bed_id = $2`,
+      [req.eventId, offerBedId]
+    );
+    if (offer.rowCount === 0 || !offer.rows[0].can_offer_ride) {
+      return res.status(404).json({ error: 'Dieses Angebot gibt es nicht mehr.' });
+    }
+    // Nicht bei sich selbst mitfahren.
+    if (requesterBedId && requesterBedId === offerBedId) {
+      return res.status(400).json({ error: 'Das ist dein eigenes Angebot.' });
+    }
+    // Doppelte offene Anfrage derselben Person verhindern.
+    const dup = await pool.query(
+      `SELECT id FROM ride_requests
+        WHERE event_id = $1 AND offer_bed_id = $2 AND status IN ('pending','accepted')
+          AND (($3::varchar IS NOT NULL AND requester_bed_id = $3) OR lower(requester_name) = lower($4))`,
+      [req.eventId, offerBedId, requesterBedId || null, name]
+    );
+    if (dup.rowCount > 0) {
+      return res.status(409).json({ error: 'Du hast hier schon angefragt.' });
+    }
+
+    const sessionUser = await getSession(req);
+    const ins = await pool.query(
+      `INSERT INTO ride_requests (event_id, offer_bed_id, requester_bed_id, requester_name, requester_user_id, message)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [req.eventId, offerBedId, requesterBedId || null, name, sessionUser?.id || null, (message || '').trim() || null]
+    );
+
+    notifyRide(offer.rows[0].user_id, {
+      subject: `Mitfahr-Anfrage von ${name}`,
+      text: `${name} moechte bei dir mitfahren.` +
+            ((message || '').trim() ? `\n\nNachricht: ${message.trim()}` : '') +
+            `\n\nZu-/Absagen kannst du auf der Treffenseite.`
+    });
+
+    res.json({ success: true, id: ins.rows[0].id });
+  } catch (err) {
+    console.error('Fehler beim Anlegen der Mitfahr-Anfrage:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+/** Zusagen oder ablehnen (durch die fahrende Person). */
+app.post('/api/rides/requests/:id/:decision', async (req, res) => {
+  const { id, decision } = req.params;
+  if (!['accept', 'decline'].includes(decision)) {
+    return res.status(400).json({ error: 'Unbekannte Aktion' });
+  }
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(
+      `SELECT * FROM ride_requests WHERE id = $1 AND event_id = $2 FOR UPDATE`,
+      [id, req.eventId]
+    );
+    if (cur.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Anfrage nicht gefunden' });
+    }
+    const reqRow = cur.rows[0];
+
+    if (decision === 'accept') {
+      const offer = await client.query(
+        `SELECT name, seats_available FROM bookings WHERE event_id = $1 AND bed_id = $2`,
+        [req.eventId, reqRow.offer_bed_id]
+      );
+      const seats = offer.rows[0]?.seats_available || 0;
+      const taken = await client.query(
+        `SELECT COUNT(*)::int AS n FROM ride_requests
+          WHERE event_id = $1 AND offer_bed_id = $2 AND status = 'accepted' AND id <> $3`,
+        [req.eventId, reqRow.offer_bed_id, id]
+      );
+      if (taken.rows[0].n >= seats) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Es sind keine Plaetze mehr frei.' });
+      }
+    }
+
+    await client.query(
+      `UPDATE ride_requests SET status = $1, decided_at = NOW() WHERE id = $2`,
+      [decision === 'accept' ? 'accepted' : 'declined', id]
+    );
+    await client.query('COMMIT');
+
+    const driver = await pool.query(
+      `SELECT name FROM bookings WHERE event_id = $1 AND bed_id = $2`,
+      [req.eventId, reqRow.offer_bed_id]
+    );
+    const driverName = driver.rows[0]?.name || 'Die fahrende Person';
+    notifyRide(reqRow.requester_user_id, {
+      subject: decision === 'accept' ? 'Mitfahrt zugesagt' : 'Mitfahrt leider abgesagt',
+      text: decision === 'accept'
+        ? `${driverName} hat dir einen Platz zugesagt. Details klaert ihr am besten direkt.`
+        : `${driverName} kann dich leider nicht mitnehmen. Vielleicht passt ein anderes Angebot.`
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler bei der Entscheidung zur Mitfahr-Anfrage:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+/** Eigene Anfrage zurueckziehen. */
+app.delete('/api/rides/requests/:id', async (req, res) => {
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+  try {
+    await pool.query('DELETE FROM ride_requests WHERE id = $1 AND event_id = $2', [req.params.id, req.eventId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler beim Zuruecknehmen der Mitfahr-Anfrage:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });

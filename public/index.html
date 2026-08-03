@@ -480,6 +480,43 @@
         }
 
         .transport-item.carpool { background: var(--carpool-light); }
+        /* --- Mitfahrgelegenheiten: Anfragen --- */
+        .ride-block { display: block; }
+        .ride-head { display: flex; align-items: center; gap: 0.75rem; }
+        .ride-riders { margin-top: 0.5rem; font-size: 0.85rem; color: var(--carpool); font-weight: 600; }
+        .ride-requests { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        .ride-request {
+            display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
+            flex-wrap: wrap; background: #fff; border-radius: 8px; padding: 0.55rem 0.7rem;
+            font-size: 0.9rem;
+        }
+        .ride-msg { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.15rem; }
+        .ride-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        .ride-btn {
+            border: 1px solid #ddd; background: #fff; border-radius: 6px; padding: 0.35rem 0.7rem;
+            font-size: 0.85rem; cursor: pointer; font-family: inherit;
+        }
+        .ride-btn:hover:not(:disabled) { background: #f5f5f5; }
+        .ride-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ride-btn-yes { background: var(--carpool); border-color: var(--carpool); color: #fff; font-weight: 600; }
+        .ride-btn-yes:hover:not(:disabled) { filter: brightness(1.1); background: var(--carpool); }
+        .ride-cta {
+            margin-top: 0.6rem; width: 100%; border: 1px solid var(--carpool); background: #fff;
+            color: var(--carpool); border-radius: 8px; padding: 0.5rem 0.9rem; font-weight: 600;
+            font-size: 0.9rem; cursor: pointer; font-family: inherit;
+        }
+        .ride-cta:hover { background: var(--carpool); color: #fff; }
+        .ride-status { margin-top: 0.6rem; font-size: 0.88rem; color: var(--text-muted); }
+        .ride-link {
+            background: none; border: none; padding: 0; color: var(--carpool);
+            text-decoration: underline; cursor: pointer; font: inherit; font-size: 0.88rem;
+        }
+        .ride-form { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.45rem; }
+        .ride-form input {
+            width: 100%; padding: 0.5rem 0.65rem; border: 1px solid #ddd; border-radius: 8px;
+            font-family: inherit; font-size: 0.95rem;
+        }
+        .ride-form input:focus { outline: none; border-color: var(--carpool); }
         .transport-item.train { background: var(--train-light); }
 
         .transport-item-icon { font-size: 1.2rem; }
@@ -1985,6 +2022,23 @@
             const [eventError, setEventError] = useState(null);
             
             const [bookings, setBookings] = useState({});
+            const [rideRequests, setRideRequests] = useState({});   // Mitfahr-Anfragen je Angebot
+            const [rideFormFor, setRideFormFor] = useState(null);   // bedId des offenen Anfrage-Formulars
+            const [rideName, setRideName] = useState('');
+            const [rideMsg, setRideMsg] = useState('');
+            const [rideBusy, setRideBusy] = useState(false);
+            // Ohne Login kennt der Server uns nicht – der Browser merkt sich daher,
+            // welche Anfragen von diesem Geraet gestellt wurden.
+            const [myRideIds, setMyRideIds] = useState(() => {
+                try { return JSON.parse(localStorage.getItem('bsfRideRequests') || '[]'); } catch { return []; }
+            });
+            const rememberRide = (id, keep = true) => {
+                setMyRideIds(prev => {
+                    const next = keep ? [...new Set([...prev, id])] : prev.filter(x => x !== id);
+                    try { localStorage.setItem('bsfRideRequests', JSON.stringify(next)); } catch {}
+                    return next;
+                });
+            };
             const [waitlist, setWaitlist] = useState([]);
             const [loading, setLoading] = useState(true);
             const [saving, setSaving] = useState(false);
@@ -2062,6 +2116,7 @@
             useEffect(() => {
                 if (event && rooms.length > 0) {
                     loadBookings();
+                    loadRideRequests();
                     loadWaitlist();
                     loadGames();
                     loadMeals();
@@ -2226,6 +2281,13 @@
                     setBookings(await res.json());
                 } catch { setError('Buchungen konnten nicht geladen werden.'); }
                 finally { setLoading(false); }
+            };
+
+            const loadRideRequests = async () => {
+                try {
+                    const res = await fetch(`${API_URL}/rides/requests`);
+                    if (res.ok) setRideRequests(await res.json());
+                } catch {}
             };
 
             const loadWaitlist = async () => {
@@ -3152,6 +3214,68 @@
             };
             const getBlockerName = (b) => b?.blockedBy ? bookings[b.blockedBy]?.name : null;
 
+            // --- Mitfahrgelegenheiten ---
+            const requestsFor = (bedId) => rideRequests[bedId] || [];
+            const acceptedCount = (bedId) => requestsFor(bedId).filter(r => r.status === 'accepted').length;
+            const freeSeats = (offer) => Math.max(0, (offer.seatsAvailable || 0) - acceptedCount(offer.bedId));
+            // Eigene Buchung: ueber das verknuepfte Konto, sonst ueber den Namen.
+            const myBedId = Object.entries(bookings).find(([_, b]) =>
+                (wpUser?.id && b.userId === wpUser.id) || (wpUser?.name && b.name === wpUser.name)
+            )?.[0] || null;
+            const myRideRequest = (bedId) => requestsFor(bedId).find(r =>
+                myRideIds.includes(r.id) ||
+                (myBedId && r.requesterBedId === myBedId) ||
+                (wpUser?.id && r.requesterUserId === wpUser.id) ||
+                (wpUser?.name && r.requesterName === wpUser.name)
+            );
+
+            const openRideForm = (bedId) => {
+                setRideFormFor(bedId);
+                setRideName(wpUser?.name || (myBedId ? bookings[myBedId]?.name : '') || '');
+                setRideMsg('');
+            };
+
+            const submitRideRequest = async (offerBedId) => {
+                if (!rideName.trim()) { alert('Bitte gib deinen Namen an.'); return; }
+                setRideBusy(true);
+                try {
+                    const res = await fetch(`${API_URL}/rides/${encodeURIComponent(offerBedId)}/requests`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ requesterBedId: myBedId, requesterName: rideName.trim(), message: rideMsg })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) { alert(data.error || 'Anfrage fehlgeschlagen.'); return; }
+                    if (data.id) rememberRide(data.id);
+                    setRideFormFor(null); setRideMsg('');
+                    await loadRideRequests();
+                } catch { alert('Anfrage fehlgeschlagen.'); }
+                finally { setRideBusy(false); }
+            };
+
+            const decideRide = async (id, decision) => {
+                setRideBusy(true);
+                try {
+                    const res = await fetch(`${API_URL}/rides/requests/${id}/${decision}`, { method: 'POST', credentials: 'include' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) { alert(data.error || 'Aktion fehlgeschlagen.'); return; }
+                    await loadRideRequests();
+                } catch { alert('Aktion fehlgeschlagen.'); }
+                finally { setRideBusy(false); }
+            };
+
+            const withdrawRide = async (id) => {
+                if (!confirm('Anfrage wirklich zurueckziehen?')) return;
+                setRideBusy(true);
+                try {
+                    await fetch(`${API_URL}/rides/requests/${id}`, { method: 'DELETE', credentials: 'include' });
+                    rememberRide(id, false);
+                    await loadRideRequests();
+                } catch {}
+                finally { setRideBusy(false); }
+            };
+
             const pickupList = Object.entries(bookings).filter(([_, b]) => b.needsPickup && b.status === 'booked').map(([id, b]) => ({ bedId: id, ...b })).sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
             const carpoolList = Object.entries(bookings).filter(([_, b]) => b.canOfferRide && b.status === 'booked' && b.seatsAvailable > 0).map(([id, b]) => ({ bedId: id, ...b })).sort((a, b) => new Date(a.arrivalDate) - new Date(b.arrivalDate));
 
@@ -3515,16 +3639,84 @@
                         <div className="transport-section">
                             <h4 className="transport-title carpool">🚗 Fahrgemeinschaften</h4>
                             <div className="transport-list">
-                                {carpoolList.map(p => (
-                                    <div key={p.bedId} className="transport-item carpool">
-                                        <span className="transport-item-icon">🚗</span>
-                                        <div className="transport-item-info">
-                                            <div className="transport-item-name">{p.name}</div>
-                                            <div className="transport-item-details">{p.departureCity && `Ab ${p.departureCity} • `}{formatDateLong(p.arrivalDate)}{p.arrivalTime ? ` ${formatTime(p.arrivalTime)}` : ''}</div>
+                                {carpoolList.map(p => {
+                                    const frei = freeSeats(p);
+                                    const meine = myRideRequest(p.bedId);
+                                    const istMeinAngebot = myBedId === p.bedId;
+                                    const anfragen = requestsFor(p.bedId);
+                                    const offene = anfragen.filter(r => r.status === 'pending');
+                                    const zugesagt = anfragen.filter(r => r.status === 'accepted');
+                                    return (
+                                    <div key={p.bedId} className="transport-item carpool ride-block">
+                                        <div className="ride-head">
+                                            <span className="transport-item-icon">🚗</span>
+                                            <div className="transport-item-info">
+                                                <div className="transport-item-name">{p.name}</div>
+                                                <div className="transport-item-details">{p.departureCity && `Ab ${p.departureCity} • `}{formatDateLong(p.arrivalDate)}{p.arrivalTime ? ` ${formatTime(p.arrivalTime)}` : ''}</div>
+                                            </div>
+                                            <span className="transport-item-seats">{frei > 0 ? `${frei} von ${p.seatsAvailable} frei` : 'belegt'}</span>
                                         </div>
-                                        <span className="transport-item-seats">{p.seatsAvailable} {p.seatsAvailable === 1 ? 'Platz' : 'Plätze'}</span>
+
+                                        {zugesagt.length > 0 && (
+                                            <div className="ride-riders">Fährt mit: {zugesagt.map(r => r.requesterName).join(', ')}</div>
+                                        )}
+
+                                        {/* Offene Anfragen – sichtbar bei jedem Angebot, damit auch
+                                            Fahrende ohne Vereinskonto zu- oder absagen koennen. */}
+                                        {offene.length > 0 && (
+                                            <div className="ride-requests">
+                                                {offene.map(r => {
+                                                    const istMeine = meine && meine.id === r.id;
+                                                    return (
+                                                    <div key={r.id} className="ride-request">
+                                                        <div>
+                                                            <strong>{r.requesterName}</strong> möchte mitfahren
+                                                            {r.message && <div className="ride-msg">„{r.message}“</div>}
+                                                        </div>
+                                                        {!istMeine && (
+                                                            <div className="ride-actions">
+                                                                <button className="ride-btn ride-btn-yes" disabled={rideBusy || frei === 0}
+                                                                    onClick={() => decideRide(r.id, 'accept')}>Zusagen</button>
+                                                                <button className="ride-btn" disabled={rideBusy}
+                                                                    onClick={() => decideRide(r.id, 'decline')}>Ablehnen</button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Sicht der mitfahrenden Person */}
+                                        {!istMeinAngebot && meine && (
+                                            <div className="ride-status">
+                                                {meine.status === 'pending' && <>⏳ Deine Anfrage läuft. <button className="ride-link" disabled={rideBusy} onClick={() => withdrawRide(meine.id)}>zurückziehen</button></>}
+                                                {meine.status === 'accepted' && <>✅ Du hast einen Platz – gute Fahrt!</>}
+                                                {meine.status === 'declined' && <>Leider abgelehnt.</>}
+                                            </div>
+                                        )}
+
+                                        {!istMeinAngebot && !meine && frei > 0 && rideFormFor !== p.bedId && (
+                                            <button className="ride-cta" onClick={() => openRideForm(p.bedId)}>Mitfahren anfragen</button>
+                                        )}
+
+                                        {rideFormFor === p.bedId && (
+                                            <div className="ride-form">
+                                                <input type="text" placeholder="Dein Name" value={rideName}
+                                                    onChange={e => setRideName(e.target.value)} />
+                                                <input type="text" placeholder="Nachricht (optional) – z. B. wo du zusteigen würdest"
+                                                    value={rideMsg} onChange={e => setRideMsg(e.target.value)} />
+                                                <div className="ride-actions">
+                                                    <button className="ride-btn ride-btn-yes" disabled={rideBusy}
+                                                        onClick={() => submitRideRequest(p.bedId)}>Anfrage senden</button>
+                                                    <button className="ride-btn" disabled={rideBusy}
+                                                        onClick={() => setRideFormFor(null)}>Abbrechen</button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -3761,7 +3953,7 @@
                             👟 <strong>Hausschuhe sind Pflicht</strong> im Haus<br/><br/>
                             ⏰ <strong>Check-in ab 16:00 Uhr</strong> · <strong>Check-out bis 11:00 Uhr</strong><br/><br/>
                             🔒 <strong>Zimmer-Optionen:</strong> Beim Buchen kannst du restliche Betten blockieren oder als Frauen-/Männerzimmer markieren.<br/>
-                            🚗 <strong>Fahrgemeinschaften:</strong> Autofahrer können Mitfahrgelegenheiten anbieten.<br/>
+                            🚗 <strong>Fahrgemeinschaften:</strong> Wer mit dem Auto kommt, bietet Plätze an – alle anderen können direkt eine Mitfahrt anfragen.<br/>
                             🚆 <strong>Zugverbindungen:</strong> Trage deine Verbindung ein um Reisepartner zu finden!<br/>
                             🎲 <strong>Spiele:</strong> Trage ein was du mitbringst oder wünsch dir ein Spiel!<br/><br/>
                             📍 Am Dorfplatz 6, 17291 Nordwestuckermark OT Sternhagen<br/>
