@@ -1055,6 +1055,19 @@
         .current-guest-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem; }
         .current-guest-name { font-weight: 600; color: var(--text-dark); }
         .current-guest-details { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.2rem; }
+        .move-section {
+            background: #f0f7ff;
+            border: 1px solid #d6e8fb;
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .move-title { font-weight: 600; font-size: 0.92rem; color: var(--text-dark); }
+        .move-hint { font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; margin: 0.25rem 0 0.7rem; }
+        .move-select { margin-bottom: 0.6rem; }
+        .move-btn { width: 100%; }
+
         .account-link { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #e6e6e6; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
         .account-link-hint { font-size: 0.78rem; color: var(--text-muted); }
         .account-link-ok { font-size: 0.82rem; font-weight: 600; color: #1f7a44; }
@@ -2046,6 +2059,7 @@
             const [modalOpen, setModalOpen] = useState(false);
             const [waitlistModalOpen, setWaitlistModalOpen] = useState(false);
             const [selectedBed, setSelectedBed] = useState(null);
+            const [moveTarget, setMoveTarget] = useState('');   // Zielbett beim Bettwechsel
             const [inputName, setInputName] = useState("");
             const [arrivalDate, setArrivalDate] = useState('');
             const [departureDate, setDepartureDate] = useState('');
@@ -2792,6 +2806,7 @@
                 setDepartureTime(b?.departureTime ? formatTime(b.departureTime) : '');
                 setRoomRestriction('none');
                 setCompanions([]);
+                setMoveTarget('');
                 // Essensauswahl laden wenn Buchung existiert
                 if (b?.name) {
                     loadPersonMealSelections(b.name);
@@ -3157,6 +3172,7 @@
                 setDepartureTime('');
                 setRoomRestriction('none');
                 setCompanions([]);
+                setMoveTarget('');
             };
 
             const closeWaitlistModal = () => { setWaitlistModalOpen(false); setWaitlistName(""); setWaitlistComment(""); };
@@ -3205,6 +3221,52 @@
                     .sort((a, b) => a.roomId - b.roomId || a.bedNum - b.bedNum);
             };
             
+            // --- Bett wechseln ---
+            // Frei ist ein Bett, wenn dort niemand liegt – oder wenn es nur fuer die
+            // umziehende Buchung selbst blockiert war.
+            const getMoveTargets = () => {
+                if (!selectedBed) return { free: [], swap: [] };
+                const alle = Object.entries(beds)
+                    .filter(([id]) => id !== selectedBed)
+                    .map(([id, info]) => ({ id, ...info }))
+                    .sort((a, b) => a.roomId - b.roomId || a.bedNum - b.bedNum);
+                const istPerson = (b) => b && !['blocked', 'women_only', 'men_only'].includes(b.status);
+                return {
+                    free: alle.filter(b => !bookings[b.id] || bookings[b.id].blockedBy === selectedBed),
+                    swap: alle.filter(b => istPerson(bookings[b.id]))
+                };
+            };
+
+            const bedLabelOf = (bedId) => beds[bedId] ? `${beds[bedId].room} – Bett ${beds[bedId].bedNum}` : bedId;
+
+            const handleMove = async () => {
+                if (!moveTarget || saving) return;
+                const andere = bookings[moveTarget];
+                const ziel = bedLabelOf(moveTarget);
+                const frage = andere
+                    ? `Betten tauschen?\n\n${selectedBooking.name} → ${ziel}\n${andere.name} → ${bedLabelOf(selectedBed)}\n\nAlle Angaben ziehen mit um.`
+                    : `Umziehen nach ${ziel}?\n\nAlle Angaben ziehen mit um.`;
+                if (!confirm(frage)) return;
+                setSaving(true);
+                try {
+                    const res = await fetch(`${API_URL}/bookings/${selectedBed}/move`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ targetBedId: moveTarget })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) { alert('❌ ' + (data.error || 'Der Wechsel hat nicht geklappt.')); return; }
+                    await loadBookings();
+                    await loadRideRequests();
+                    closeModal();
+                    const zusatz = data.freedBeds ? `\n\nHinweis: ${data.freedBeds} vorher blockierte${data.freedBeds === 1 ? 's Bett wurde' : ' Betten wurden'} wieder freigegeben.` : '';
+                    alert((data.mode === 'swap'
+                        ? `✅ Getauscht mit ${data.otherName}.`
+                        : `✅ Umgezogen nach ${data.label}.`) + zusatz);
+                } catch { setError('Der Bettwechsel hat nicht geklappt.'); }
+                finally { setSaving(false); }
+            };
+
             const addCompanion = () => setCompanions([...companions, { name: '', bedId: '' }]);
             const removeCompanion = (idx) => setCompanions(companions.filter((_, i) => i !== idx));
             const updateCompanion = (idx, field, value) => {
@@ -4031,6 +4093,42 @@
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* Bett wechseln: umziehen oder tauschen, ohne zu stornieren */}
+                                        {isBooked && (() => {
+                                            const ziele = getMoveTargets();
+                                            if (!ziele.free.length && !ziele.swap.length) return null;
+                                            return (
+                                                <div className="move-section">
+                                                    <div className="move-title">🔁 Bett wechseln</div>
+                                                    <p className="move-hint">
+                                                        Umziehen oder mit jemandem tauschen – <strong>ohne zu stornieren</strong>.
+                                                        Anreise, Mitfahrten sowie Essens- und Frühstückswünsche ziehen mit um.
+                                                    </p>
+                                                    <select className="modal-input move-select" value={moveTarget} onChange={e => setMoveTarget(e.target.value)} disabled={saving}>
+                                                        <option value="">Zielbett wählen …</option>
+                                                        {ziele.free.length > 0 && (
+                                                            <optgroup label="Freie Betten">
+                                                                {ziele.free.map(b => (
+                                                                    <option key={b.id} value={b.id}>{b.room} – Bett {b.bedNum}</option>
+                                                                ))}
+                                                            </optgroup>
+                                                        )}
+                                                        {ziele.swap.length > 0 && (
+                                                            <optgroup label="Tauschen mit">
+                                                                {ziele.swap.map(b => (
+                                                                    <option key={b.id} value={b.id}>{b.room} – Bett {b.bedNum} · {bookings[b.id].name}</option>
+                                                                ))}
+                                                            </optgroup>
+                                                        )}
+                                                    </select>
+                                                    <button type="button" className="btn btn-secondary move-btn" onClick={handleMove} disabled={saving || !moveTarget}>
+                                                        {saving ? '...' : bookings[moveTarget] ? '🔁 Betten tauschen' : '➡️ Hierher umziehen'}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })()}
+
                                         <input type="text" className="modal-input" placeholder="Dein Name" value={inputName} onChange={e => setInputName(e.target.value)} autoFocus disabled={saving} />
                                         {travelFormJSX}
                                         {/* Mitreisende */}

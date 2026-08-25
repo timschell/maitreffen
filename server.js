@@ -932,17 +932,18 @@ const AUTH_APP_URL = process.env.AUTH_APP_URL || 'https://brettspielfamilie.de';
 const INTERNAL_API_TOKEN = process.env.INTERNAL_API_TOKEN || '';
 
 /**
- * Schickt eine Mitfahr-Benachrichtigung an ein Vereinskonto. Nur moeglich, wenn die
- * Buchung mit einem Konto verknuepft ist – Freitext-Buchungen haben keine Adresse.
- * Bewusst "fire and forget": eine fehlgeschlagene Mail darf die Anfrage nicht kippen.
+ * Schickt eine Benachrichtigung an ein Vereinskonto (Mitfahrten, Bettwechsel). Nur
+ * moeglich, wenn die Buchung mit einem Konto verknuepft ist – Freitext-Buchungen haben
+ * keine Adresse. Bewusst "fire and forget": eine fehlgeschlagene Mail darf die
+ * ausloesende Aktion nicht kippen.
  */
-function notifyRide(userId, { subject, text }) {
+function notifyMember(userId, { subject, text }) {
   if (!userId || !INTERNAL_API_TOKEN) return;
   fetch(`${AUTH_APP_URL}/api/ride-notify`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-internal-token': INTERNAL_API_TOKEN },
     body: JSON.stringify({ userId, subject, text })
-  }).catch(err => console.error('Mitfahr-Benachrichtigung fehlgeschlagen:', err.message));
+  }).catch(err => console.error('Benachrichtigung fehlgeschlagen:', err.message));
 }
 
 // Holt die aktuelle Better-Auth-Session, indem das eingehende Cookie an die
@@ -1415,7 +1416,7 @@ app.post('/api/rides/:offerBedId/requests', async (req, res) => {
       [req.eventId, offerBedId, requesterBedId || null, name, sessionUser?.id || null, (message || '').trim() || null]
     );
 
-    notifyRide(offer.rows[0].user_id, {
+    notifyMember(offer.rows[0].user_id, {
       subject: `Mitfahr-Anfrage von ${name}`,
       text: `${name} moechte bei dir mitfahren.` +
             ((message || '').trim() ? `\n\nNachricht: ${message.trim()}` : '') +
@@ -1478,7 +1479,7 @@ app.post('/api/rides/requests/:id/:decision', async (req, res) => {
       [req.eventId, reqRow.offer_bed_id]
     );
     const driverName = driver.rows[0]?.name || 'Die fahrende Person';
-    notifyRide(reqRow.requester_user_id, {
+    notifyMember(reqRow.requester_user_id, {
       subject: decision === 'accept' ? 'Mitfahrt zugesagt' : 'Mitfahrt leider abgesagt',
       text: decision === 'accept'
         ? `${driverName} hat dir einen Platz zugesagt. Details klaert ihr am besten direkt.`
@@ -1576,6 +1577,155 @@ app.post('/api/bookings/:bedId', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Fehler beim Speichern der Buchung:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * Gibt es dieses Bett im Zimmerplan dieses Events? Schuetzt davor, dass eine Buchung
+ * auf einem Platz landet, den der Plan gar nicht kennt – sie waere dann unsichtbar.
+ */
+async function bedExists(client, eventId, bedId) {
+  const m = /^zi(\d+)-bett(\d+)$/.exec(bedId || '');
+  if (!m) return false;
+  const r = await client.query(
+    'SELECT beds_count FROM event_rooms WHERE id = $1 AND event_id = $2',
+    [m[1], eventId]
+  );
+  const nr = Number(m[2]);
+  return r.rowCount > 0 && nr >= 1 && nr <= r.rows[0].beds_count;
+}
+
+/** Menschenlesbares Bett-Label ("Zimmer 9 – Bett 2") aus einer Bett-ID. */
+async function bedLabel(client, bedId) {
+  const m = /^zi(\d+)-bett(\d+)$/.exec(bedId || '');
+  if (!m) return bedId || 'Bett';
+  const r = await client.query('SELECT room_name FROM event_rooms WHERE id = $1', [m[1]]);
+  return r.rows[0] ? `${r.rows[0].room_name} – Bett ${m[2]}` : bedId;
+}
+
+/**
+ * Bett wechseln – umziehen oder mit einer anderen Person tauschen.
+ *
+ * Bewusst ein Umhängen der bestehenden Buchungszeile statt „stornieren und neu buchen":
+ * Reisedaten, Bahn-Angaben, Account-Verknüpfung und das Mitfahrangebot samt Anfragen
+ * ziehen mit um. Essens-, Frühstücks- und Spielewünsche hängen ohnehin am Namen und
+ * bleiben davon unberührt.
+ */
+app.post('/api/bookings/:bedId/move', async (req, res) => {
+  const from = req.params.bedId;
+  const to = String(req.body?.targetBedId || '').trim();
+
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+  if (!to || to === from) return res.status(400).json({ error: 'Bitte ein anderes Bett auswählen.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    if (!(await bedExists(client, req.eventId, to))) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Dieses Bett gibt es im Zimmerplan nicht.' });
+    }
+
+    // Beide Betten in fester Reihenfolge sperren, damit sich zwei gleichzeitige
+    // Wechsel nicht verklemmen.
+    const locked = await client.query(
+      `SELECT * FROM bookings WHERE event_id = $1 AND bed_id = ANY($2::varchar[])
+         ORDER BY bed_id FOR UPDATE`,
+      [req.eventId, [from, to]]
+    );
+    const src = locked.rows.find(r => r.bed_id === from);
+    const dst = locked.rows.find(r => r.bed_id === to);
+
+    if (!src) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Diese Buchung gibt es nicht mehr.' });
+    }
+    if (src.status !== 'booked') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Nur echte Buchungen können umziehen.' });
+    }
+
+    // Ein reserviertes Zielbett ist nur dann kein Hindernis, wenn die Reservierung
+    // zur umziehenden Buchung selbst gehört.
+    const reserviert = dst && dst.status !== 'booked';
+    if (reserviert && dst.blocked_by !== from) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Das Zielbett ist reserviert oder blockiert. Bitte zuerst freigeben.'
+      });
+    }
+    if (reserviert) {
+      await client.query('DELETE FROM bookings WHERE event_id = $1 AND bed_id = $2', [req.eventId, to]);
+    }
+
+    const tausch = !!dst && dst.status === 'booked';
+
+    if (tausch) {
+      // Zwischenparken, weil (event_id, bed_id) eindeutig sein muss.
+      await client.query('UPDATE bookings SET bed_id = $1 WHERE id = $2', [`__wechsel__${src.id}`, src.id]);
+      await client.query('UPDATE bookings SET bed_id = $1 WHERE id = $2', [from, dst.id]);
+      await client.query('UPDATE bookings SET bed_id = $1 WHERE id = $2', [to, src.id]);
+    } else {
+      await client.query('UPDATE bookings SET bed_id = $1 WHERE id = $2', [to, src.id]);
+    }
+
+    // Mitfahr-Anfragen zeigen auf Betten – sie müssen mitwandern, sonst hängt ein
+    // Angebot plötzlich am falschen Platz.
+    for (const col of ['offer_bed_id', 'requester_bed_id']) {
+      if (tausch) {
+        await client.query(
+          `UPDATE ride_requests SET ${col} = CASE WHEN ${col} = $2 THEN $3 ELSE $2 END
+             WHERE event_id = $1 AND ${col} IN ($2, $3)`,
+          [req.eventId, from, to]
+        );
+      } else {
+        await client.query(
+          `UPDATE ride_requests SET ${col} = $3 WHERE event_id = $1 AND ${col} = $2`,
+          [req.eventId, from, to]
+        );
+      }
+    }
+
+    // Betten, die für die umziehenden Buchungen blockiert waren, liegen jetzt im
+    // falschen Zimmer – sie werden wieder frei.
+    const beteiligt = tausch ? [from, to] : [from];
+    const frei = await client.query(
+      `DELETE FROM bookings WHERE event_id = $1 AND blocked_by = ANY($2::varchar[])
+         AND status IN ('blocked', 'women_only', 'men_only') RETURNING bed_id`,
+      [req.eventId, beteiligt]
+    );
+
+    const zielLabel = await bedLabel(client, to);
+    const startLabel = await bedLabel(client, from);
+
+    await client.query('COMMIT');
+
+    // Wer getauscht wurde, erfährt davon – sofern die Buchung an ein Konto hängt.
+    if (tausch && dst.user_id) {
+      notifyMember(dst.user_id, {
+        subject: 'Dein Bett beim Treffen wurde getauscht',
+        text: `${src.name} hat mit dir die Betten getauscht.\n\n` +
+              `Du liegst jetzt in: ${startLabel}\n(vorher: ${zielLabel})\n\n` +
+              `Alle deine übrigen Angaben – Anreise, Mitfahrten, Essens- und Frühstückswünsche – ` +
+              `sind unverändert. Auf der Treffenseite kannst du den Platz jederzeit wieder ändern.`
+      });
+    }
+
+    res.json({
+      success: true,
+      mode: tausch ? 'swap' : 'move',
+      bedId: to,
+      otherName: tausch ? dst.name : null,
+      freedBeds: frei.rowCount,
+      label: zielLabel
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Fehler beim Bettwechsel:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   } finally {
     client.release();
