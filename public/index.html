@@ -1015,6 +1015,53 @@
             min-width: 140px;
         }
 
+        .companions-hint {
+            font-size: 0.85rem;
+            color: #455a64;
+            margin: -0.25rem 0 0.75rem;
+        }
+
+        .companion-item {
+            background: rgba(255,255,255,0.6);
+            border-radius: 10px;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .companion-item .companion-row { margin-bottom: 0.35rem; }
+
+        .companion-bed {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.25rem 0.75rem;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+            padding: 0 0.25rem;
+        }
+        .companion-bed-same { color: #1976d2; font-weight: 600; }
+        .companion-bed-change {
+            background: none;
+            border: none;
+            color: #1976d2;
+            text-decoration: underline;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85rem;
+            padding: 0.25rem 0;
+        }
+        .companion-bed--choose { flex-direction: column; align-items: stretch; }
+        .companion-bed--choose select {
+            width: 100%;
+            padding: 0.6rem;
+            border-radius: 8px;
+            border: 2px solid #90caf9;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: #fff;
+        }
+        .companion-bed-note { font-size: 0.8rem; color: var(--text-muted); }
+
         .companion-remove {
             background: none;
             border: none;
@@ -2907,7 +2954,7 @@
                     const res = await fetch(`${API_URL}/bookings/${selectedBed}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...getBookingPayload(), roomRestriction, roomBeds: beds[selectedBed] ? getRoomBedIds(rooms, beds[selectedBed].roomId) : [] })
+                        body: JSON.stringify({ ...getBookingPayload(), roomRestriction, roomBeds: beds[selectedBed] ? getRoomBedIds(rooms, beds[selectedBed].roomId).filter(id => !validCompanions.some(c => c.bedId === id)) : [] })
                     });
                     if (!res.ok) throw new Error();
                     
@@ -3273,7 +3320,7 @@
 
             const filteredRooms = rooms.filter(r => r.floor === activeFloor);
             const getFloorFreeCount = (floor) => rooms.filter(r => r.floor === floor).reduce((sum, r) => sum + getRoomStats(r.id).free, 0);
-            const hasFreeBeds = () => selectedBed && beds[selectedBed] && getRoomBedIds(rooms, beds[selectedBed].roomId).some(id => id !== selectedBed && !bookings[id]);
+            const hasFreeBeds = () => selectedBed && beds[selectedBed] && getRoomBedIds(rooms, beds[selectedBed].roomId).some(id => id !== selectedBed && !bookings[id] && !companions.some(c => c.bedId === id));
             
             // Alle freien Betten (für Mitreisende-Auswahl)
             const getAvailableBeds = () => {
@@ -3331,12 +3378,36 @@
                 finally { setSaving(false); }
             };
 
-            const addCompanion = () => setCompanions([...companions, { name: '', bedId: '' }]);
+            // --- Mitreisende ---
+            // Mitreisende landen standardmäßig im eigenen Zimmer; ein anderes Bett nur auf Wunsch
+            // (oder wenn im eigenen Zimmer nichts mehr frei ist).
+            const ownRoomId = selectedBed ? beds[selectedBed]?.roomId : null;
+            // Freie Betten für Mitreisende Nr. idx (eigenes Bett, belegte und von anderen
+            // Mitreisenden gewählte Betten ausgenommen).
+            const companionFreeBeds = (idx) => Object.entries(beds)
+                .filter(([id]) => id !== selectedBed && !bookings[id] && !companions.some((c, i) => i !== idx && c.bedId === id))
+                .map(([id, info]) => ({ id, ...info }))
+                .sort((a, b) => a.roomId - b.roomId || a.bedNum - b.bedNum);
+            // Für die Auswahl nach Zimmer gruppieren – eigenes Zimmer zuerst.
+            const companionBedGroups = (idx) => {
+                const groups = [];
+                for (const b of companionFreeBeds(idx)) {
+                    let g = groups.find(x => x.roomId === b.roomId);
+                    if (!g) { g = { roomId: b.roomId, room: b.room, beds: [] }; groups.push(g); }
+                    g.beds.push(b);
+                }
+                return groups.sort((a, b) => (b.roomId === ownRoomId) - (a.roomId === ownRoomId));
+            };
+            const addCompanion = () => {
+                const sameRoom = companionFreeBeds(-1).find(b => b.roomId === ownRoomId);
+                setCompanions([...companions, { name: '', bedId: sameRoom ? sameRoom.id : '', choosing: !sameRoom }]);
+            };
             const removeCompanion = (idx) => setCompanions(companions.filter((_, i) => i !== idx));
             const updateCompanion = (idx, field, value) => {
-                const updated = [...companions];
-                updated[idx][field] = value;
-                setCompanions(updated);
+                setCompanions(companions.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+            };
+            const chooseCompanionBed = (idx, bedId) => {
+                setCompanions(companions.map((c, i) => i === idx ? { ...c, bedId, choosing: !bedId } : c));
             };
             const getBlockerName = (b) => b?.blockedBy ? bookings[b.blockedBy]?.name : null;
 
@@ -4219,36 +4290,65 @@
                                         <input type="text" className="modal-input" placeholder="Dein Name" value={inputName} onChange={e => setInputName(e.target.value)} autoFocus disabled={saving} />
                                         {travelFormJSX}
                                         {/* Mitreisende */}
-                                        {!isBooked && getAvailableBeds().length > 0 && (
+                                        {!isBooked && (getAvailableBeds().length > 0 || companions.length > 0) && (
                                             <div className="companions-section">
                                                 <div className="companions-title">👨‍👩‍👧 Mitreisende (gleiche Reisedaten)</div>
-                                                {companions.map((c, idx) => (
-                                                    <div key={idx} className="companion-row">
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="Name" 
-                                                            value={c.name} 
-                                                            onChange={e => updateCompanion(idx, 'name', e.target.value)}
-                                                            disabled={saving}
-                                                        />
-                                                        <select 
-                                                            value={c.bedId} 
-                                                            onChange={e => updateCompanion(idx, 'bedId', e.target.value)}
-                                                            disabled={saving}
-                                                        >
-                                                            <option value="">Bett wählen...</option>
-                                                            {getAvailableBeds().map(bed => (
-                                                                <option key={bed.id} value={bed.id}>{bed.room} – Bett {bed.bedNum}</option>
-                                                            ))}
-                                                            {c.bedId && !getAvailableBeds().find(b => b.id === c.bedId) && (
-                                                                <option value={c.bedId}>{beds[c.bedId]?.room} – Bett {beds[c.bedId]?.bedNum}</option>
+                                                {companions.length === 0 && (
+                                                    <p className="companions-hint">Mitreisende kommen automatisch in dein Zimmer – ein anderes Bett kannst du danach wählen.</p>
+                                                )}
+                                                {companions.map((c, idx) => {
+                                                    const bed = c.bedId ? beds[c.bedId] : null;
+                                                    const sameRoom = bed && bed.roomId === ownRoomId;
+                                                    return (
+                                                        <div key={idx} className="companion-item">
+                                                            <div className="companion-row">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Name"
+                                                                    value={c.name}
+                                                                    onChange={e => updateCompanion(idx, 'name', e.target.value)}
+                                                                    disabled={saving}
+                                                                />
+                                                                <button type="button" className="companion-remove" onClick={() => removeCompanion(idx)} aria-label="Person entfernen">✕</button>
+                                                            </div>
+                                                            {bed && !c.choosing ? (
+                                                                <div className="companion-bed">
+                                                                    <span>🛏️ {bed.room} – Bett {bed.bedNum}{sameRoom && <span className="companion-bed-same"> · dein Zimmer</span>}</span>
+                                                                    <button type="button" className="companion-bed-change" onClick={() => updateCompanion(idx, 'choosing', true)} disabled={saving}>
+                                                                        anderes Bett wählen
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="companion-bed companion-bed--choose">
+                                                                    {!companionFreeBeds(idx).some(b => b.roomId === ownRoomId) && !c.bedId && (
+                                                                        <span className="companion-bed-note">In deinem Zimmer ist kein Bett mehr frei.</span>
+                                                                    )}
+                                                                    <select
+                                                                        value={c.bedId}
+                                                                        onChange={e => chooseCompanionBed(idx, e.target.value)}
+                                                                        disabled={saving}
+                                                                    >
+                                                                        <option value="">Bett wählen…</option>
+                                                                        {companionBedGroups(idx).map(g => (
+                                                                            <optgroup key={g.roomId} label={g.roomId === ownRoomId ? `${g.room} (dein Zimmer)` : g.room}>
+                                                                                {g.beds.map(b => (
+                                                                                    <option key={b.id} value={b.id}>{g.room} – Bett {b.bedNum}</option>
+                                                                                ))}
+                                                                            </optgroup>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
                                                             )}
-                                                        </select>
-                                                        <button type="button" className="companion-remove" onClick={() => removeCompanion(idx)}>✕</button>
-                                                    </div>
-                                                ))}
-                                                <button type="button" className="add-companion-btn" onClick={addCompanion} disabled={saving}>
-                                                    + Weitere Person hinzufügen
+                                                        </div>
+                                                    );
+                                                })}
+                                                <button
+                                                    type="button"
+                                                    className="add-companion-btn"
+                                                    onClick={addCompanion}
+                                                    disabled={saving || companionFreeBeds(-1).length === 0}
+                                                >
+                                                    {companionFreeBeds(-1).length === 0 ? 'Keine weiteren Betten frei' : '+ Weitere Person hinzufügen'}
                                                 </button>
                                             </div>
                                         )}
