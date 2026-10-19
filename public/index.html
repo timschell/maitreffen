@@ -1528,7 +1528,16 @@
             width: 32px; height: 32px; object-fit: cover; border-radius: 5px; flex: none;
             display: flex; align-items: center; justify-content: center; background: #f0e6da; font-size: 1rem;
         }
-        .collection-pick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .collection-pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .collection-pick-hint { font-weight: 400; color: var(--text-muted); font-size: 0.75rem; margin-left: 0.4rem; }
+        .collection-pick-check {
+            flex: none; min-width: 22px; height: 22px; border-radius: 6px; border: 2px solid #e0c4a4;
+            display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #fff;
+        }
+        .collection-pick-item.picked { border-color: #d2691e; background: #fff3e0; }
+        .collection-pick-item.picked .collection-pick-check { background: #d2691e; border-color: #d2691e; }
+        .collection-pick-item.done { opacity: 0.55; cursor: default; }
+        .collection-pick-item.done .collection-pick-check { border: none; color: #2e7d32; width: auto; padding: 0 0.2rem; }
         .collection-pick-or { text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
         .collection-add-check {
             display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;
@@ -2214,6 +2223,8 @@
             // Eigene Spielsammlung (aus der neuen App): IDs für den Wunsch-Abgleich, volle Daten fürs Mitbringen
             const [myCollectionBggIds, setMyCollectionBggIds] = useState([]);
             const [myCollectionGames, setMyCollectionGames] = useState([]);
+            // Mehrfachauswahl aus der eigenen Sammlung (bggIds)
+            const [collectionPicks, setCollectionPicks] = useState([]);
             // Verbindliche-Anmeldungs-Status je Person (nur für den Vorstand) für die Bett-Badges.
             const [regStatus, setRegStatus] = useState({ authorized: false, people: [], byUser: {} });
             // Hinweis auf die verbindliche Anmeldung am Ende einer neuen Reservierung.
@@ -3117,6 +3128,7 @@
                 setBggSearchQuery('');
                 setBggSearchResults([]);
                 setSelectedBggGame(null);
+                setCollectionPicks([]);
                 setGameModalOpen(true);
             };
 
@@ -3167,45 +3179,64 @@
                 finally { setBggSearching(false); }
             };
 
+            const postGame = (g) => fetch(`${API_URL}/games`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gameName: g.name,
+                    personName: gamePersonName.trim(),
+                    type: gameModalType,
+                    bggId: g.bggId,
+                    bggThumbnail: g.thumbnail,
+                    bggImage: g.image,
+                    bggYear: g.year,
+                    bggMinPlayers: g.minPlayers,
+                    bggMaxPlayers: g.maxPlayers,
+                    bggPlaytime: g.playtime,
+                    bggMinAge: g.minAge,
+                    bggDescription: g.description
+                })
+            });
+
+            // Spiel ist für diese Person schon auf der Mitbringliste?
+            const alreadyBrought = (bggId) => games.some(g => g.type === 'bring' && g.bgg_id != null
+                && Number(g.bgg_id) === Number(bggId) && g.person_name === gamePersonName.trim());
+
+            const toggleCollectionPick = (bggId) => {
+                setSelectedBggGame(null);
+                setCollectionPicks(prev => prev.includes(bggId) ? prev.filter(id => id !== bggId) : [...prev, bggId]);
+            };
+
             const handleAddGame = async () => {
-                if (!selectedBggGame || !gamePersonName.trim() || saving) return;
+                if (!gamePersonName.trim() || saving) return;
+                const picked = myCollectionGames.filter(cg => collectionPicks.includes(cg.bggId) && !alreadyBrought(cg.bggId));
+                if (!selectedBggGame && picked.length === 0) return;
                 setSaving(true);
                 try {
-                    await fetch(`${API_URL}/games`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                    gameName: selectedBggGame.name,
-                    personName: gamePersonName.trim(), 
-                    type: gameModalType,
-                    bggId: selectedBggGame.bggId,
-                    bggThumbnail: selectedBggGame.thumbnail,
-                    bggImage: selectedBggGame.image,
-                    bggYear: selectedBggGame.year,
-                    bggMinPlayers: selectedBggGame.minPlayers,
-                    bggMaxPlayers: selectedBggGame.maxPlayers,
-                    bggPlaytime: selectedBggGame.playtime,
-                    bggMinAge: selectedBggGame.minAge,
-                        bggDescription: selectedBggGame.description
-                        })
-                    });
-                    // Beim Mitbringen neues Spiel optional in die eigene Sammlung übernehmen
-                    if (gameModalType === 'bring' && addToMyCollection && wpUser?.name
-                        && selectedBggGame.bggId && !myCollectionBggIds.includes(Number(selectedBggGame.bggId))) {
-                        try {
-                            await fetch(`${API_URL}/my-collection`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ bggId: selectedBggGame.bggId })
-                            });
-                            await loadMyCollection();
-                        } catch { /* Sammlungs-Update ist optional */ }
+                    if (picked.length > 0) {
+                        // Mehrere Spiele aus der Sammlung nacheinander eintragen
+                        for (const cg of picked) await postGame(cg);
+                    } else {
+                        await postGame(selectedBggGame);
+                        // Beim Mitbringen neues Spiel optional in die eigene Sammlung übernehmen
+                        if (gameModalType === 'bring' && addToMyCollection && wpUser?.name
+                            && selectedBggGame.bggId && !myCollectionBggIds.includes(Number(selectedBggGame.bggId))) {
+                            try {
+                                await fetch(`${API_URL}/my-collection`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ bggId: selectedBggGame.bggId })
+                                });
+                                await loadMyCollection();
+                            } catch { /* Sammlungs-Update ist optional */ }
+                        }
                     }
                     await loadGames();
                     setGameModalOpen(false);
                     setSelectedBggGame(null);
+                    setCollectionPicks([]);
                     setGamePersonName('');
-                } catch { setError('Spiel konnte nicht hinzugefügt werden.'); }
+                } catch { setError('Spiel konnte nicht hinzugefügt werden.'); await loadGames(); }
                 finally { setSaving(false); }
             };
 
@@ -4591,25 +4622,35 @@
                                 {/* Aus eigener Sammlung wählen (nur beim Mitbringen) */}
                                 {gameModalType === 'bring' && !selectedBggGame && wpUser && myCollectionGames.length > 0 && (
                                     <div className="collection-pick">
-                                        <div className="collection-pick-label">⭐ Aus deiner Sammlung</div>
-                                        <div className="collection-pick-list">
-                                            {myCollectionGames.map(cg => (
-                                                <button type="button" key={cg.bggId} className="collection-pick-item" onClick={() => setSelectedBggGame(cg)}>
-                                                    {cg.thumbnail ? (
-                                                        <img src={cg.thumbnail} alt="" className="collection-pick-thumb" />
-                                                    ) : (
-                                                        <span className="collection-pick-thumb">🎲</span>
-                                                    )}
-                                                    <span className="collection-pick-name">{cg.name}</span>
-                                                </button>
-                                            ))}
+                                        <div className="collection-pick-label">
+                                            ⭐ Aus deiner Sammlung
+                                            <span className="collection-pick-hint">{collectionPicks.length > 0 ? `${collectionPicks.length} ausgewählt` : 'mehrere antippen möglich'}</span>
                                         </div>
-                                        <div className="collection-pick-or">— oder auf BoardGameGeek suchen —</div>
+                                        <div className="collection-pick-list">
+                                            {myCollectionGames.map(cg => {
+                                                const done = alreadyBrought(cg.bggId);
+                                                const picked = !done && collectionPicks.includes(cg.bggId);
+                                                return (
+                                                    <button type="button" key={cg.bggId} disabled={done || saving}
+                                                        className={`collection-pick-item ${picked ? 'picked' : ''} ${done ? 'done' : ''}`}
+                                                        onClick={() => toggleCollectionPick(cg.bggId)}>
+                                                        {cg.thumbnail ? (
+                                                            <img src={cg.thumbnail} alt="" className="collection-pick-thumb" />
+                                                        ) : (
+                                                            <span className="collection-pick-thumb">🎲</span>
+                                                        )}
+                                                        <span className="collection-pick-name">{cg.name}</span>
+                                                        <span className="collection-pick-check">{done ? '✓ dabei' : picked ? '✓' : ''}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        {collectionPicks.length === 0 && <div className="collection-pick-or">— oder auf BoardGameGeek suchen —</div>}
                                     </div>
                                 )}
 
-                                {/* BGG Suche */}
-                                {!selectedBggGame ? (
+                                {/* BGG Suche (ausgeblendet, solange Spiele aus der Sammlung markiert sind) */}
+                                {collectionPicks.length > 0 ? null : !selectedBggGame ? (
                                     <div className="bgg-search-container">
                                         <input 
                                             type="text" 
@@ -4687,9 +4728,9 @@
                                     <button 
                                         className={`btn ${gameModalType === 'bring' ? 'btn-games' : 'btn-wish'}`} 
                                         onClick={handleAddGame} 
-                                        disabled={saving || !selectedBggGame || !gamePersonName.trim()}
+                                        disabled={saving || (!selectedBggGame && collectionPicks.length === 0) || !gamePersonName.trim()}
                                     >
-                                        {saving ? '...' : 'Hinzufügen'}
+                                        {saving ? '...' : collectionPicks.length > 1 ? `${collectionPicks.length} Spiele hinzufügen` : 'Hinzufügen'}
                                     </button>
                                 </div>
                             </div>
