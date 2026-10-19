@@ -2965,6 +2965,13 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ 
                                 ...getBookingPayload(), 
+                                // Mitreisende fahren mit – das Mitfahr-Angebot gehört nur zur
+                                // Hauptperson, sonst taucht jede:r als eigenes Auto auf.
+                                canOfferRide: false,
+                                seatsAvailable: 0,
+                                departureCity: null,
+                                // Nicht mit dem Konto der buchenden Person verknüpfen.
+                                linkAccount: false,
                                 name: companion.name.trim(),
                                 roomRestriction: 'none',
                                 roomBeds: []

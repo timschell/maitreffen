@@ -1549,9 +1549,11 @@ app.post('/api/bookings/:bedId', async (req, res) => {
     return res.status(400).json({ error: 'Name ist erforderlich' });
   }
 
-  // Eingeloggte Nutzer werden automatisch mit der Buchung verknüpft (user_id).
+  // Eingeloggte Nutzer werden automatisch mit der Buchung verknüpft (user_id) – außer
+  // bei Mitreisenden (linkAccount: false): die gehören nicht zum Konto der buchenden
+  // Person und sollen ihr Bett später mit dem eigenen Konto übernehmen können.
   const sessionUser = await getSession(req);
-  const uid = sessionUser?.id || null;
+  const uid = req.body.linkAccount === false ? null : (sessionUser?.id || null);
 
   const client = await pool.connect();
 
