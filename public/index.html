@@ -249,6 +249,30 @@
         .stat-value { font-weight: 700; }
 
         /* Full Banner */
+        /* Eigener Anmeldestatus */
+        .reg-banner {
+            border-radius: 12px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 1rem;
+            border: 2px solid;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        .reg-banner--paid { background: #e8f5e9; border-color: #a5d6a7; }
+        .reg-banner--open { background: #fff8e1; border-color: #ffe082; }
+        .reg-banner--todo { background: var(--waitlist-light); border-color: var(--waitlist); }
+        .reg-banner-title { font-weight: 700; color: var(--text-dark); }
+        .reg-banner-text { font-size: 0.9rem; color: var(--text-dark); }
+        .reg-banner-btn {
+            flex: none;
+            align-self: flex-start;
+            margin-top: 0.5rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
+            text-decoration: none;
+        }
+
         .full-banner {
             background: var(--waitlist-light);
             border: 2px solid var(--waitlist);
@@ -2122,6 +2146,8 @@
             // Hinweis auf die verbindliche Anmeldung am Ende einer neuen Reservierung.
             const [regPrompt, setRegPrompt] = useState(null); // { anmeldungUrl, loggedIn }
             const regPromptPendingRef = React.useRef(false);
+            // Eigener Anmeldestatus für die Anzeige oben (nur eingeloggt).
+            const [myReg, setMyReg] = useState(null);
             const [linkSaving, setLinkSaving] = useState(false);
 
             // Dynamischer Ankunftsort (z.B. "Sternhagen") statt hardcoded "Halbe"
@@ -2174,6 +2200,17 @@
                 } catch { setRegStatus({ authorized: false, people: [], byUser: {} }); }
             };
             useEffect(() => { loadRegStatus(); }, [wpUser]);
+
+            // Eigenen Status der verbindlichen Anmeldung laden – Mitglieder sollen sehen,
+            // ob sie schon angemeldet sind, ohne beim Vorstand nachfragen zu müssen.
+            const loadMyReg = async () => {
+                if (!wpUser) { setMyReg(null); return; }
+                try {
+                    const res = await fetch(`${API_URL}/meine-anmeldung`, { credentials: 'include' });
+                    setMyReg(res.ok ? await res.json() : null);
+                } catch { setMyReg(null); }
+            };
+            useEffect(() => { loadMyReg(); }, [wpUser]);
 
             // Am Ende einer NEUEN Reservierung: auf die verbindliche Anmeldung hinweisen,
             // sofern es für dieses Treffen eine gibt und die Person (laut Vereinskonto)
@@ -3624,6 +3661,29 @@
                             {waitlist.length > 0 && <div className="stat"><div className="stat-dot waitlist"></div><span><span className="stat-value">{waitlist.length}</span> Warteliste</span></div>}
                         </div>
                     </header>
+
+                    {/* Eigener Anmeldestatus (nur eingeloggt, nur wenn es eine Anmeldung gibt/gab) */}
+                    {wpUser && myReg && myReg.loggedIn && (myReg.registered ? (
+                        <div className={`reg-banner ${myReg.paymentStatus === 'paid' ? 'reg-banner--paid' : 'reg-banner--open'}`}>
+                            <div className="reg-banner-title">✅ Du bist verbindlich angemeldet</div>
+                            {myReg.participants.length > 0 && (
+                                <div className="reg-banner-text">Für: {myReg.participants.join(', ')}</div>
+                            )}
+                            <div className="reg-banner-text">
+                                {myReg.paymentStatus === 'paid'
+                                    ? '💶 Zahlung eingegangen'
+                                    : myReg.paymentDeadline
+                                        ? `💶 Zahlung offen – bitte bis ${new Date(myReg.paymentDeadline).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })}`
+                                        : '💶 Zahlung offen'}
+                            </div>
+                        </div>
+                    ) : myReg.anmeldungUrl ? (
+                        <div className="reg-banner reg-banner--todo">
+                            <div className="reg-banner-title">⚠️ Du bist noch nicht verbindlich angemeldet</div>
+                            <div className="reg-banner-text">Die Bettwahl allein reicht nicht – erst mit der Anmeldung ist dein Platz fest.</div>
+                            <a className="btn btn-primary reg-banner-btn" href={myReg.anmeldungUrl}>Jetzt verbindlich anmelden</a>
+                        </div>
+                    ) : null)}
 
                     {isFull && (
                         <div className="full-banner">
