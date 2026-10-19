@@ -1083,6 +1083,30 @@ app.get('/api/treffen-status', async (req, res) => {
   }
 });
 
+// Eigener Status der verbindlichen Anmeldung (aus der neuen App). Für den Hinweis am
+// Ende der Zimmerbuchung: Link zur Anmeldung + ob die eingeloggte Person schon
+// angemeldet ist. Ohne Login kommt nur der Link zurück (registered: false).
+app.get('/api/meine-anmeldung', async (req, res) => {
+  const slug = req.event?.slug;
+  const empty = { anmeldungUrl: null, loggedIn: false, registered: false };
+  if (!slug) return res.json(empty);
+  try {
+    const headers = { Accept: 'application/json' };
+    if (req.headers.cookie) headers.Cookie = req.headers.cookie;
+    const r = await fetch(`${AUTH_APP_URL}/api/meine-treffen-anmeldung/${encodeURIComponent(slug)}`, { headers });
+    if (!r.ok) return res.json(empty);
+    const data = await r.json();
+    res.json({
+      anmeldungUrl: typeof data.anmeldungUrl === 'string' ? data.anmeldungUrl : null,
+      loggedIn: !!data.loggedIn,
+      registered: !!data.registered
+    });
+  } catch (err) {
+    console.error('meine-anmeldung Proxy fehlgeschlagen:', err.message);
+    res.json(empty);
+  }
+});
+
 // Alle Events auflisten
 app.get('/api/admin/events', adminAuth, async (req, res) => {
   try {

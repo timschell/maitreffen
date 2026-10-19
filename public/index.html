@@ -2119,6 +2119,9 @@
             const [myCollectionGames, setMyCollectionGames] = useState([]);
             // Verbindliche-Anmeldungs-Status je Person (nur für den Vorstand) für die Bett-Badges.
             const [regStatus, setRegStatus] = useState({ authorized: false, people: [], byUser: {} });
+            // Hinweis auf die verbindliche Anmeldung am Ende einer neuen Reservierung.
+            const [regPrompt, setRegPrompt] = useState(null); // { anmeldungUrl, loggedIn }
+            const regPromptPendingRef = React.useRef(false);
             const [linkSaving, setLinkSaving] = useState(false);
 
             // Dynamischer Ankunftsort (z.B. "Sternhagen") statt hardcoded "Halbe"
@@ -2171,6 +2174,22 @@
                 } catch { setRegStatus({ authorized: false, people: [], byUser: {} }); }
             };
             useEffect(() => { loadRegStatus(); }, [wpUser]);
+
+            // Am Ende einer NEUEN Reservierung: auf die verbindliche Anmeldung hinweisen,
+            // sofern es für dieses Treffen eine gibt und die Person (laut Vereinskonto)
+            // noch nicht angemeldet ist. Ohne Login lässt sich das nicht prüfen → Hinweis
+            // mit „falls noch nicht geschehen".
+            const showRegistrationPromptIfNeeded = async () => {
+                if (!regPromptPendingRef.current) return;
+                regPromptPendingRef.current = false;
+                try {
+                    const res = await fetch(`${API_URL}/meine-anmeldung`, { credentials: 'include' });
+                    const data = res.ok ? await res.json() : null;
+                    if (!data || !data.anmeldungUrl) return;
+                    if (data.loggedIn && data.registered) return;
+                    setRegPrompt({ anmeldungUrl: data.anmeldungUrl, loggedIn: !!data.loggedIn });
+                } catch { /* Hinweis ist optional */ }
+            };
 
             // Freitext-Namen normalisieren (muss zur neuen App passen).
             const normalizeName = (s) => (s || '')
@@ -2456,6 +2475,7 @@
                         setMealModalItemSelections({});
                         setPendingMealPersons([]);
                         setTotalMealPersons(0);
+                        showRegistrationPromptIfNeeded();
                     }
                 } catch (err) {
                     console.error('Fehler:', err);
@@ -2480,6 +2500,7 @@
                     setMealModalItemSelections({});
                     setPendingMealPersons([]);
                     setTotalMealPersons(0);
+                    showRegistrationPromptIfNeeded();
                 }
             };
             
@@ -2840,6 +2861,8 @@
                 if (!inputName.trim() || saving) return;
                 // Validiere Mitreisende
                 const validCompanions = companions.filter(c => c.name.trim() && c.bedId);
+                // Nur bei einer NEUEN Reservierung (nicht beim Ändern) auf die Anmeldung hinweisen.
+                const isNewReservation = bookings[selectedBed]?.status !== 'booked';
                 setSaving(true);
                 setError(null);
                 try {
@@ -2866,6 +2889,7 @@
                     }
                     
                     await loadBookings();
+                    regPromptPendingRef.current = isNewReservation;
                     
                     // Öffne Essens-Modal für alle gebuchten Personen (Hauptperson + Companions)
                     if (meals.length > 0) {
@@ -2878,6 +2902,7 @@
                         setModalOpen(false);
                     } else {
                         closeModal();
+                        showRegistrationPromptIfNeeded();
                     }
                 } catch { setError('Buchung konnte nicht gespeichert werden.'); }
                 finally { setSaving(false); }
@@ -2895,6 +2920,7 @@
                     });
                     if (!res.ok) throw new Error();
                     await loadBookings();
+                    regPromptPendingRef.current = true;
                     
                     // Öffne Essens-Modal statt direkt zu schließen
                     if (meals.length > 0) {
@@ -2905,6 +2931,7 @@
                         setModalOpen(false);
                     } else {
                         closeModal();
+                        showRegistrationPromptIfNeeded();
                     }
                 } catch { setError('Buchung konnte nicht gespeichert werden.'); }
                 finally { setSaving(false); }
@@ -4508,6 +4535,39 @@
                         </div>
                     )}
                     
+                    {/* Hinweis: verbindliche Anmeldung (nach neuer Reservierung) */}
+                    {regPrompt && (
+                        <div className="modal-overlay" onClick={() => setRegPrompt(null)}>
+                            <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth: '480px'}}>
+                                <div className="modal-handle"></div>
+                                <h2>✅ Bett reserviert – fast geschafft!</h2>
+                                <p style={{fontSize: '0.95rem', color: 'var(--text-dark)', margin: '0.75rem 0', lineHeight: 1.5}}>
+                                    {regPrompt.loggedIn
+                                        ? 'Für dieses Treffen liegt noch keine verbindliche Anmeldung von dir vor. Erst mit der Anmeldung ist deine Teilnahme fest – die Bettwahl allein reicht dafür nicht.'
+                                        : 'Die Bettwahl allein macht deine Teilnahme noch nicht verbindlich. Falls du dich noch nicht angemeldet hast, erledige das am besten gleich.'}
+                                </p>
+                                <p style={{fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem', lineHeight: 1.45}}>
+                                    💡 Gib bei der Anmeldung alle Personen an, für die du hier ein Bett reserviert hast.
+                                </p>
+                                {!regPrompt.loggedIn && (
+                                    <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', lineHeight: 1.45}}>
+                                        Mit Vereinskonto eingeloggt erkennen wir automatisch, ob du schon angemeldet bist.
+                                    </p>
+                                )}
+                                <div className="modal-buttons">
+                                    <button className="btn btn-secondary" onClick={() => setRegPrompt(null)}>Später</button>
+                                    <a
+                                        className="btn btn-primary"
+                                        href={regPrompt.anmeldungUrl}
+                                        style={{display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', textDecoration: 'none'}}
+                                    >
+                                        Jetzt verbindlich anmelden
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Essens-Modal nach Buchung */}
                     {mealModalOpen && (
                         <div className="modal-overlay">
