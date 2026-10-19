@@ -1192,6 +1192,8 @@
         }
 
         .info-text a { color: var(--accent); }
+        .info-text p { margin: 0 0 0.9em; }
+        .info-text p:last-child { margin-bottom: 0; }
         
         /* Meals Section */
         .meals-section {
@@ -2042,6 +2044,30 @@
         const AUTH_APP_URL = 'https://brettspielfamilie.de';
 
         // Hilfsfunktionen für dynamische Daten
+        // "Über das Haus": Zimmer pro Etage zusammenfassen, z.B. "3×2-Bett, 1×4-Bett (2 mit eigenem Bad)"
+        const FLOOR_LABELS = { ug: 'Untergeschoss', kg: 'Kellergeschoss', eg: 'Erdgeschoss', og: 'Obergeschoss', dg: 'Dachgeschoss' };
+        const houseFloorSummary = (rooms) => {
+            const floors = [];
+            rooms.forEach(r => { if (!floors.includes(r.floor)) floors.push(r.floor); });
+            const order = ['ug', 'kg', 'eg', 'og', 'dg'];
+            floors.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+            return floors.map(floor => {
+                const fr = rooms.filter(r => r.floor === floor);
+                const counts = {};
+                fr.forEach(r => { counts[r.beds] = (counts[r.beds] || 0) + 1; });
+                const sizes = Object.keys(counts).map(Number).sort((a, b) => a - b).map(b => `${counts[b]}×${b}-Bett`).join(', ');
+                const baths = fr.filter(r => r.bath).length;
+                const bathText = baths === 0 ? '' : baths === fr.length ? ' · alle mit eigenem Bad' : ` · ${baths} mit eigenem Bad`;
+                return { floor, label: FLOOR_LABELS[floor] || floor.toUpperCase(), text: sizes + bathText };
+            });
+        };
+        // Freitextzeile: **fett** und Links (https://…) darstellen
+        const renderInfoLine = (line) => line.split(/(\*\*[^*]+\*\*|https?:\/\/[^\s]+)/g).filter(Boolean).map((part, i) => {
+            if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>;
+            if (/^https?:\/\//.test(part)) return <a key={i} href={part} target="_blank" rel="noopener">{part.replace(/^https?:\/\//, '')}</a>;
+            return part;
+        });
+
         const generateBeds = (rooms) => {
             const beds = {};
             rooms.forEach(room => {
@@ -4168,25 +4194,46 @@
                         )}
                     </div>
 
-                    {/* Info */}
+                    {/* Info – aus Event-Daten, Zimmern und dem Freitext "Infos zum Haus" (Admin) */}
                     <div className="info-section">
                         <h4 className="info-title">ℹ️ Über das Haus</h4>
-                        <p className="info-text">
-                            Das Evangelische Freizeitheim Sternhagen bietet 9 Zimmer mit insgesamt 30 Betten.<br/><br/>
-                            <strong>Obergeschoss:</strong> 3×2-Bett, 2×3-Bett, 1×4-Bett, 1×5-Bett + 2 Toiletten mit Dusche<br/>
-                            <strong>Untergeschoss:</strong> 2×4-Bett, 1×1-Bett + 3 Toiletten, 4 Duschen<br/><br/>
-                            🛏️ <strong>Bettwäsche ist mitzubringen</strong> oder kann für 7,00 € ausgeliehen werden.<br/>
-                            🧴 <strong>Handtücher:</strong> 1,00 € zum Ausleihen<br/>
-                            👟 <strong>Hausschuhe sind Pflicht</strong> im Haus<br/><br/>
-                            ⏰ <strong>Check-in ab 16:00 Uhr</strong> · <strong>Check-out bis 11:00 Uhr</strong><br/><br/>
-                            🔒 <strong>Zimmer-Optionen:</strong> Beim Buchen kannst du restliche Betten blockieren oder als Frauen-/Männerzimmer markieren.<br/>
-                            🚗 <strong>Fahrgemeinschaften:</strong> Wer mit dem Auto kommt, bietet Plätze an – alle anderen können direkt eine Mitfahrt anfragen.<br/>
-                            🚆 <strong>Zugverbindungen:</strong> Trage deine Verbindung ein um Reisepartner zu finden!<br/>
-                            🎲 <strong>Spiele:</strong> Trage ein was du mitbringst oder wünsch dir ein Spiel!<br/><br/>
-                            📍 Am Dorfplatz 6, 17291 Nordwestuckermark OT Sternhagen<br/>
-                            ☎️ 039856/34900<br/>
-                            🌐 <a href="https://www.freizeitheim-sternhagen.de" target="_blank" rel="noopener">www.freizeitheim-sternhagen.de</a>
-                        </p>
+                        <div className="info-text">
+                            {rooms.length > 0 && (
+                                <p>
+                                    {event.location_name || 'Das Haus'} bietet {rooms.length} Zimmer mit insgesamt {rooms.reduce((n, r) => n + (r.beds || 0), 0)} Betten.
+                                    {houseFloorSummary(rooms).map(f => (
+                                        <React.Fragment key={f.floor}><br/><strong>{f.label}:</strong> {f.text}</React.Fragment>
+                                    ))}
+                                </p>
+                            )}
+                            {event.house_info && event.house_info.trim() && event.house_info.trim().split(/\n\s*\n/).map((para, i) => (
+                                <p key={i}>
+                                    {para.split('\n').map((line, j) => (
+                                        <React.Fragment key={j}>{j > 0 && <br/>}{renderInfoLine(line)}</React.Fragment>
+                                    ))}
+                                </p>
+                            ))}
+                            {(event.check_in_time || event.check_out_time) && (
+                                <p>
+                                    ⏰ {event.check_in_time && <strong>Check-in ab {String(event.check_in_time).slice(0, 5)} Uhr</strong>}
+                                    {event.check_in_time && event.check_out_time && ' · '}
+                                    {event.check_out_time && <strong>Check-out bis {String(event.check_out_time).slice(0, 5)} Uhr</strong>}
+                                </p>
+                            )}
+                            <p>
+                                🔒 <strong>Zimmer-Optionen:</strong> Beim Buchen kannst du restliche Betten blockieren oder als Frauen-/Männerzimmer markieren.<br/>
+                                🚗 <strong>Fahrgemeinschaften:</strong> Wer mit dem Auto kommt, bietet Plätze an – alle anderen können direkt eine Mitfahrt anfragen.<br/>
+                                🚆 <strong>Zugverbindungen:</strong> Trage deine Verbindung ein um Reisepartner zu finden!<br/>
+                                🎲 <strong>Spiele:</strong> Trage ein was du mitbringst oder wünsch dir ein Spiel!
+                            </p>
+                            {(event.location_address || event.location_url) && (
+                                <p>
+                                    {event.location_address && <>📍 {event.location_address.split(/\n+/).map(x => x.trim()).filter(Boolean).join(', ')}</>}
+                                    {event.location_address && event.location_url && <br/>}
+                                    {event.location_url && <>🌐 <a href={event.location_url} target="_blank" rel="noopener">{event.location_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a></>}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     {/* Modal */}

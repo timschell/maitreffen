@@ -2927,6 +2927,7 @@
 					pickupRequired: event?.pickup_required || false,
 					checkInTime: event?.check_in_time || '16:00',
 					checkOutTime: event?.check_out_time || '11:00',
+					houseInfo: event?.house_info || '',
 				});
 				const [saving, setSaving] = useState(false);
 
@@ -3171,6 +3172,23 @@
 										</label>
 										<small style={{color: '#666', fontSize: '0.8rem', display: 'block', marginTop: '0.25rem'}}>
 											Wenn aktiv, wird beim Buchen der „Abholung gewünscht“-Haken automatisch vorausgewählt (Gast kann ihn abwählen, z.B. bei Taxi).
+										</small>
+									</div>
+								</div>
+
+								<div className="form-section">
+									<div className="form-section-title">ℹ️ Über das Haus</div>
+									<div className="form-group">
+										<label>Infos zum Haus</label>
+										<textarea
+											value={formData.houseInfo}
+											onChange={(e) => updateField('houseInfo', e.target.value)}
+											rows={8}
+											placeholder={'🛏️ **Bettwäsche** bitte mitbringen\n👟 **Hausschuhe** sind Pflicht\n☎️ Hausleitung: 0151 …'}
+										/>
+										<small style={{color: '#666', fontSize: '0.8rem', display: 'block', marginTop: '0.25rem'}}>
+											Erscheint unten auf der Buchungsseite. Eine Zeile pro Hinweis, **fett** mit Sternchen, Leerzeile = Absatz.
+											Zimmer-/Bettenzahl, Check-in/-out, Adresse und Website werden automatisch aus den Event-Daten und Zimmern ergänzt.
 										</small>
 									</div>
 								</div>
