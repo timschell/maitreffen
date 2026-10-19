@@ -1331,6 +1331,9 @@ app.post('/api/admin/users/:id/admin', adminAuth, async (req, res) => {
 
 // ==================== BUCHUNGEN ====================
 
+// Freie Mitfahrplätze immer auf 0–6 begrenzen (verhindert z. B. „12“ durch Vertippen).
+const clampSeats = (v) => Math.min(6, Math.max(0, parseInt(v, 10) || 0));
+
 // Alle Buchungen abrufen (für aktuelles Event)
 app.get('/api/bookings', async (req, res) => {
   if (!req.eventId) {
@@ -1576,7 +1579,7 @@ app.post('/api/bookings/:bedId', async (req, res) => {
                     can_offer_ride = $10, seats_available = $11, departure_city = $12,
                     train_station = $13, train_time = $14, train_number = $15, arrival_station = $16,
                     user_id = COALESCE($17, bookings.user_id)
-    `, [req.eventId, bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, arrivalStation || null, uid]);
+    `, [req.eventId, bedId, name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, clampSeats(seatsAvailable), departureCity || null, trainStation || null, trainTime || null, trainNumber || null, arrivalStation || null, uid]);
     
     // Zimmer-Einschränkung setzen
     if (roomRestriction && roomRestriction !== 'none' && roomBeds && Array.isArray(roomBeds)) {
@@ -1831,7 +1834,7 @@ app.post('/api/bookings/:bedId/claim', async (req, res) => {
           can_offer_ride = $8, seats_available = $9, departure_city = $10,
           train_station = $11, train_time = $12, train_number = $13, arrival_station = $16
       WHERE event_id = $14 AND bed_id = $15 AND status IN ('women_only', 'men_only')
-    `, [name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, seatsAvailable || 0, departureCity || null, trainStation || null, trainTime || null, trainNumber || null, req.eventId, bedId, arrivalStation || null]);
+    `, [name.trim(), arrivalDate || null, departureDate || null, arrivalTime || null, departureTime || null, transport || null, needsPickup || false, canOfferRide || false, clampSeats(seatsAvailable), departureCity || null, trainStation || null, trainTime || null, trainNumber || null, req.eventId, bedId, arrivalStation || null]);
     
     res.json({ success: true, bedId, name });
   } catch (err) {

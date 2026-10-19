@@ -3776,7 +3776,7 @@
                                 <div className="extra-details carpool">
                                     <div className="form-group">
                                         <label>Freie Plätze</label>
-                                        <input type="number" min="1" max="6" value={seatsAvailable} onChange={e => setSeatsAvailable(parseInt(e.target.value) || 1)} disabled={saving} />
+                                        <select value={Math.min(6, Math.max(1, seatsAvailable || 1))} onChange={e => setSeatsAvailable(parseInt(e.target.value, 10) || 1)} disabled={saving}>{[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}</select>
                                     </div>
                                     <div className="form-group">
                                         <label>Abfahrt von</label>
