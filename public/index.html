@@ -1141,6 +1141,8 @@
 
         .account-link { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #e6e6e6; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
         .account-link-hint { font-size: 0.78rem; color: var(--text-muted); }
+        .reg-link { margin-top: 0.4rem; flex-wrap: wrap; }
+        .reg-link-select { flex: 1; min-width: 0; font-size: 16px; padding: 0.3rem 0.4rem; border-radius: 6px; border: 1px solid #ddd; background: #fff; }
         .account-link-ok { font-size: 0.82rem; font-weight: 600; color: #1f7a44; }
         .account-link-other { font-size: 0.82rem; color: var(--text-muted); }
         .account-link-btn { background: none; border: none; color: var(--text-muted); text-decoration: underline; cursor: pointer; font-size: 0.8rem; padding: 0; font-family: inherit; }
@@ -2323,6 +2325,11 @@
             // verschiedene Anmeldungen (z. B. zwei „Lauras"), wird 'ambiguous' zurückgegeben.
             const regStatusFor = (booking) => {
                 if (!regStatus.authorized || !booking) return null;
+                // 0) Vom Vorstand manuell zugeordnete Anmeldung hat Vorrang
+                if (booking.registrationId) {
+                    const p = regStatus.people.find(x => x.regId === booking.registrationId);
+                    if (p) return p.status;
+                }
                 if (booking.userId && regStatus.byUser[booking.userId]) return regStatus.byUser[booking.userId];
                 const n = normalizeName(booking.name);
                 if (!n) return 'none';
@@ -2346,6 +2353,34 @@
                     const res = await fetch(`${API_URL}/bookings/${encodeURIComponent(bedId)}/${path}`, { method: 'POST', credentials: 'include' });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok) { alert(data.error || 'Zuordnung fehlgeschlagen'); }
+                    else { await loadBookings(); await loadRegStatus(); }
+                } catch { alert('Zuordnung fehlgeschlagen'); }
+                finally { setLinkSaving(false); }
+            };
+
+            // Verbindliche Anmeldungen für die Auswahl im Bett-Fenster (eine Option pro Anmeldung)
+            const registrationOptions = (() => {
+                const map = new Map();
+                regStatus.people.forEach(p => {
+                    if (!map.has(p.regId)) map.set(p.regId, { regId: p.regId, status: p.status, names: [] });
+                    const label = p.display || p.name;
+                    const e = map.get(p.regId);
+                    if (!e.names.includes(label)) e.names.push(label);
+                });
+                return [...map.values()].sort((a, b) => a.names[0].localeCompare(b.names[0], 'de'));
+            })();
+
+            const linkBookingRegistration = async (bedId, registrationId) => {
+                if (linkSaving || !bedId) return;
+                setLinkSaving(true);
+                try {
+                    const res = await fetch(`${API_URL}/bookings/${encodeURIComponent(bedId)}/link-registration`, {
+                        method: 'POST', credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ registrationId: registrationId || null })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) alert(data.error || 'Zuordnung fehlgeschlagen');
                     else { await loadBookings(); await loadRegStatus(); }
                 } catch { alert('Zuordnung fehlgeschlagen'); }
                 finally { setLinkSaving(false); }
@@ -4334,6 +4369,19 @@
                                                         <button type="button" className="account-link-btn primary" disabled={linkSaving} onClick={() => linkBookingAccount(selectedBed, false)}>🔗 Diese Buchung meinem Account zuordnen</button>
                                                     )}
                                                 </div>
+                                                {regStatus.authorized && (
+                                                    <div className="account-link reg-link">
+                                                        <span className="account-link-hint">📋 Anmeldung (Vorstand):</span>
+                                                        <select className="reg-link-select" disabled={linkSaving}
+                                                            value={selectedBooking.registrationId || ''}
+                                                            onChange={e => linkBookingRegistration(selectedBed, e.target.value)}>
+                                                            <option value="">{(() => { const st = regStatusFor({ ...selectedBooking, registrationId: null }); return st === 'paid' || st === 'open' ? 'automatisch (Name/Account erkannt)' : '— nicht zugeordnet —'; })()}</option>
+                                                            {registrationOptions.map(o => (
+                                                                <option key={o.regId} value={o.regId}>{o.names.join(' + ')} · {o.status === 'paid' ? 'bezahlt' : 'offen'}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 

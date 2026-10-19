@@ -215,6 +215,9 @@ async function initDB() {
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS departure_time TIME DEFAULT NULL`);
     // Account-Bindung: verknüpft eine (Freitext-)Buchung mit dem Better-Auth-Nutzer der neuen App.
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_id VARCHAR(100) DEFAULT NULL`);
+    // Manuelle Zuordnung Buchung → verbindliche Anmeldung (ID aus der neuen App), z. B. für
+    // Gäste ohne Account, die im Bett einen anderen Namen/Spitznamen verwenden. Nur Vorstand.
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS registration_id VARCHAR(100) DEFAULT NULL`);
 
     // Mitfahr-Anfragen: wer moechte bei welchem Angebot mitfahren.
     // Die freien Plaetze ergeben sich aus seats_available minus zugesagter Anfragen –
@@ -1362,7 +1365,8 @@ app.get('/api/bookings', async (req, res) => {
         arrivalTime: row.arrival_time,
         departureTime: row.departure_time,
         linked: !!row.user_id,
-        userId: showUserId ? row.user_id : null
+        userId: showUserId ? row.user_id : null,
+        registrationId: viewerIsAdmin ? (row.registration_id || null) : null
       };
     });
     res.json(bookings);
@@ -1856,6 +1860,28 @@ app.post('/api/bookings/:bedId/link-account', async (req, res) => {
     res.json({ success: true, userId: user.id });
   } catch (err) {
     console.error('link-account fehlgeschlagen:', err.message);
+    res.status(500).json({ error: 'Datenbankfehler' });
+  }
+});
+
+// Buchung manuell einer verbindlichen Anmeldung zuordnen (nur Vorstand). registrationId
+// null/leer löst die Zuordnung wieder.
+app.post('/api/bookings/:bedId/link-registration', async (req, res) => {
+  const user = await getSession(req);
+  if (!user || !isAdminUser(user)) return res.status(403).json({ error: 'Nur für den Vorstand' });
+  if (!req.eventId) return res.status(404).json({ error: 'Kein Event gefunden' });
+  const { bedId } = req.params;
+  const regId = typeof req.body?.registrationId === 'string' && req.body.registrationId.trim()
+    ? req.body.registrationId.trim().slice(0, 100) : null;
+  try {
+    const r = await pool.query(
+      "UPDATE bookings SET registration_id = $1 WHERE event_id = $2 AND bed_id = $3 AND status = 'booked' RETURNING bed_id",
+      [regId, req.eventId, bedId]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Buchung nicht gefunden' });
+    res.json({ success: true, registrationId: regId });
+  } catch (err) {
+    console.error('link-registration fehlgeschlagen:', err.message);
     res.status(500).json({ error: 'Datenbankfehler' });
   }
 });
